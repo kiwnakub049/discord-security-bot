@@ -1,0 +1,133 @@
+import { config } from "../config.js";
+import { db } from "./db.js";
+
+/**
+ * ปรับ config สดจากหน้า Settings — เก็บทับในตาราง settings ของ data/bot.db
+ * โหลด override ตอนบูต (applyOverrides) แล้ว mutate object config ตรง ๆ
+ * (ทุกโมดูลอ่าน config ตอนใช้งาน เลยมีผลทันทีไม่ต้อง restart)
+ */
+
+type Item = {
+  key: string;
+  label: string;
+  type: "bool" | "int" | "select";
+  options?: string[];
+};
+
+export const SECTIONS: { section: string; items: Item[] }[] = [
+  {
+    section: "Anti-raid",
+    items: [
+      { key: "antiRaid.enabled", label: "เปิดใช้งาน", type: "bool" },
+      { key: "antiRaid.joinThreshold", label: "คนเข้าเกิน (คน)", type: "int" },
+      { key: "antiRaid.joinWindowMs", label: "ภายใน (มิลลิวินาที)", type: "int" },
+      { key: "antiRaid.action", label: "การลงโทษ", type: "select", options: ["kick", "ban", "lockdown"] },
+    ],
+  },
+  {
+    section: "Anti-spam",
+    items: [
+      { key: "antiSpam.enabled", label: "เปิดใช้งาน", type: "bool" },
+      { key: "antiSpam.maxMessages", label: "ข้อความสูงสุด/หน้าต่าง", type: "int" },
+      { key: "antiSpam.windowMs", label: "หน้าต่างเวลา (ms)", type: "int" },
+      { key: "antiSpam.maxMentions", label: "mention สูงสุด/ข้อความ", type: "int" },
+      { key: "antiSpam.timeoutMs", label: "timeout (ms)", type: "int" },
+    ],
+  },
+  {
+    section: "Auto-mod",
+    items: [
+      { key: "autoMod.enabled", label: "เปิดใช้งาน", type: "bool" },
+      { key: "autoMod.blockInvites", label: "บล็อก invite เซิร์ฟเวอร์อื่น", type: "bool" },
+      { key: "autoMod.blockPhishing", label: "บล็อกลิงก์ phishing", type: "bool" },
+    ],
+  },
+  {
+    section: "Logging",
+    items: [
+      { key: "logging.memberJoinLeave", label: "เข้า-ออกเซิร์ฟเวอร์", type: "bool" },
+      { key: "logging.voice", label: "ห้องเสียง", type: "bool" },
+      { key: "logging.auditLog", label: "permission/audit", type: "bool" },
+    ],
+  },
+  {
+    section: "Warnings",
+    items: [{ key: "warnings.enabled", label: "เปิดระบบเตือน", type: "bool" }],
+  },
+];
+
+const ALL = SECTIONS.flatMap((s) => s.items);
+const ITEM_BY_KEY = new Map(ALL.map((i) => [i.key, i]));
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const root = config as any;
+
+function getPath(p: string): unknown {
+  return p.split(".").reduce((o, k) => (o == null ? o : o[k]), root);
+}
+function setPath(p: string, v: unknown): void {
+  const ks = p.split(".");
+  const last = ks.pop() as string;
+  const o = ks.reduce((o, k) => o[k], root);
+  o[last] = v;
+}
+
+function coerce(item: Item, v: unknown): unknown {
+  if (item.type === "bool") return Boolean(v);
+  if (item.type === "int") {
+    const n = Math.floor(Number(v));
+    return Number.isFinite(n) ? Math.max(0, n) : 0;
+  }
+  if (item.type === "select") {
+    return item.options?.includes(String(v)) ? String(v) : getPath(item.key);
+  }
+  return v;
+}
+
+export function getSettings() {
+  return SECTIONS.map((s) => ({
+    section: s.section,
+    items: s.items.map((i) => ({ ...i, value: getPath(i.key) })),
+  }));
+}
+
+const upsertSetting = db.prepare(
+  `INSERT INTO settings (key, value) VALUES (?, ?)
+   ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+);
+
+function persist(): void {
+  const tx = db.transaction(() => {
+    for (const i of ALL) {
+      upsertSetting.run(i.key, JSON.stringify(getPath(i.key)));
+    }
+  });
+  tx();
+}
+
+export function updateSettings(patch: Record<string, unknown>): void {
+  for (const [k, v] of Object.entries(patch)) {
+    const item = ITEM_BY_KEY.get(k);
+    if (item) setPath(k, coerce(item, v));
+  }
+  persist();
+}
+
+/** โหลด override จาก DB ตอนบูต */
+export function applyOverrides(): void {
+  const rows = db.prepare("SELECT key, value FROM settings").all() as {
+    key: string;
+    value: string;
+  }[];
+  if (!rows.length) return;
+  for (const { key, value } of rows) {
+    const item = ITEM_BY_KEY.get(key);
+    if (!item) continue;
+    try {
+      setPath(key, coerce(item, JSON.parse(value)));
+    } catch {
+      /* ค่าเสีย — ข้าม */
+    }
+  }
+  console.log("⚙️  โหลด settings override จาก DB แล้ว");
+}

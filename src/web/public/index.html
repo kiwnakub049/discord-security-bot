@@ -1,0 +1,994 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <title>Security Bot — Logs</title>
+    <style>
+      :root {
+        --bg: #0f1117;
+        --panel: #1a1d27;
+        --border: #2a2e3c;
+        --text: #e4e6eb;
+        --muted: #8b8f9c;
+        --info: #5865f2;
+        --warn: #fee75c;
+        --alert: #ed4245;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        display: flex;
+        min-height: 100vh;
+      }
+
+      /* ---------- Sidebar ---------- */
+      .sidebar {
+        width: 240px;
+        flex-shrink: 0;
+        background: #14161f;
+        border-right: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        padding: 18px 12px;
+        position: sticky;
+        top: 0;
+        height: 100vh;
+      }
+      .brand {
+        font-size: 17px; font-weight: 700; padding: 4px 10px 18px;
+        display: flex; align-items: center; gap: 9px;
+      }
+      .brand img { width: 26px; height: 26px; }
+      .nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+      button.cat {
+        display: flex; align-items: center; gap: 10px;
+        background: transparent; border: none; color: var(--muted);
+        padding: 10px 12px; border-radius: 9px; cursor: pointer;
+        font-size: 14px; text-align: left; width: 100%;
+      }
+      button.cat:hover { background: var(--panel); color: var(--text); }
+      button.cat.active { background: var(--info); color: #fff; }
+      button.cat .lbl { flex: 1; }
+      .side-foot { border-top: 1px solid var(--border); padding-top: 12px; }
+      .user { font-size: 13px; color: var(--muted); padding: 4px 10px 10px; display: flex; align-items: center; gap: 7px; }
+      .user b { color: var(--text); }
+      button.logout {
+        width: 100%; background: var(--panel); border: 1px solid var(--border);
+        color: var(--text); padding: 9px; border-radius: 9px; cursor: pointer; font-size: 13px;
+      }
+      button.logout:hover { border-color: var(--alert); color: #ff9a9c; }
+
+      /* ---------- Main ---------- */
+      .main { flex: 1; padding: 22px 26px; max-width: 1000px; }
+      header { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+      h1 { font-size: 21px; display: flex; align-items: center; gap: 8px; }
+      .live {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: 13px; color: var(--muted); margin-left: auto;
+      }
+      .dot { width: 9px; height: 9px; border-radius: 50%; background: #555; }
+      .dot.on { background: #3ba55d; box-shadow: 0 0 8px #3ba55d; }
+      .controls { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+      .filters { display: flex; gap: 6px; }
+      button.f {
+        background: var(--panel); border: 1px solid var(--border); color: var(--text);
+        padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: 13px;
+      }
+      button.f.active { background: var(--info); border-color: var(--info); }
+      input#search {
+        width: 100%; background: var(--panel);
+        border: 1px solid var(--border); color: var(--text);
+        padding: 8px 12px 8px 34px; border-radius: 8px; font-size: 13px;
+      }
+      .log {
+        background: var(--panel); border: 1px solid var(--border);
+        border-left-width: 4px; border-radius: 8px;
+        padding: 11px 14px; margin-bottom: 8px;
+        animation: in 0.25s ease;
+      }
+      @keyframes in { from { opacity: 0; transform: translateY(-6px); } }
+      .log.info { border-left-color: var(--info); }
+      .log.warn { border-left-color: var(--warn); }
+      .log.alert { border-left-color: var(--alert); }
+      .log .top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+      .log .title { font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+      .log.info .title .ico { color: var(--info); }
+      .log.warn .title .ico { color: var(--warn); }
+      .log.alert .title .ico { color: var(--alert); }
+      .log .chip {
+        display: inline-flex; align-items: center; gap: 4px;
+        font-size: 11px; color: var(--muted); background: var(--bg);
+        border: 1px solid var(--border); border-radius: 20px; padding: 2px 8px;
+      }
+      .log .time { font-size: 12px; color: var(--muted); margin-left: auto; }
+      .log .desc { font-size: 13px; color: var(--muted); margin-top: 4px; white-space: pre-wrap; }
+      .fields { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 7px; }
+      .field {
+        background: #0f1117; border: 1px solid var(--border);
+        border-radius: 6px; padding: 3px 9px; font-size: 12px;
+      }
+      .field b { color: var(--muted); font-weight: 500; }
+      .empty { text-align: center; color: var(--muted); padding: 40px; }
+
+      /* แถบบนสำหรับมือถือ + backdrop (ซ่อนบน desktop) */
+      .mobile-top { display: none; }
+      .backdrop { display: none; }
+
+      @media (max-width: 720px) {
+        .mobile-top {
+          display: flex; align-items: center; gap: 12px;
+          position: fixed; top: 0; left: 0; right: 0; height: 50px;
+          background: #14161f; border-bottom: 1px solid var(--border);
+          padding: 0 14px; z-index: 45;
+        }
+        .mobile-top .mtitle { font-weight: 700; display: flex; align-items: center; gap: 8px; font-size: 15px; }
+        .mobile-top .mtitle img { width: 22px; height: 22px; }
+        .hamburger { background: none; border: none; color: var(--text); cursor: pointer; display: flex; padding: 4px; }
+
+        /* sidebar กลายเป็นเมนูสไลด์เข้า-ออก */
+        .sidebar {
+          position: fixed; top: 0; left: 0; height: 100vh; width: 250px;
+          transform: translateX(-100%); transition: transform 0.25s ease; z-index: 50;
+        }
+        .sidebar.open { transform: translateX(0); }
+        .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 48; }
+        .backdrop.show { display: block; }
+
+        .main { padding: 64px 14px 24px; max-width: 100%; }
+        header h1 { font-size: 18px; }
+        .ov-grid, .set-grid, .mgrid { grid-template-columns: 1fr; }
+        .ov-stats .ov-stat { min-width: calc(50% - 5px); }
+      }
+
+      /* ---------- ไอคอน (lucide) ---------- */
+      .ico { flex-shrink: 0; }
+      .search-wrap { position: relative; flex: 1; min-width: 180px; display: flex; }
+      .search-wrap .search-ico {
+        position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+        color: var(--muted); display: flex; pointer-events: none;
+      }
+
+      /* ---------- หน้าบัตรสมาชิก ---------- */
+      .nav-extra { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+      .mgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+      .mcard { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+      .mcard img { width: 100%; display: block; }
+      .minfo { padding: 10px 12px; }
+      .mname { font-weight: 600; display: flex; align-items: center; gap: 6px; }
+      .mno { color: var(--muted); font-weight: 400; font-size: 12px; }
+      .mbadges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+      .vb {
+        font-size: 11px; padding: 2px 8px; border-radius: 20px;
+        border: 1px solid var(--border); color: var(--muted);
+        display: inline-flex; align-items: center; gap: 4px;
+      }
+      .vb.on { background: rgba(59,165,93,0.14); border-color: #3ba55d; color: #7ee2a8; }
+      .vb.red { background: rgba(237,66,69,0.14); border-color: var(--alert); color: #ff9a9c; }
+      button.mf {
+        background: var(--panel); border: 1px solid var(--border); color: var(--text);
+        padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: 13px;
+      }
+      button.mf.active { background: var(--info); border-color: var(--info); }
+      #catFilter { flex-wrap: wrap; margin-bottom: 10px; }
+      button.cf {
+        display: inline-flex; align-items: center; gap: 6px;
+        background: var(--panel); border: 1px solid var(--border); color: var(--text);
+        padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 13px;
+      }
+      button.cf.active { background: var(--info); border-color: var(--info); }
+
+      /* ---------- หน้าภาพรวม ---------- */
+      .ov-stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+      .ov-stat { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; flex: 1; min-width: 120px; }
+      .ov-stat .n { font-size: 26px; font-weight: 700; }
+      .ov-stat .l { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 5px; margin-top: 2px; }
+      .ov-stat.alert .n { color: var(--alert); }
+      .ov-stat.warn .n { color: var(--warn); }
+      .ov-stat.on .n { color: #3ba55d; }
+      .ov-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+      .ov-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+      .ov-title { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
+      .bars { display: flex; align-items: flex-end; gap: 3px; height: 120px; }
+      .bars .bar { flex: 1; background: var(--info); border-radius: 3px 3px 0 0; min-height: 2px; }
+      .hbars { display: flex; flex-direction: column; gap: 8px; }
+      .hbar-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+      .hbar-label { width: 78px; color: var(--muted); }
+      .hbar-track { flex: 1; background: var(--bg); border-radius: 6px; height: 14px; overflow: hidden; }
+      .hbar-fill { height: 100%; background: var(--info); border-radius: 6px; min-width: 2px; }
+      .hbar-val { width: 30px; text-align: right; }
+      .ov-alert, .ov-voice { font-size: 13px; padding: 5px 0; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+      .ov-alert:last-child, .ov-voice:last-child { border-bottom: none; }
+      .ov-alert .time { margin-left: auto; color: var(--muted); font-size: 11px; }
+      .muted { color: var(--muted); font-size: 13px; }
+      @media (max-width: 720px) { .ov-grid { grid-template-columns: 1fr; } }
+
+      /* ---------- ปุ่มสั่งการ + toast ---------- */
+      .mactions { display: flex; gap: 5px; margin-top: 9px; flex-wrap: wrap; }
+      .mactions button, button.act {
+        font-size: 11px; padding: 4px 9px; border-radius: 7px;
+        border: 1px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer;
+      }
+      .mactions button:hover, button.act:hover { border-color: var(--info); }
+      .mactions button.danger { color: #ff9a9c; }
+      .mactions button.danger:hover { border-color: var(--alert); }
+      button.act { margin-right: 6px; padding: 8px 14px; font-size: 13px; }
+      #toast {
+        position: fixed; bottom: 22px; left: 50%;
+        transform: translateX(-50%) translateY(20px);
+        background: var(--panel); border: 1px solid var(--info); color: var(--text);
+        padding: 11px 20px; border-radius: 10px; font-size: 14px;
+        opacity: 0; transition: all 0.25s; pointer-events: none; z-index: 100;
+        box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+      }
+      #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+      /* ---------- หน้า Settings ---------- */
+      .set-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+      .set-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+      .set-row:last-child { border-bottom: none; }
+      .set-row input[type="number"], .set-row select {
+        background: var(--bg); border: 1px solid var(--border); color: var(--text);
+        border-radius: 7px; padding: 5px 8px; font-size: 13px; width: 140px;
+      }
+      .set-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--info); cursor: pointer; }
+      .urow { display: flex; align-items: center; gap: 8px; justify-content: space-between; padding: 5px 0; }
+      .urow input { background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 7px; padding: 6px 9px; font-size: 13px; }
+      @media (max-width: 720px) { .set-grid { grid-template-columns: 1fr; } }
+
+      /* ---------- เฟส 4: แจ้งเตือน + log tools ---------- */
+      button.iconbtn {
+        background: var(--panel); border: 1px solid var(--border); color: var(--muted);
+        padding: 7px 11px; border-radius: 8px; cursor: pointer; font-size: 13px;
+        display: inline-flex; align-items: center; gap: 5px;
+      }
+      button.iconbtn:hover { color: var(--text); }
+      button.iconbtn.on { color: #7ee2a8; border-color: #3ba55d; }
+      select#timeFilter {
+        background: var(--panel); border: 1px solid var(--border); color: var(--text);
+        padding: 7px 10px; border-radius: 8px; font-size: 13px;
+      }
+      .log.clickable { cursor: pointer; }
+      .log.clickable:hover { border-color: var(--info); }
+    </style>
+  </head>
+  <body>
+    <div class="mobile-top">
+      <button class="hamburger" id="hamburger"></button>
+      <span class="mtitle"><img src="/icon.svg" alt="" /> Security Bot</span>
+    </div>
+    <div class="backdrop" id="backdrop"></div>
+    <aside class="sidebar" id="sidebar">
+      <div class="brand"><img src="/icon.svg" alt="" /> Security Bot</div>
+      <button class="cat" id="overviewBtn" style="margin-bottom: 6px"></button>
+      <nav class="nav" id="nav"></nav>
+      <div class="nav-extra">
+        <button class="cat" id="membersBtn"></button>
+        <button class="cat" id="settingsBtn"></button>
+      </div>
+      <div class="side-foot">
+        <div class="user" id="userBox"></div>
+        <button class="logout" id="logoutBtn">ออกจากระบบ</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header>
+        <h1 id="catTitle"></h1>
+        <span class="live"><span class="dot" id="dot"></span><span id="liveText">กำลังเชื่อมต่อ…</span></span>
+        <button class="iconbtn" id="alertBtn" title="เปิด/ปิดแจ้งเตือนเมื่อมี alert"></button>
+      </header>
+
+      <div id="overviewView"></div>
+
+      <div id="logsView">
+        <div class="filters" id="catFilter"></div>
+        <div class="controls">
+          <div class="filters">
+            <button class="f active" data-level="">ทุกระดับ</button>
+            <button class="f" data-level="info">Info</button>
+            <button class="f" data-level="warn">Warn</button>
+            <button class="f" data-level="alert">Alert</button>
+          </div>
+          <div class="search-wrap">
+            <span class="search-ico" id="searchIco"></span>
+            <input id="search" placeholder="ค้นหา title / รายละเอียด / user…" />
+          </div>
+          <select id="timeFilter">
+            <option value="">ทุกเวลา</option>
+            <option value="1h">1 ชม.</option>
+            <option value="24h">24 ชม.</option>
+            <option value="7d">7 วัน</option>
+          </select>
+          <button class="iconbtn" id="exportBtn"></button>
+        </div>
+        <div id="logs"></div>
+      </div>
+
+      <div id="settingsView" style="display: none"></div>
+
+      <div id="membersView" style="display: none">
+        <div class="controls">
+          <div class="filters">
+            <button class="mf active" data-mf="">ทั้งหมด</button>
+            <button class="mf" data-mf="voice">อยู่ในห้องเสียง</button>
+            <button class="mf" data-mf="mute">ไมค์ปิด</button>
+            <button class="mf" data-mf="deaf">หูปิด</button>
+            <button class="mf" data-mf="offline">ไม่อยู่ในห้องเสียง</button>
+          </div>
+          <div class="search-wrap">
+            <span class="search-ico" id="mSearchIco"></span>
+            <input id="mSearch" placeholder="ค้นหาชื่อ / หมายเลข…" />
+          </div>
+        </div>
+        <div class="mgrid" id="mgrid"></div>
+        <div class="empty" id="mEmpty" style="display: none"></div>
+      </div>
+    </main>
+
+    <script>
+      // ไอคอน lucide (เก็บเฉพาะส่วนข้างใน <svg>) แทน emoji ทั้งหมด
+      const ICONS = {
+        list: '<path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/>',
+        "shield-check": '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+        users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/>',
+        "volume-2": '<path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 18.364a9 9 0 0 0 0-12.728"/>',
+        "key-round": '<path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/>',
+        "settings-2": '<path d="M14 17H5"/><path d="M19 7h-9"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/>',
+        info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+        "triangle-alert": '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+        siren: '<path d="M7 18v-6a5 5 0 1 1 10 0v6"/><path d="M5 21a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2z"/><path d="M21 12h1"/><path d="M18.5 4.5 18 5"/><path d="M2 12h1"/><path d="M12 2v1"/><path d="m4.929 4.929.707.707"/><path d="M12 12v6"/>',
+        "circle-user": '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"/>',
+        search: '<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
+        "layout-dashboard": '<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>',
+        "chart-column": '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+        bell: '<path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/>',
+        download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
+        menu: '<line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/>',
+      };
+      function svg(name, size = 16) {
+        return `<svg class="ico" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ""}</svg>`;
+      }
+      const LEVEL_ICON = { info: "info", warn: "triangle-alert", alert: "siren" };
+
+      // หมวดหมู่ (ตรงกับ LogCategory ฝั่ง server)
+      const CATS = [
+        { key: "", label: "ทั้งหมด", icon: "list" },
+        { key: "security", label: "ความปลอดภัย", icon: "shield-check" },
+        { key: "member", label: "สมาชิก", icon: "users" },
+        { key: "voice", label: "ห้องเสียง", icon: "volume-2" },
+        { key: "audit", label: "สิทธิ์ / จัดการ", icon: "key-round" },
+        { key: "system", label: "ระบบ", icon: "settings-2" },
+      ];
+      const CAT_BY_KEY = Object.fromEntries(CATS.map((c) => [c.key, c]));
+
+      let all = [];
+      let category = "";
+      let level = "";
+      let search = "";
+      let mode = "logs"; // "logs" | "members"
+      let membersData = [];
+      let memberFilter = ""; // "" | voice | mute | deaf | offline
+      let memberSearch = "";
+      let chipFilter = ""; // chip กรองย่อย (หมวดบนหน้า "ทั้งหมด" / event ภายในหมวด)
+      let timeFilter = ""; // กรองช่วงเวลา
+      let alertsOn = localStorage.getItem("alertsOn") === "1"; // แจ้งเตือนเสียง/desktop
+
+      const el = (id) => document.getElementById(id);
+      const catOf = (e) => e.category || "system"; // เผื่อ log เก่าที่ยังไม่มี category
+
+      function esc(s) {
+        return String(s).replace(/[&<>"']/g, (c) =>
+          ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+        );
+      }
+      function fmtTime(ts) {
+        return new Date(ts).toLocaleString("th-TH", { hour12: false });
+      }
+
+      // ---- สร้างเมนูหมวดหมู่ฝั่งซ้าย ----
+      el("nav").innerHTML = CATS.map(
+        (c) => `
+        <button class="cat ${c.key === "" ? "active" : ""}" data-cat="${c.key}">
+          ${svg(c.icon, 18)}<span class="lbl">${c.label}</span>
+        </button>`,
+      ).join("");
+
+      document.querySelectorAll("#nav button.cat").forEach((b) => {
+        b.onclick = () => {
+          document.querySelectorAll("button.cat").forEach((x) => x.classList.remove("active"));
+          b.classList.add("active");
+          category = b.dataset.cat;
+          const c = CAT_BY_KEY[category];
+          el("catTitle").innerHTML = svg(c.icon, 20) + esc(c.label);
+          setMode("logs");
+          buildChips(category); // สร้าง chip ย่อยตามหมวดที่เลือก
+          render();
+        };
+      });
+
+      // ---- chip กรองย่อย (เปลี่ยนตามหมวดที่เลือกในเมนูซ้าย) ----
+      const EVENTS_BY_CAT = {
+        security: [["security_raid", "RAID"], ["security_spam", "สแปม"], ["security_automod", "Auto-mod"], ["security_warn", "เตือน"], ["security_newaccount", "Account ใหม่"], ["security_lockdown", "Lockdown"]],
+        member: [["member_join", "เข้าเซิร์ฟเวอร์"], ["member_leave", "ออกเซิร์ฟเวอร์"], ["member_register", "ลงทะเบียนบัตร"], ["member_issue", "ออกบัตร"]],
+        voice: [["voice_join", "เข้าห้อง"], ["voice_leave", "ออกห้อง"], ["voice_move", "ย้ายห้อง"], ["voice_mute", "ไมค์"], ["voice_deafen", "หูฟัง"], ["voice_server", "แอดมินสั่ง"], ["voice_stream", "Go Live"], ["voice_camera", "กล้อง"]],
+        audit: [["audit_ban", "แบน"], ["audit_unban", "ปลดแบน"], ["audit_kick", "เตะ"], ["audit_timeout", "Timeout"], ["audit_role", "Role"], ["audit_channel", "ห้อง/สิทธิ์"], ["audit_member", "แก้สมาชิก"], ["voice_lock", "ล็อกห้องเสียง"], ["voice_unlock", "ปลดล็อกเสียง"]],
+        system: [["system_online", "ออนไลน์"], ["system_login", "Login เว็บ"], ["system_lock", "ล็อก/ปลดล็อก"], ["system_settings", "ตั้งค่า"]],
+      };
+
+      function buildChips(cat) {
+        chipFilter = "";
+        let chips;
+        if (cat === "") {
+          chips = CATS.map((c) => [c.key, c.label, c.icon]); // หน้า "ทั้งหมด" → chip = หมวดใหญ่
+        } else {
+          chips = [["", "ทั้งหมด", CAT_BY_KEY[cat].icon], ...(EVENTS_BY_CAT[cat] || []).map(([k, l]) => [k, l, null])];
+        }
+        el("catFilter").innerHTML = chips
+          .map(
+            ([k, label, icon], i) =>
+              `<button class="cf ${i === 0 ? "active" : ""}" data-cf="${k}">${icon ? svg(icon, 14) : ""}${esc(label)}</button>`,
+          )
+          .join("");
+        document.querySelectorAll("#catFilter button.cf").forEach((b) => {
+          b.onclick = () => {
+            document.querySelectorAll("#catFilter button.cf").forEach((x) => x.classList.remove("active"));
+            b.classList.add("active");
+            chipFilter = b.dataset.cf;
+            render();
+          };
+        });
+      }
+      buildChips("");
+
+      // ---- ปุ่ม "ภาพรวม" ----
+      el("overviewBtn").innerHTML = svg("layout-dashboard", 18) + '<span class="lbl">ภาพรวม</span>';
+      el("overviewBtn").onclick = () => {
+        document.querySelectorAll("button.cat").forEach((x) => x.classList.remove("active"));
+        el("overviewBtn").classList.add("active");
+        el("catTitle").innerHTML = svg("layout-dashboard", 20) + "ภาพรวม";
+        setMode("overview");
+        fetchStats();
+      };
+
+      // ---- ปุ่ม "บัตรสมาชิก" ----
+      el("membersBtn").innerHTML = svg("users", 18) + '<span class="lbl">บัตรสมาชิก</span>';
+      el("membersBtn").onclick = () => {
+        document.querySelectorAll("button.cat").forEach((x) => x.classList.remove("active"));
+        el("membersBtn").classList.add("active");
+        el("catTitle").innerHTML = svg("users", 20) + "บัตรสมาชิก";
+        setMode("members");
+        fetchMembers();
+      };
+
+      // ---- ปุ่ม "ตั้งค่า" ----
+      el("settingsBtn").innerHTML = svg("settings-2", 18) + '<span class="lbl">ตั้งค่า</span>';
+      el("settingsBtn").onclick = () => {
+        document.querySelectorAll("button.cat").forEach((x) => x.classList.remove("active"));
+        el("settingsBtn").classList.add("active");
+        el("catTitle").innerHTML = svg("settings-2", 20) + "ตั้งค่า";
+        setMode("settings");
+        fetchSettings();
+      };
+
+      // ---- user + logout ----
+      fetch("/api/me")
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((me) => {
+          el("userBox").innerHTML = `${svg("circle-user", 16)}<b>${esc(me.username)}</b>`;
+        })
+        .catch(() => (location.href = "/login"));
+      el("logoutBtn").onclick = () => {
+        fetch("/logout", { method: "POST" }).finally(() => (location.href = "/login"));
+      };
+
+      // ---- ใส่ไอคอนให้ส่วนที่เป็น static ----
+      el("catTitle").innerHTML = svg("list", 20) + "ทั้งหมด";
+      el("searchIco").innerHTML = svg("search", 15);
+
+      // ---- render ----
+      const USER_FIELDS = ["User", "ผู้ทำ", "เป้าหมาย"];
+      function filteredLogs() {
+        const s = search.toLowerCase();
+        const cutoff =
+          timeFilter === "1h" ? Date.now() - 3600000 :
+          timeFilter === "24h" ? Date.now() - 86400000 :
+          timeFilter === "7d" ? Date.now() - 7 * 86400000 : 0;
+        return all.filter((e) => {
+          if (category && catOf(e) !== category) return false;
+          if (chipFilter) {
+            if (category === "") { if (catOf(e) !== chipFilter) return false; }
+            else if ((e.event || "") !== chipFilter) return false;
+          }
+          if (level && e.level !== level) return false;
+          if (cutoff && e.timestamp < cutoff) return false;
+          if (s) {
+            const hay = (e.title + (e.description || "") + e.fields.map((f) => f.name + f.value).join("")).toLowerCase();
+            if (!hay.includes(s)) return false;
+          }
+          return true;
+        });
+      }
+      function render() {
+        const list = filteredLogs();
+        const box = el("logs");
+        box.innerHTML = list.length
+          ? list
+              .map((e) => {
+                const c = CAT_BY_KEY[catOf(e)] || CAT_BY_KEY["system"];
+                const uf = e.fields.find((f) => USER_FIELDS.includes(f.name));
+                const uv = uf ? uf.value : "";
+                return `
+            <div class="log ${e.level}${uv ? " clickable" : ""}"${uv ? ` data-user="${esc(uv)}"` : ""}>
+              <div class="top">
+                <span class="title">${svg(LEVEL_ICON[e.level] || "info", 15)} ${esc(e.title)}</span>
+                <span class="chip">${svg(c.icon, 12)} ${c.label}</span>
+                <span class="time">${fmtTime(e.timestamp)}</span>
+              </div>
+              ${e.description ? `<div class="desc">${esc(e.description)}</div>` : ""}
+              ${
+                e.fields.length
+                  ? `<div class="fields">${e.fields
+                      .map((f) => `<span class="field"><b>${esc(f.name)}:</b> ${esc(f.value)}</span>`)
+                      .join("")}</div>`
+                  : ""
+              }
+            </div>`;
+              })
+              .join("")
+          : '<div class="empty">ยังไม่มี log ที่ตรงเงื่อนไข</div>';
+      }
+
+      // ---- สลับมุมมอง logs / บัตรสมาชิก ----
+      function setMode(m) {
+        mode = m;
+        el("overviewView").style.display = m === "overview" ? "" : "none";
+        el("logsView").style.display = m === "logs" ? "" : "none";
+        el("membersView").style.display = m === "members" ? "" : "none";
+        el("settingsView").style.display = m === "settings" ? "" : "none";
+      }
+
+      // ---- หน้า Settings ----
+      function settingRow(i) {
+        let input;
+        if (i.type === "bool") input = `<input type="checkbox" data-skey="${i.key}" ${i.value ? "checked" : ""}/>`;
+        else if (i.type === "select") input = `<select data-skey="${i.key}">${i.options.map((o) => `<option ${o === i.value ? "selected" : ""}>${o}</option>`).join("")}</select>`;
+        else input = `<input type="number" data-skey="${i.key}" value="${i.value}" min="0"/>`;
+        return `<div class="set-row"><span>${esc(i.label)}</span>${input}</div>`;
+      }
+      function renderSettings(sections, users) {
+        const secHtml = sections
+          .map((s) => `<div class="ov-card"><div class="ov-title">${svg("settings-2", 16)} ${esc(s.section)}</div>${s.items.map(settingRow).join("")}</div>`)
+          .join("");
+        const usersHtml = users
+          .map((u) => `<div class="urow"><span>${svg("circle-user", 14)} ${esc(u)}</span><button class="act" onclick="removeModUser('${esc(u)}')">ลบ</button></div>`)
+          .join("");
+        el("settingsView").innerHTML = `
+          <div class="set-grid">${secHtml}</div>
+          <button class="act" id="saveSettings" style="margin:14px 0">บันทึกการตั้งค่า</button>
+          <div class="ov-card">
+            <div class="ov-title">${svg("users", 16)} บัญชี mod (เข้า dashboard)</div>
+            <div id="userList">${usersHtml}</div>
+            <div class="urow" style="margin-top:10px">
+              <input id="newUser" placeholder="username" />
+              <input id="newPass" type="password" placeholder="รหัสผ่าน ≥ 8 ตัว" />
+              <button class="act" onclick="addModUser()">เพิ่มบัญชี</button>
+            </div>
+          </div>`;
+        el("saveSettings").onclick = saveSettings;
+      }
+      function saveSettings() {
+        const patch = {};
+        document.querySelectorAll("[data-skey]").forEach((inp) => {
+          patch[inp.dataset.skey] = inp.type === "checkbox" ? inp.checked : inp.type === "number" ? Number(inp.value) : inp.value;
+        });
+        postAction("/api/settings", patch).then((r) => toast(r.message || "บันทึกแล้ว"));
+      }
+      function fetchSettings() {
+        Promise.all([
+          fetch("/api/settings").then((r) => (r.status === 401 ? ((location.href = "/login"), []) : r.json())),
+          fetch("/api/users").then((r) => (r.ok ? r.json() : [])),
+        ]).then(([s, u]) => renderSettings(s, u)).catch(() => {});
+      }
+      async function addModUser() {
+        const u = el("newUser").value.trim();
+        const p = el("newPass").value;
+        if (!/^[A-Za-z0-9_.-]{3,32}$/.test(u) || p.length < 8) {
+          toast("username 3–32 ตัว (a-z 0-9 _ . -) + รหัสผ่าน ≥ 8 ตัว");
+          return;
+        }
+        const r = await postAction("/api/users/add", { username: u, password: p });
+        toast(r.message || "");
+        if (r.ok) fetchSettings();
+      }
+      async function removeModUser(u) {
+        if (!confirm("ลบบัญชี " + u + " ?")) return;
+        const r = await postAction("/api/users/remove", { username: u });
+        toast(r.message || "");
+        fetchSettings();
+      }
+
+      // ---- หน้าภาพรวม ----
+      function statCard(icon, label, value, cls) {
+        return `<div class="ov-stat ${cls || ""}"><div class="n">${value}</div><div class="l">${svg(icon, 13)} ${label}</div></div>`;
+      }
+      function renderOverview(s) {
+        const maxH = Math.max(1, ...s.perHour);
+        const hourBars = s.perHour
+          .map((v) => `<div class="bar" style="height:${Math.round((v / maxH) * 100)}%" title="${v}"></div>`)
+          .join("");
+        const cats = [["security", "ความปลอดภัย"], ["member", "สมาชิก"], ["voice", "ห้องเสียง"], ["audit", "สิทธิ์"], ["system", "ระบบ"]];
+        const maxC = Math.max(1, ...cats.map(([k]) => s.byCat[k] || 0));
+        const catBars = cats
+          .map(([k, label]) => {
+            const v = s.byCat[k] || 0;
+            return `<div class="hbar-row"><span class="hbar-label">${label}</span><div class="hbar-track"><div class="hbar-fill" style="width:${Math.round((v / maxC) * 100)}%"></div></div><span class="hbar-val">${v}</span></div>`;
+          })
+          .join("");
+        const alerts = s.alerts.length
+          ? s.alerts.map((e) => `<div class="ov-alert">${svg("siren", 14)} <b>${esc(e.title)}</b> <span class="time">${fmtTime(e.timestamp)}</span></div>`).join("")
+          : '<div class="muted">ไม่มี alert</div>';
+        const voice = s.inVoice.length
+          ? s.inVoice.map((v) => `<div class="ov-voice">${svg("volume-2", 13)} ${esc(v.username)} <span class="muted">@ ${esc(v.channel)}</span> ${v.muted ? '<span class="vb red">ไมค์ปิด</span>' : ""} ${v.deaf ? '<span class="vb red">หูปิด</span>' : ""}</div>`).join("")
+          : '<div class="muted">ไม่มีใครอยู่ห้องเสียง</div>';
+        el("overviewView").innerHTML = `
+          <div class="ov-stats">
+            ${statCard("chart-column", "เหตุการณ์ 24 ชม.", s.today)}
+            ${statCard("siren", "Alert (buffer)", s.byLevel.alert || 0, "alert")}
+            ${statCard("circle-user", "สมาชิก", s.members)}
+            ${statCard("volume-2", "อยู่ห้องเสียง", s.inVoiceCount, "on")}
+            ${statCard("triangle-alert", "คำเตือนรวม", s.warnings, "warn")}
+          </div>
+          <div class="ov-grid">
+            <div class="ov-card"><div class="ov-title">${svg("chart-column", 16)} เหตุการณ์ราย 24 ชม.</div><div class="bars">${hourBars}</div></div>
+            <div class="ov-card"><div class="ov-title">${svg("list", 16)} แยกตามหมวด</div><div class="hbars">${catBars}</div></div>
+            <div class="ov-card"><div class="ov-title">${svg("siren", 16)} Alert ล่าสุด</div>${alerts}</div>
+            <div class="ov-card"><div class="ov-title">${svg("volume-2", 16)} อยู่ห้องเสียงตอนนี้ (${s.inVoiceCount})</div>${voice}</div>
+            <div class="ov-card"><div class="ov-title">${svg("shield-check", 16)} ควบคุมเซิร์ฟเวอร์</div>
+              <button class="act" onclick="actServer('lock')">ล็อกทุกห้อง</button>
+              <button class="act" onclick="actServer('unlock')">ปลดล็อก</button>
+              <div class="muted" style="margin-top:8px">ปิด/เปิดการส่งข้อความของทุกห้องชั่วคราว</div>
+            </div>
+          </div>`;
+      }
+      let statsTimer = null;
+      function fetchStats() {
+        fetch("/api/stats")
+          .then((r) => (r.status === 401 ? ((location.href = "/login"), null) : r.json()))
+          .then((s) => { if (s) renderOverview(s); })
+          .catch(() => {});
+      }
+
+      // ---- สั่งการ (ban/kick/timeout/warn/lock) ----
+      let toastT = null;
+      function toast(msg) {
+        let t = el("toast");
+        if (!t) { t = document.createElement("div"); t.id = "toast"; document.body.appendChild(t); }
+        t.textContent = msg;
+        t.className = "show";
+        clearTimeout(toastT);
+        toastT = setTimeout(() => { t.className = ""; }, 3000);
+      }
+      async function postAction(url, body) {
+        try {
+          const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          if (res.status === 401) { location.href = "/login"; return { ok: false }; }
+          return await res.json();
+        } catch {
+          return { ok: false, message: "เชื่อมต่อไม่ได้" };
+        }
+      }
+      async function actMember(type, id) {
+        const m = membersData.find((x) => x.id === id);
+        const name = m ? m.username : id;
+        const labels = { warn: "เตือน", timeout: "Timeout", kick: "เตะ (Kick)", ban: "แบน (Ban)" };
+        if (!confirm(`${labels[type]} "${name}" ?`)) return;
+        const body = { userId: id };
+        if (type === "warn" || type === "kick" || type === "ban") {
+          body.reason = prompt("เหตุผล (ไม่ใส่ก็ได้)") || "";
+        }
+        if (type === "timeout") {
+          const min = prompt("Timeout กี่นาที?", "60");
+          if (min === null) return;
+          body.minutes = Number(min) || 60;
+        }
+        const r = await postAction("/api/action/" + type, body);
+        toast(r.message || (r.ok ? "สำเร็จ" : "ไม่สำเร็จ"));
+        refreshVoice();
+      }
+      async function actServer(type) {
+        if (!confirm(type === "lock" ? "ล็อกทุกห้อง (ปิดการส่งข้อความ) ?" : "ปลดล็อกทุกห้อง ?")) return;
+        const r = await postAction("/api/action/" + type, {});
+        toast(r.message || "");
+        if (mode === "overview") fetchStats();
+      }
+
+      function voiceBadges(v) {
+        if (!v) return '<span class="vb">ไม่อยู่ในห้องเสียง</span>';
+        const b = [`<span class="vb on">${svg("volume-2", 12)} ${esc(v.channelName)}</span>`];
+        if (v.selfMute || v.serverMute)
+          b.push(`<span class="vb red">ไมค์ปิด${v.serverMute ? " (แอดมิน)" : ""}</span>`);
+        if (v.selfDeaf || v.serverDeaf)
+          b.push(`<span class="vb red">หูปิด${v.serverDeaf ? " (แอดมิน)" : ""}</span>`);
+        if (v.streaming) b.push('<span class="vb">Go Live</span>');
+        if (v.selfVideo) b.push('<span class="vb">กล้อง</span>');
+        return b.join("");
+      }
+
+      function renderMembers(members) {
+        el("mgrid").innerHTML = members
+          .map(
+            (m) => `
+            <div class="mcard" id="mcard-${m.id}">
+              <img src="/api/members/${encodeURIComponent(m.id)}/card.png" loading="lazy" alt="" />
+              <div class="minfo">
+                <div class="mname">${svg("circle-user", 15)} ${esc(m.username)} <span class="mno">#${String(m.member_number).padStart(4, "0")}</span></div>
+                <div class="mbadges" id="vb-${m.id}">${voiceBadges(m.voice)}</div>
+                <div class="mactions">
+                  <button onclick="actMember('warn','${m.id}')">เตือน</button>
+                  <button onclick="actMember('timeout','${m.id}')">Timeout</button>
+                  <button onclick="actMember('kick','${m.id}')">Kick</button>
+                  <button class="danger" onclick="actMember('ban','${m.id}')">Ban</button>
+                </div>
+              </div>
+            </div>`,
+          )
+          .join("");
+      }
+
+      function matchesMemberFilter(m) {
+        const v = m.voice;
+        if (memberFilter === "voice" && !v) return false;
+        if (memberFilter === "mute" && !(v && (v.selfMute || v.serverMute))) return false;
+        if (memberFilter === "deaf" && !(v && (v.selfDeaf || v.serverDeaf))) return false;
+        if (memberFilter === "offline" && v) return false;
+        if (memberSearch) {
+          const hay = (m.username + " #" + String(m.member_number).padStart(4, "0")).toLowerCase();
+          if (!hay.includes(memberSearch)) return false;
+        }
+        return true;
+      }
+
+      // ซ่อน/โชว์การ์ดตามตัวกรอง (ไม่โหลดรูปบัตรใหม่)
+      function applyMemberFilter() {
+        let visible = 0;
+        for (const m of membersData) {
+          const card = el("mcard-" + m.id);
+          if (!card) continue;
+          const show = matchesMemberFilter(m);
+          card.style.display = show ? "" : "none";
+          if (show) visible++;
+        }
+        const empty = el("mEmpty");
+        if (!membersData.length) {
+          empty.style.display = "";
+          empty.textContent = "ยังไม่มีสมาชิกลงทะเบียน";
+        } else if (visible === 0) {
+          empty.style.display = "";
+          empty.textContent = "ไม่มีสมาชิกตรงเงื่อนไข";
+        } else {
+          empty.style.display = "none";
+        }
+      }
+
+      function fetchMembers() {
+        el("mgrid").innerHTML = "";
+        el("mEmpty").style.display = "";
+        el("mEmpty").textContent = "กำลังโหลด…";
+        fetch("/api/members")
+          .then((r) => (r.status === 401 ? ((location.href = "/login"), []) : r.json()))
+          .then((data) => {
+            membersData = data;
+            renderMembers(data);
+            applyMemberFilter();
+          })
+          .catch(() => {
+            el("mEmpty").style.display = "";
+            el("mEmpty").textContent = "โหลดไม่สำเร็จ";
+          });
+      }
+
+      // อัปเดตสถานะเสียงแบบสด + ใช้ตัวกรองซ้ำ (ไม่โหลดรูปบัตรใหม่)
+      function refreshVoice() {
+        fetch("/api/members")
+          .then((r) => (r.ok ? r.json() : []))
+          .then((data) => {
+            if (data.length !== membersData.length) {
+              membersData = data;
+              renderMembers(data);
+            } else {
+              membersData = data;
+              for (const m of data) {
+                const vb = el("vb-" + m.id);
+                if (vb) vb.innerHTML = voiceBadges(m.voice);
+              }
+            }
+            applyMemberFilter();
+          })
+          .catch(() => {});
+      }
+
+      // ---- โหลด log ย้อนหลัง ----
+      fetch("/api/logs?limit=500")
+        .then((r) => {
+          if (r.status === 401) { location.href = "/login"; return []; }
+          return r.json();
+        })
+        .then((data) => {
+          all = data;
+          render();
+        })
+        .catch(() => {});
+
+      // ---- stream real-time ----
+      const es = new EventSource("/api/stream");
+      es.onopen = () => {
+        el("dot").classList.add("on");
+        el("liveText").textContent = "เชื่อมต่อแล้ว (real-time)";
+      };
+      es.onerror = () => {
+        el("dot").classList.remove("on");
+        el("liveText").textContent = "หลุด — กำลังเชื่อมต่อใหม่…";
+      };
+      es.onmessage = (ev) => {
+        const entry = JSON.parse(ev.data);
+        all.unshift(entry);
+        if (all.length > 500) all.pop();
+        render();
+        // อัปเดตหน้าบัตรสมาชิกแบบสด เมื่อมี event ห้องเสียง/สมาชิก
+        if (mode === "members" && (entry.category === "voice" || entry.category === "member")) {
+          refreshVoice();
+        }
+        // อัปเดตหน้าภาพรวม (debounce กันยิงถี่)
+        if (mode === "overview") {
+          clearTimeout(statsTimer);
+          statsTimer = setTimeout(fetchStats, 1500);
+        }
+        // แจ้งเตือนเมื่อมี alert
+        if (entry.level === "alert" && alertsOn) {
+          beep();
+          if ("Notification" in window && Notification.permission === "granted") {
+            new Notification("🚨 " + entry.title, {
+              body: entry.fields.map((f) => f.name + ": " + f.value).join("\n").slice(0, 180),
+            });
+          }
+        }
+      };
+      function beep() {
+        try {
+          const a = new (window.AudioContext || window.webkitAudioContext)();
+          const o = a.createOscillator();
+          const g = a.createGain();
+          o.connect(g);
+          g.connect(a.destination);
+          o.type = "sine";
+          o.frequency.value = 880;
+          g.gain.value = 0.08;
+          o.start();
+          o.stop(a.currentTime + 0.18);
+          o.onended = () => a.close();
+        } catch {}
+      }
+
+      // ---- level filter + search ----
+      document.querySelectorAll("button.f").forEach((b) => {
+        b.onclick = () => {
+          document.querySelectorAll("button.f").forEach((x) => x.classList.remove("active"));
+          b.classList.add("active");
+          level = b.dataset.level;
+          render();
+        };
+      });
+      el("search").oninput = (e) => {
+        search = e.target.value;
+        render();
+      };
+
+      // ---- ตัวกรองหน้าบัตรสมาชิก ----
+      el("mSearchIco").innerHTML = svg("search", 15);
+      document.querySelectorAll("button.mf").forEach((b) => {
+        b.onclick = () => {
+          document.querySelectorAll("button.mf").forEach((x) => x.classList.remove("active"));
+          b.classList.add("active");
+          memberFilter = b.dataset.mf;
+          applyMemberFilter();
+        };
+      });
+      el("mSearch").oninput = (e) => {
+        memberSearch = e.target.value.toLowerCase();
+        applyMemberFilter();
+      };
+
+      // ---- เฟส 4: แจ้งเตือน + เครื่องมือ log ----
+      function updateAlertBtn() {
+        el("alertBtn").innerHTML = svg("bell", 15) + (alertsOn ? " เปิด" : " ปิด");
+        el("alertBtn").classList.toggle("on", alertsOn);
+      }
+      el("alertBtn").onclick = async () => {
+        if (!alertsOn) {
+          if ("Notification" in window && Notification.permission !== "granted") {
+            try { await Notification.requestPermission(); } catch {}
+          }
+          alertsOn = true;
+        } else {
+          alertsOn = false;
+        }
+        localStorage.setItem("alertsOn", alertsOn ? "1" : "0");
+        updateAlertBtn();
+      };
+      updateAlertBtn();
+
+      el("timeFilter").onchange = (e) => { timeFilter = e.target.value; render(); };
+
+      el("exportBtn").innerHTML = svg("download", 14) + " CSV";
+      function csvCell(v) {
+        v = String(v);
+        // กัน formula injection ใน Excel/Sheets: เติม ' นำหน้าเซลล์ที่ขึ้นต้นด้วย = + - @ tab CR
+        if (/^[=+\-@\t\r]/.test(v)) v = "'" + v;
+        return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+      }
+      el("exportBtn").onclick = () => {
+        const rows = filteredLogs();
+        const head = ["เวลา", "level", "category", "event", "title", "description", "fields"];
+        const csv = [head.join(",")]
+          .concat(
+            rows.map((e) =>
+              [
+                new Date(e.timestamp).toLocaleString("th-TH", { hour12: false }),
+                e.level, e.category || "", e.event || "", e.title, e.description || "",
+                e.fields.map((f) => f.name + "=" + f.value).join(" | "),
+              ].map(csvCell).join(","),
+            ),
+          )
+          .join("\n");
+        const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "logs.csv";
+        a.click();
+        URL.revokeObjectURL(a.href);
+        toast(`export ${rows.length} รายการแล้ว`);
+      };
+
+      // คลิก log -> กรองตาม user คนนั้น
+      el("logs").addEventListener("click", (ev) => {
+        const card = ev.target.closest(".log.clickable");
+        if (!card) return;
+        const v = card.dataset.user || "";
+        el("search").value = v;
+        search = v.toLowerCase();
+        render();
+      });
+
+      // ---- เริ่มต้นที่หน้าภาพรวม ----
+      document.querySelectorAll("button.cat").forEach((x) => x.classList.remove("active"));
+      el("overviewBtn").classList.add("active");
+      el("catTitle").innerHTML = svg("layout-dashboard", 20) + "ภาพรวม";
+      setMode("overview");
+      fetchStats();
+
+      // ---- เมนูมือถือ (hamburger) ----
+      el("hamburger").innerHTML = svg("menu", 24);
+      const sidebarEl = el("sidebar");
+      const backdropEl = el("backdrop");
+      function closeSidebar() {
+        sidebarEl.classList.remove("open");
+        backdropEl.classList.remove("show");
+      }
+      el("hamburger").onclick = () => {
+        sidebarEl.classList.add("open");
+        backdropEl.classList.add("show");
+      };
+      backdropEl.onclick = closeSidebar;
+      // กดเมนูใด ๆ แล้วปิด sidebar อัตโนมัติ (บนมือถือ)
+      document.querySelectorAll("button.cat").forEach((b) => b.addEventListener("click", closeSidebar));
+    </script>
+  </body>
+</html>

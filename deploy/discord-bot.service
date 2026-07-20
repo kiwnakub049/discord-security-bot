@@ -1,0 +1,34 @@
+# systemd service — รันบอทเป็น background service, รีสตาร์ทอัตโนมัติเมื่อล่ม/รีบูต
+#
+# วิธีติดตั้ง (บน VPS):
+#   1. แก้ User= และ path ด้านล่างให้ตรงกับเครื่องคุณ
+#   2. sudo cp deploy/discord-bot.service /etc/systemd/system/
+#   3. sudo systemctl daemon-reload
+#   4. sudo systemctl enable --now discord-bot
+#   5. ดู log:  journalctl -u discord-bot -f
+
+[Unit]
+Description=Discord Security Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# เปลี่ยนเป็น user ที่ไม่ใช่ root (สร้างด้วย: sudo adduser --system --group botuser)
+User=botuser
+WorkingDirectory=/home/botuser/discord-security-bot
+# หา path ของ npm ด้วย:  which npm   แล้วแก้ให้ตรง (NodeSource มักเป็น /usr/bin/npm)
+ExecStart=/usr/bin/npm start
+Restart=on-failure
+RestartSec=5
+Environment=NODE_ENV=production
+
+# ความปลอดภัยเพิ่มเติม
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+# ให้เขียนได้เฉพาะโฟลเดอร์ data/ (เก็บ logs.jsonl)
+ReadWritePaths=/home/botuser/discord-security-bot/data
+
+[Install]
+WantedBy=multi-user.target

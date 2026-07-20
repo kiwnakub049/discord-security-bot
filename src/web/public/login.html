@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <title>เข้าสู่ระบบ — Security Bot</title>
+    <style>
+      :root {
+        --bg: #0f1117;
+        --panel: #1a1d27;
+        --border: #2a2e3c;
+        --text: #e4e6eb;
+        --muted: #8b8f9c;
+        --info: #5865f2;
+        --alert: #ed4245;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 32px;
+        width: 100%;
+        max-width: 360px;
+      }
+      .logo { width: 56px; height: 56px; margin-bottom: 14px; }
+      h1 { font-size: 20px; margin-bottom: 6px; }
+      .sub { color: var(--muted); font-size: 13px; margin-bottom: 22px; }
+      label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+      input {
+        width: 100%;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        color: var(--text);
+        padding: 11px 13px;
+        border-radius: 9px;
+        font-size: 14px;
+        margin-bottom: 16px;
+      }
+      input:focus { outline: none; border-color: var(--info); }
+      button {
+        width: 100%;
+        background: var(--info);
+        color: #fff;
+        border: none;
+        padding: 12px;
+        border-radius: 9px;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:hover { filter: brightness(1.1); }
+      .error {
+        background: rgba(237, 66, 69, 0.12);
+        border: 1px solid var(--alert);
+        color: #ff9a9c;
+        font-size: 13px;
+        padding: 10px 13px;
+        border-radius: 9px;
+        margin-bottom: 16px;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <form class="card" method="POST" action="/login">
+      <img class="logo" src="/icon.svg" alt="" />
+      <h1>Security Bot</h1>
+      <div class="sub">เข้าสู่ระบบเพื่อดู data-log</div>
+
+      <div class="error" id="err">ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง</div>
+
+      <label for="username">ชื่อผู้ใช้</label>
+      <input id="username" name="username" autocomplete="username" autofocus required />
+
+      <label for="password">รหัสผ่าน</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required />
+
+      <button type="submit">เข้าสู่ระบบ</button>
+    </form>
+
+    <script>
+      // แสดงข้อความ error/ถูกล็อก
+      const params = new URLSearchParams(location.search);
+      const err = document.getElementById("err");
+      const locked = params.get("locked");
+      if (locked) {
+        err.textContent = `พยายาม login ผิดหลายครั้ง — ถูกล็อกชั่วคราว ลองใหม่ใน ${locked} นาที`;
+        err.style.display = "block";
+      } else if (params.get("error")) {
+        err.style.display = "block";
+      }
+    </script>
+  </body>
+</html>

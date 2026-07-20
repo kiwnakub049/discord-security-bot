@@ -1,0 +1,15 @@
+# Caddy reverse proxy — เปิด dashboard ออกเน็ตพร้อม HTTPS อัตโนมัติ
+#
+# สำคัญ: ตอนนี้ "การล็อกอิน" อยู่ในตัวบอทเอง (session-based) แล้ว
+# Caddy จึงทำหน้าที่แค่ "ส่งต่อ" traffic เข้า 127.0.0.1:3000 + ทำ HTTPS ให้ — ไม่ต้องตั้ง auth ซ้ำ
+# ข้อดี: วันหลังจะย้ายไปใช้ Cloudflare Tunnel แทน Caddy ก็แค่เปลี่ยน "ตัวส่งต่อ" ไม่ต้องแก้โค้ดบอทเลย
+#
+# วิธีใช้:
+#   1. ชี้ DNS A record ของโดเมนมาที่ IP ของ VPS ก่อน (เช่น logs.example.com -> 1.2.3.4)
+#   2. ติดตั้ง Caddy: https://caddyserver.com/docs/install
+#   3. แก้โดเมนด้านล่าง แล้ว: sudo cp deploy/Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
+#   4. ตั้ง config.web.cookieSecure = true ใน src/config.ts (เพราะตอนนี้มี HTTPS แล้ว)
+
+logs.example.com {
+    reverse_proxy 127.0.0.1:3000
+}
