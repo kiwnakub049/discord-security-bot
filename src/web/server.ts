@@ -322,7 +322,12 @@ export function startWebServer(client?: Client): Server | undefined {
         } catch {
           // ดึง user ไม่ได้ (ออกจากเซิร์ฟเวอร์?) — ใช้ id แทน
         }
-        return { ...m, username, voice: getVoiceState(m.id) };
+        return {
+          ...m,
+          username,
+          voice: getVoiceState(m.id),
+          level: getActivity(m.id).level,
+        };
       }),
     );
     res.json(result);

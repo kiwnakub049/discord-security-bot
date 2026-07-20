@@ -32,6 +32,9 @@ export const cardConfig = {
   namePos: { x: 650, y: 242 },
   joinPos: { x: 700, y: 297 },
   statusPos: { x: 650, y: 355 },
+  // เลเวล (จากระบบ activity/XP) — วางบนเส้นประล่างสุดของบัตร
+  levelPos: { x: 525, y: 496 },
+  levelFontSize: 28,
 
   fontSize: 26,
   textColor: "rgb(60, 50, 45)",

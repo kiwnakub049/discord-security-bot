@@ -16,6 +16,7 @@ import {
 } from "./idcard.js";
 import { clearwarnings, warn, warnings } from "./warnings.js";
 import { lockVoice, unlockVoice } from "./voicelock.js";
+import { leaderboard, rank } from "./rank.js";
 
 export interface Command {
   data: SlashCommandBuilder | SlashCommandOptionsOnlyBuilder;
@@ -39,6 +40,8 @@ const list: Command[] = [
   clearwarnings,
   lockVoice,
   unlockVoice,
+  rank,
+  leaderboard,
 ];
 
 export const commands = new Map<string, Command>(

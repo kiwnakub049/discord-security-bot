@@ -86,3 +86,7 @@ export function initDb(): void {
     CREATE INDEX IF NOT EXISTS idx_logs_cat   ON logs(category);
   `);
 }
+
+// สร้างตารางทันทีตอนโหลดโมดูล — กัน entry point ที่ import store โดยไม่ได้เรียก initDb()
+// (เช่น deploy-commands ที่ import commands → logger → logStore ซึ่ง prepare ตอนโหลด)
+initDb();

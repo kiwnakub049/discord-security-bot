@@ -253,6 +253,27 @@
       }
       .log.clickable { cursor: pointer; }
       .log.clickable:hover { border-color: var(--info); }
+
+      /* ---------- หน้าจัดอันดับ (leaderboard) ---------- */
+      button.lf {
+        background: var(--panel); border: 1px solid var(--border); color: var(--text);
+        padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: 13px;
+      }
+      button.lf.active { background: var(--info); border-color: var(--info); }
+      .lb-row {
+        display: flex; align-items: center; gap: 12px;
+        background: var(--panel); border: 1px solid var(--border);
+        border-radius: 10px; padding: 10px 14px; margin-bottom: 8px;
+      }
+      .lb-rank { width: 34px; text-align: center; font-size: 17px; font-weight: 700; color: var(--muted); flex-shrink: 0; }
+      .lb-rank.top { font-size: 20px; }
+      .lb-main { flex: 1; min-width: 0; }
+      .lb-name { font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      .lb-bar { display: flex; align-items: center; gap: 8px; margin-top: 5px; font-size: 11px; color: var(--muted); }
+      .lb-bar .hbar-track { height: 8px; }
+      .lb-stats { text-align: right; font-size: 12px; color: var(--muted); flex-shrink: 0; }
+      .lb-stats .big { font-size: 16px; font-weight: 700; color: var(--text); }
+      .vb.lv { background: rgba(254,231,92,0.12); border-color: #b8a63a; color: #ffe66d; }
     </style>
   </head>
   <body>
@@ -267,6 +288,7 @@
       <nav class="nav" id="nav"></nav>
       <div class="nav-extra">
         <button class="cat" id="membersBtn"></button>
+        <button class="cat" id="lbBtn"></button>
         <button class="cat" id="settingsBtn"></button>
       </div>
       <div class="side-foot">
@@ -327,6 +349,17 @@
         <div class="mgrid" id="mgrid"></div>
         <div class="empty" id="mEmpty" style="display: none"></div>
       </div>
+
+      <div id="leaderboardView" style="display: none">
+        <div class="controls">
+          <div class="filters">
+            <button class="lf active" data-lb="xp">XP</button>
+            <button class="lf" data-lb="voice">เวลาห้องเสียง</button>
+          </div>
+        </div>
+        <div id="lbList"></div>
+        <div class="empty" id="lbEmpty" style="display: none"></div>
+      </div>
     </main>
 
     <script>
@@ -348,6 +381,8 @@
         bell: '<path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/>',
         download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
         menu: '<line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/>',
+        trophy: '<path d="M10 14.66v1.626a2 2 0 0 1-.976 1.696A5 5 0 0 0 7 21.978"/><path d="M14 14.66v1.626a2 2 0 0 0 .976 1.696A5 5 0 0 1 17 21.978"/><path d="M18 9h1.5a1 1 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M6 9H4.5a1 1 0 0 1 0-5H6"/><path d="M6 2h12v7a6 6 0 0 1-12 0z"/>',
+        "message-square": '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
       };
       function svg(name, size = 16) {
         return `<svg class="ico" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ""}</svg>`;
@@ -413,7 +448,7 @@
       // ---- chip กรองย่อย (เปลี่ยนตามหมวดที่เลือกในเมนูซ้าย) ----
       const EVENTS_BY_CAT = {
         security: [["security_raid", "RAID"], ["security_spam", "สแปม"], ["security_automod", "Auto-mod"], ["security_warn", "เตือน"], ["security_newaccount", "Account ใหม่"], ["security_lockdown", "Lockdown"]],
-        member: [["member_join", "เข้าเซิร์ฟเวอร์"], ["member_leave", "ออกเซิร์ฟเวอร์"], ["member_register", "ลงทะเบียนบัตร"], ["member_issue", "ออกบัตร"]],
+        member: [["member_join", "เข้าเซิร์ฟเวอร์"], ["member_leave", "ออกเซิร์ฟเวอร์"], ["member_register", "ลงทะเบียนบัตร"], ["member_issue", "ออกบัตร"], ["member_levelup", "เลื่อนเลเวล"]],
         voice: [["voice_join", "เข้าห้อง"], ["voice_leave", "ออกห้อง"], ["voice_move", "ย้ายห้อง"], ["voice_mute", "ไมค์"], ["voice_deafen", "หูฟัง"], ["voice_server", "แอดมินสั่ง"], ["voice_stream", "Go Live"], ["voice_camera", "กล้อง"]],
         audit: [["audit_ban", "แบน"], ["audit_unban", "ปลดแบน"], ["audit_kick", "เตะ"], ["audit_timeout", "Timeout"], ["audit_role", "Role"], ["audit_channel", "ห้อง/สิทธิ์"], ["audit_member", "แก้สมาชิก"], ["voice_lock", "ล็อกห้องเสียง"], ["voice_unlock", "ปลดล็อกเสียง"]],
         system: [["system_online", "ออนไลน์"], ["system_login", "Login เว็บ"], ["system_lock", "ล็อก/ปลดล็อก"], ["system_settings", "ตั้งค่า"]],
@@ -462,6 +497,16 @@
         el("catTitle").innerHTML = svg("users", 20) + "บัตรสมาชิก";
         setMode("members");
         fetchMembers();
+      };
+
+      // ---- ปุ่ม "จัดอันดับ" ----
+      el("lbBtn").innerHTML = svg("trophy", 18) + '<span class="lbl">จัดอันดับ</span>';
+      el("lbBtn").onclick = () => {
+        document.querySelectorAll("button.cat").forEach((x) => x.classList.remove("active"));
+        el("lbBtn").classList.add("active");
+        el("catTitle").innerHTML = svg("trophy", 20) + "จัดอันดับ";
+        setMode("leaderboard");
+        fetchLeaderboard();
       };
 
       // ---- ปุ่ม "ตั้งค่า" ----
@@ -542,14 +587,71 @@
           : '<div class="empty">ยังไม่มี log ที่ตรงเงื่อนไข</div>';
       }
 
-      // ---- สลับมุมมอง logs / บัตรสมาชิก ----
+      // ---- สลับมุมมอง logs / บัตรสมาชิก / จัดอันดับ ----
       function setMode(m) {
         mode = m;
         el("overviewView").style.display = m === "overview" ? "" : "none";
         el("logsView").style.display = m === "logs" ? "" : "none";
         el("membersView").style.display = m === "members" ? "" : "none";
         el("settingsView").style.display = m === "settings" ? "" : "none";
+        el("leaderboardView").style.display = m === "leaderboard" ? "" : "none";
       }
+
+      // ---- หน้าจัดอันดับ ----
+      let lbBy = "xp";
+      function fmtVoice(sec) {
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        if (h > 0) return `${h} ชม. ${m} นาที`;
+        if (m > 0) return `${m} นาที`;
+        return `${sec} วินาที`;
+      }
+      const MEDALS = ["🥇", "🥈", "🥉"];
+      function renderLeaderboard(entries) {
+        el("lbEmpty").style.display = entries.length ? "none" : "";
+        el("lbEmpty").textContent = "ยังไม่มีข้อมูล activity";
+        el("lbList").innerHTML = entries
+          .map((a, i) => {
+            const rank = MEDALS[i] || i + 1;
+            const stats =
+              lbBy === "voice"
+                ? `<div class="big">${fmtVoice(a.voiceSeconds)}</div>${a.xp.toLocaleString()} XP`
+                : `<div class="big">${a.xp.toLocaleString()} XP</div>${a.messages.toLocaleString()} ข้อความ · ${fmtVoice(a.voiceSeconds)}`;
+            return `
+            <div class="lb-row">
+              <div class="lb-rank ${i < 3 ? "top" : ""}">${rank}</div>
+              <div class="lb-main">
+                <div class="lb-name">${esc(a.username)} <span class="vb lv">LV.${a.level}</span></div>
+                <div class="lb-bar">
+                  <div class="hbar-track" style="flex:1"><div class="hbar-fill" style="width:${a.pct}%"></div></div>
+                  <span>${a.xpIntoLevel.toLocaleString()}/${a.xpForNext.toLocaleString()} XP สู่ LV.${a.level + 1}</span>
+                </div>
+              </div>
+              <div class="lb-stats">${stats}</div>
+            </div>`;
+          })
+          .join("");
+      }
+      function fetchLeaderboard() {
+        el("lbList").innerHTML = "";
+        el("lbEmpty").style.display = "";
+        el("lbEmpty").textContent = "กำลังโหลด…";
+        fetch(`/api/leaderboard?by=${lbBy}&limit=50`)
+          .then((r) => (r.status === 401 ? ((location.href = "/login"), null) : r.json()))
+          .then((d) => { if (d) renderLeaderboard(d.entries); })
+          .catch(() => {
+            el("lbEmpty").style.display = "";
+            el("lbEmpty").textContent = "โหลดไม่สำเร็จ";
+          });
+      }
+      document.querySelectorAll("button.lf").forEach((b) => {
+        b.onclick = () => {
+          document.querySelectorAll("button.lf").forEach((x) => x.classList.remove("active"));
+          b.classList.add("active");
+          lbBy = b.dataset.lb;
+          fetchLeaderboard();
+        };
+      });
 
       // ---- หน้า Settings ----
       function settingRow(i) {
@@ -729,7 +831,7 @@
             <div class="mcard" id="mcard-${m.id}">
               <img src="/api/members/${encodeURIComponent(m.id)}/card.png" loading="lazy" alt="" />
               <div class="minfo">
-                <div class="mname">${svg("circle-user", 15)} ${esc(m.username)} <span class="mno">#${String(m.member_number).padStart(4, "0")}</span></div>
+                <div class="mname">${svg("circle-user", 15)} ${esc(m.username)} <span class="mno">#${String(m.member_number).padStart(4, "0")}</span> <span class="vb lv">LV.${m.level || 1}</span></div>
                 <div class="mbadges" id="vb-${m.id}">${voiceBadges(m.voice)}</div>
                 <div class="mactions">
                   <button onclick="actMember('warn','${m.id}')">เตือน</button>

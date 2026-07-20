@@ -26,6 +26,7 @@ export async function generateIdCard(
   userId: string,
   avatarUrl: string,
   card: MemberCard,
+  level = 1,
 ): Promise<Buffer> {
   ensureFonts();
 
@@ -80,6 +81,10 @@ export async function generateIdCard(
   ctx.fillText(username, C.namePos.x, C.namePos.y);
   ctx.fillText(card.join_date || "-", C.joinPos.x, C.joinPos.y);
   ctx.fillText(card.status || "-", C.statusPos.x, C.statusPos.y);
+
+  // เลเวลจากระบบ activity — ตัวหนา วางบนเส้นประล่างสุด
+  ctx.font = `${C.levelFontSize}px "${C.fontBoldFamily}"`;
+  ctx.fillText(`LV. ${level}`, C.levelPos.x, C.levelPos.y);
 
   return canvas.toBuffer("image/png");
 }
