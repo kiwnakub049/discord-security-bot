@@ -47,8 +47,16 @@ export async function showIdcardModal(interaction: ButtonInteraction): Promise<v
     .setStyle(TextInputStyle.Short)
     .setRequired(false)
     .setMaxLength(40);
+  const bias = new TextInputBuilder()
+    .setCustomId("bias")
+    .setLabel("ไบแอส")
+    .setPlaceholder("เช่น ชื่อศิลปิน/สมาชิกวงที่ชอบ (ไม่กรอกก็ได้)")
+    .setStyle(TextInputStyle.Short)
+    .setRequired(false)
+    .setMaxLength(40);
   modal.addComponents(
     new ActionRowBuilder<TextInputBuilder>().addComponents(status),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(bias),
   );
   await interaction.showModal(modal);
 }
@@ -59,11 +67,12 @@ export async function submitIdcard(
 ): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
   const status = interaction.fields.getTextInputValue("status").trim() || "-";
+  const bias = interaction.fields.getTextInputValue("bias").trim() || "-";
   const user = interaction.user;
   const joinedAt = (interaction.member as GuildMember | null)?.joinedAt ?? null;
 
-  registerMember(user.id, joinedAt, "-", status); // สร้างถ้ายังไม่มี
-  const card = updateMember(user.id, { status }) ?? getMember(user.id);
+  registerMember(user.id, joinedAt, bias, status); // สร้างถ้ายังไม่มี
+  const card = updateMember(user.id, { status, bias }) ?? getMember(user.id);
   if (!card) {
     await interaction.editReply("❌ สร้างบัตรไม่สำเร็จ");
     return;

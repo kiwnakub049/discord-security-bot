@@ -35,6 +35,8 @@ export const cardConfig = {
   // เลเวล (จากระบบ activity/XP) — วางบนเส้นประล่างสุดของบัตร
   levelPos: { x: 525, y: 496 },
   levelFontSize: 28,
+  // bias — วางบนเส้นประล่างต่อจากเลเวล (วาดเฉพาะเมื่อตั้งค่าไว้)
+  biasPos: { x: 665, y: 498 },
 
   fontSize: 26,
   textColor: "rgb(60, 50, 45)",

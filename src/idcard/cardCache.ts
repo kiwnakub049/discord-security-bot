@@ -16,7 +16,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const cacheDir = join(__dirname, "..", "..", "data", "cards");
 
 // bump ค่านี้เมื่อแก้ layout บัตร เพื่อให้ regenerate ใหม่ทั้งหมด
-const CARD_VERSION = "2026-07-level";
+const CARD_VERSION = "2026-07-bias";
 
 function signature(
   username: string,
@@ -33,6 +33,7 @@ function signature(
         n: card.member_number,
         j: card.join_date,
         s: card.status,
+        b: card.bias,
         lv: level, // ใช้ level ไม่ใช่ xp — บัตร regen เฉพาะตอนเลื่อนเลเวล
       }),
     )

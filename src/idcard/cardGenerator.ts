@@ -86,5 +86,11 @@ export async function generateIdCard(
   ctx.font = `${C.levelFontSize}px "${C.fontBoldFamily}"`;
   ctx.fillText(`LV. ${level}`, C.levelPos.x, C.levelPos.y);
 
+  // bias — วาดต่อจากเลเวลเฉพาะเมื่อตั้งค่าไว้ (ค่าเริ่มต้น "-" = ไม่วาด)
+  if (card.bias && card.bias !== "-") {
+    ctx.font = `${C.fontSize}px "${C.fontFamily}"`;
+    ctx.fillText(`Bias: ${card.bias}`, C.biasPos.x, C.biasPos.y);
+  }
+
   return canvas.toBuffer("image/png");
 }

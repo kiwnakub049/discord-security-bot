@@ -51,6 +51,9 @@ export const register = {
     .setDescription("ลงทะเบียนรับบัตรประจำตัว")
     .addStringOption((o) =>
       o.setName("status").setDescription("สถานะความสัมพันธ์").addChoices(...STATUS_CHOICES),
+    )
+    .addStringOption((o) =>
+      o.setName("bias").setDescription("ไบแอสของคุณ").setMaxLength(40),
     ),
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     await interaction.deferReply({ ephemeral: true });
