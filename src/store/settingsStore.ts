@@ -10,7 +10,8 @@ import { db } from "./db.js";
 type Item = {
   key: string;
   label: string;
-  type: "bool" | "int" | "select";
+  // id = Discord ID เดี่ยว (ตัวเลขหรือว่าง), list = ข้อความหลายค่า, idlist = Discord ID หลายค่า
+  type: "bool" | "int" | "select" | "id" | "list" | "idlist";
   options?: string[];
 };
 
@@ -21,6 +22,7 @@ export const SECTIONS: { section: string; items: Item[] }[] = [
       { key: "antiRaid.enabled", label: "เปิดใช้งาน", type: "bool" },
       { key: "antiRaid.joinThreshold", label: "คนเข้าเกิน (คน)", type: "int" },
       { key: "antiRaid.joinWindowMs", label: "ภายใน (มิลลิวินาที)", type: "int" },
+      { key: "antiRaid.minAccountAgeMs", label: "อายุ account ที่น่าสงสัย (ms)", type: "int" },
       { key: "antiRaid.action", label: "การลงโทษ", type: "select", options: ["kick", "ban", "lockdown"] },
     ],
   },
@@ -31,6 +33,7 @@ export const SECTIONS: { section: string; items: Item[] }[] = [
       { key: "antiSpam.maxMessages", label: "ข้อความสูงสุด/หน้าต่าง", type: "int" },
       { key: "antiSpam.windowMs", label: "หน้าต่างเวลา (ms)", type: "int" },
       { key: "antiSpam.maxMentions", label: "mention สูงสุด/ข้อความ", type: "int" },
+      { key: "antiSpam.maxDuplicates", label: "ข้อความซ้ำสูงสุด", type: "int" },
       { key: "antiSpam.timeoutMs", label: "timeout (ms)", type: "int" },
     ],
   },
@@ -40,6 +43,8 @@ export const SECTIONS: { section: string; items: Item[] }[] = [
       { key: "autoMod.enabled", label: "เปิดใช้งาน", type: "bool" },
       { key: "autoMod.blockInvites", label: "บล็อก invite เซิร์ฟเวอร์อื่น", type: "bool" },
       { key: "autoMod.blockPhishing", label: "บล็อกลิงก์ phishing", type: "bool" },
+      { key: "autoMod.deleteOnViolation", label: "ลบข้อความที่ผิดทันที", type: "bool" },
+      { key: "autoMod.bannedWords", label: "คำต้องห้าม", type: "list" },
     ],
   },
   {
@@ -48,6 +53,15 @@ export const SECTIONS: { section: string; items: Item[] }[] = [
       { key: "logging.memberJoinLeave", label: "เข้า-ออกเซิร์ฟเวอร์", type: "bool" },
       { key: "logging.voice", label: "ห้องเสียง", type: "bool" },
       { key: "logging.auditLog", label: "permission/audit", type: "bool" },
+      { key: "logChannelId", label: "ห้อง log (channel ID)", type: "id" },
+    ],
+  },
+  {
+    section: "ยกเว้น / Role",
+    items: [
+      { key: "exemptRoleIds", label: "role ที่ยกเว้น (role ID)", type: "idlist" },
+      { key: "exemptUserIds", label: "user ที่ยกเว้น (user ID)", type: "idlist" },
+      { key: "cardRoleId", label: "role คนมีบัตร (role ID)", type: "id" },
     ],
   },
   {
@@ -82,6 +96,13 @@ function setPath(p: string, v: unknown): void {
   o[last] = v;
 }
 
+/** รับได้ทั้ง array (จาก DB) และ string คั่นด้วย , หรือขึ้นบรรทัดใหม่ (จากฟอร์ม) */
+function toList(v: unknown): string[] {
+  return (Array.isArray(v) ? v.map(String) : String(v).split(/[,\n]/))
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 function coerce(item: Item, v: unknown): unknown {
   if (item.type === "bool") return Boolean(v);
   if (item.type === "int") {
@@ -91,6 +112,13 @@ function coerce(item: Item, v: unknown): unknown {
   if (item.type === "select") {
     return item.options?.includes(String(v)) ? String(v) : getPath(item.key);
   }
+  if (item.type === "id") {
+    // Discord ID = ตัวเลขล้วน (ว่าง = ปิดฟีเจอร์) — ค่าเพี้ยนให้คงค่าเดิม
+    const s = String(v).trim();
+    return /^\d*$/.test(s) ? s : getPath(item.key);
+  }
+  if (item.type === "list") return toList(v);
+  if (item.type === "idlist") return toList(v).filter((s) => /^\d+$/.test(s));
   return v;
 }
 

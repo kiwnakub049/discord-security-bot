@@ -234,6 +234,16 @@
         background: var(--bg); border: 1px solid var(--border); color: var(--text);
         border-radius: 7px; padding: 5px 8px; font-size: 13px; width: 140px;
       }
+      .set-row input[type="text"] {
+        background: var(--bg); border: 1px solid var(--border); color: var(--text);
+        border-radius: 7px; padding: 5px 8px; font-size: 13px; width: 190px;
+      }
+      .set-row.col { flex-direction: column; align-items: stretch; gap: 6px; }
+      .set-row.col textarea {
+        background: var(--bg); border: 1px solid var(--border); color: var(--text);
+        border-radius: 7px; padding: 6px 9px; font-size: 13px; width: 100%;
+        resize: vertical; font-family: inherit;
+      }
       .set-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--info); cursor: pointer; }
       .urow { display: flex; align-items: center; gap: 8px; justify-content: space-between; padding: 5px 0; }
       .urow input { background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 7px; padding: 6px 9px; font-size: 13px; }
@@ -656,9 +666,14 @@
 
       // ---- หน้า Settings ----
       function settingRow(i) {
+        // list/idlist = textarea เต็มแถว (คั่นด้วย , หรือขึ้นบรรทัดใหม่)
+        if (i.type === "list" || i.type === "idlist") {
+          return `<div class="set-row col"><span>${esc(i.label)}</span><textarea data-skey="${i.key}" rows="2" placeholder="คั่นด้วย , หรือขึ้นบรรทัดใหม่ (ว่าง = ไม่ใช้)">${esc((i.value || []).join(", "))}</textarea></div>`;
+        }
         let input;
         if (i.type === "bool") input = `<input type="checkbox" data-skey="${i.key}" ${i.value ? "checked" : ""}/>`;
         else if (i.type === "select") input = `<select data-skey="${i.key}">${i.options.map((o) => `<option ${o === i.value ? "selected" : ""}>${o}</option>`).join("")}</select>`;
+        else if (i.type === "id") input = `<input type="text" data-skey="${i.key}" value="${esc(i.value)}" placeholder="เว้นว่าง = ปิด" inputmode="numeric"/>`;
         else input = `<input type="number" data-skey="${i.key}" value="${i.value}" min="0"/>`;
         return `<div class="set-row"><span>${esc(i.label)}</span>${input}</div>`;
       }
