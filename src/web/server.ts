@@ -59,7 +59,13 @@ function cookieOptions() {
 }
 
 // ---- กัน brute-force หน้า login (นับต่อ IP) ----
-const loginTracker = new Map<string, { fails: number; lockedUntil: number }>();
+// inFlight = จำนวน attempt ที่กำลังคำนวณ scrypt อยู่ (นับ synchronous ตอนเข้า handler)
+// จำเป็นเพราะ verifyPassword เป็น async: ถ้านับ fail หลัง await เท่านั้น การยิงพร้อมกันหลาย request
+// จะผ่านด่านเช็คก่อนตัวนับขยับ (TOCTOU) — นับ inFlight ทันทีเลยปิดช่องนี้
+const loginTracker = new Map<
+  string,
+  { fails: number; inFlight: number; lockedUntil: number }
+>();
 
 /** คืนจำนวนนาทีที่ยังถูกล็อก (0 = ไม่ถูกล็อก) */
 function loginLockedMinutes(ip: string): number {
@@ -70,22 +76,45 @@ function loginLockedMinutes(ip: string): number {
   return 0;
 }
 
-/** คืน true ถ้าการพลาดครั้งนี้ทำให้ถูกล็อก */
-function loginFail(ip: string): boolean {
-  const rec = loginTracker.get(ip) ?? { fails: 0, lockedUntil: 0 };
-  rec.fails += 1;
-  let locked = false;
-  if (rec.fails >= config.web.loginMaxAttempts) {
-    rec.lockedUntil = Date.now() + config.web.loginLockMs;
-    rec.fails = 0; // เริ่มนับใหม่หลังครบกำหนดล็อก
-    locked = true;
+/**
+ * จองสิทธิ์ลอง 1 ครั้ง (เรียก synchronous ตอนเข้า handler ก่อน await ใด ๆ)
+ * คืน "locked" ถ้าล็อกอยู่/เต็มโควตาแล้ว (ต้องปฏิเสธ), "ok" ถ้าลองต่อได้
+ * นับ fails + inFlight รวมกัน → burst พร้อมกันเกินโควตาก็โดนกันทันที
+ */
+function beginLoginAttempt(ip: string): "ok" | "locked" {
+  const now = Date.now();
+  const rec = loginTracker.get(ip) ?? { fails: 0, inFlight: 0, lockedUntil: 0 };
+  if (rec.lockedUntil > now) {
+    loginTracker.set(ip, rec);
+    return "locked";
   }
+  if (rec.fails + rec.inFlight >= config.web.loginMaxAttempts) {
+    rec.lockedUntil = now + config.web.loginLockMs;
+    loginTracker.set(ip, rec);
+    return "locked";
+  }
+  rec.inFlight += 1;
   loginTracker.set(ip, rec);
-  return locked;
+  return "ok";
 }
 
-function loginReset(ip: string): void {
-  loginTracker.delete(ip);
+/** ปิด attempt ที่จองไว้ — คืน true ถ้าการพลาดครั้งนี้ทำให้เพิ่งถูกล็อก */
+function endLoginAttempt(ip: string, success: boolean): boolean {
+  const rec = loginTracker.get(ip);
+  if (!rec) return false;
+  rec.inFlight = Math.max(0, rec.inFlight - 1);
+  if (success) {
+    loginTracker.delete(ip); // สำเร็จ → ล้างตัวนับทั้งหมด
+    return false;
+  }
+  rec.fails += 1;
+  let justLocked = false;
+  if (rec.fails >= config.web.loginMaxAttempts && rec.lockedUntil <= Date.now()) {
+    rec.lockedUntil = Date.now() + config.web.loginLockMs;
+    justLocked = true;
+  }
+  loginTracker.set(ip, rec);
+  return justLocked;
 }
 
 // เคลียร์ rate-limit record ที่หมดอายุทุก 1 ชม. กัน memory โต
@@ -93,7 +122,8 @@ setInterval(
   () => {
     const now = Date.now();
     for (const [ip, r] of loginTracker) {
-      if (r.lockedUntil < now && r.fails === 0) loginTracker.delete(ip);
+      if (r.lockedUntil < now && r.fails === 0 && r.inFlight === 0)
+        loginTracker.delete(ip);
     }
   },
   60 * 60 * 1000,
@@ -197,15 +227,23 @@ export function startWebServer(client?: Client): Server | undefined {
 
   app.post("/login", async (req: Request, res: Response) => {
     const ip = req.ip ?? "?";
-    const locked = loginLockedMinutes(ip);
-    if (locked > 0) {
-      res.redirect(`/login?locked=${locked}`);
+    // จองสิทธิ์ลองแบบ synchronous ก่อน await (กัน concurrency bypass ของ lockout)
+    if (beginLoginAttempt(ip) === "locked") {
+      res.redirect(
+        `/login?locked=${loginLockedMinutes(ip) || Math.ceil(config.web.loginLockMs / 60000)}`,
+      );
       return;
     }
     const username = String(req.body?.username ?? "");
     const password = String(req.body?.password ?? "");
-    if (username && password && (await verifyPassword(username, password))) {
-      loginReset(ip);
+    let ok = false;
+    try {
+      ok = Boolean(username && password && (await verifyPassword(username, password)));
+    } catch {
+      ok = false;
+    }
+    const justLocked = endLoginAttempt(ip, ok);
+    if (ok) {
       const token = createSession(username);
       res.cookie(COOKIE_NAME, token, {
         ...cookieOptions(),
@@ -219,9 +257,9 @@ export function startWebServer(client?: Client): Server | undefined {
         ]);
       }
     } else {
-      const locked = loginFail(ip);
-      res.redirect(`/login?${locked ? "locked=" + Math.ceil(config.web.loginLockMs / 60000) : "error=1"}`);
-      if (locked && client) {
+      const mins = loginLockedMinutes(ip);
+      res.redirect(`/login?${mins ? "locked=" + mins : "error=1"}`);
+      if (justLocked && client) {
         // ล็อก IP เพราะลองผิดหลายครั้ง = น่าจะมีคนพยายามเจาะ
         void logEvent(client, "alert", "system", "system_login", "🚨 ล็อก IP — login ผิดหลายครั้ง", [
           { name: "IP", value: ip },

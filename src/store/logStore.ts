@@ -143,7 +143,11 @@ export function getLogs(opts: {
     params.q = `%${opts.search}%`;
   }
 
-  params.limit = opts.limit ?? config.web.maxEntries;
+  // clamp limit: กัน ?limit=-1 (SQLite ตีความเป็น "ไม่จำกัด" → ดึงทั้งตาราง) และค่าเกินจริง
+  const rawLimit = opts.limit ?? config.web.maxEntries;
+  params.limit = Number.isFinite(rawLimit)
+    ? Math.min(5000, Math.max(1, Math.floor(rawLimit)))
+    : config.web.maxEntries;
   const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
   const rows = db
     .prepare(

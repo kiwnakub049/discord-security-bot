@@ -682,7 +682,7 @@
           .map((s) => `<div class="ov-card"><div class="ov-title">${svg("settings-2", 16)} ${esc(s.section)}</div>${s.items.map(settingRow).join("")}</div>`)
           .join("");
         const usersHtml = users
-          .map((u) => `<div class="urow"><span>${svg("circle-user", 14)} ${esc(u)}</span><button class="act" onclick="removeModUser('${esc(u)}')">ลบ</button></div>`)
+          .map((u) => `<div class="urow"><span>${svg("circle-user", 14)} ${esc(u)}</span><button class="act" data-remove-user="${esc(u)}">ลบ</button></div>`)
           .join("");
         el("settingsView").innerHTML = `
           <div class="set-grid">${secHtml}</div>
@@ -850,10 +850,10 @@
                 <div class="mname">${svg("circle-user", 15)} ${esc(m.username)} <span class="mno">#${String(m.member_number).padStart(4, "0")}</span> <span class="vb lv">LV.${m.level || 1}</span>${m.bias && m.bias !== "-" ? ` <span class="vb bias">${esc(m.bias)}</span>` : ""}</div>
                 <div class="mbadges" id="vb-${m.id}">${voiceBadges(m.voice)}</div>
                 <div class="mactions">
-                  <button onclick="actMember('warn','${m.id}')">เตือน</button>
-                  <button onclick="actMember('timeout','${m.id}')">Timeout</button>
-                  <button onclick="actMember('kick','${m.id}')">Kick</button>
-                  <button class="danger" onclick="actMember('ban','${m.id}')">Ban</button>
+                  <button data-act="warn" data-mid="${m.id}">เตือน</button>
+                  <button data-act="timeout" data-mid="${m.id}">Timeout</button>
+                  <button data-act="kick" data-mid="${m.id}">Kick</button>
+                  <button class="danger" data-act="ban" data-mid="${m.id}">Ban</button>
                 </div>
               </div>
             </div>`,
@@ -1083,6 +1083,17 @@
         el("search").value = v;
         search = v.toLowerCase();
         render();
+      });
+
+      // ปุ่มสั่งการบัตรสมาชิก + ลบ mod ใช้ event delegation อ่านค่าจาก data-*
+      // (แทน inline onclick ที่ interpolate ค่า → กัน XSS แบบ JS-in-attribute)
+      el("mgrid").addEventListener("click", (ev) => {
+        const b = ev.target.closest("button[data-act]");
+        if (b) actMember(b.dataset.act, b.dataset.mid);
+      });
+      el("settingsView").addEventListener("click", (ev) => {
+        const b = ev.target.closest("[data-remove-user]");
+        if (b) removeModUser(b.dataset.removeUser);
       });
 
       // ---- เริ่มต้นที่หน้าภาพรวม ----

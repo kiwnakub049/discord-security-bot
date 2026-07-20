@@ -28,15 +28,23 @@ before(async () => {
   ({ handleMemberJoin } = await import("../src/modules/antiRaid.js"));
 });
 
-function mockMember(id: string, ageDays: number): GuildMember {
+function mockMember(
+  id: string,
+  ageDays: number,
+  opts: { exempt?: boolean } = {},
+): GuildMember {
   return {
     id,
     guild: { id: "guild-1" },
     client: {},
     user: {
+      bot: false,
       tag: `user${id}#0001`,
       createdTimestamp: Date.now() - ageDays * 24 * 60 * 60 * 1000,
     },
+    // isExempt() เรียก roles.cache.some และ permissions.has
+    roles: { cache: { some: () => false } },
+    permissions: { has: () => opts.exempt === true },
     kick: async () => void kicked.add(id),
     ban: async () => void banned.add(id),
   } as unknown as GuildMember;
@@ -55,6 +63,11 @@ test("account ใหม่ที่เข้าระหว่าง raid → �
 test("account เก่าเข้าช่วง raid → ไม่ถูกแตะ (กันกระทบสมาชิกจริง)", async () => {
   await handleMemberJoin(mockMember("old-1", 30));
   assert.ok(!kicked.has("old-1"));
+});
+
+test("account ยกเว้น (mod) แม้ใหม่ ก็ไม่ถูก kick ตอน raid", async () => {
+  await handleMemberJoin(mockMember("mod-young", 0, { exempt: true }));
+  assert.ok(!kicked.has("mod-young"));
 });
 
 test("โหมด kick ไม่มีการ ban", () => {
