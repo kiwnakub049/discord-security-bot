@@ -16,7 +16,9 @@ const DB_PATH = join(tmpdir(), "bot-test-web.db");
 process.env.BOT_DB_PATH = DB_PATH;
 process.env.SESSION_SECRET ||= "test-secret-do-not-use-in-prod";
 
-const BASE = "http://127.0.0.1:3000";
+// ใช้พอร์ตแยกจากตัวจริง (3000) — จะได้รันเทสได้แม้เปิด npm run web/dev ค้างไว้
+const TEST_PORT = 3999;
+const BASE = `http://127.0.0.1:${TEST_PORT}`;
 const ADMIN = "admin";
 const PASS = "password123";
 let server: Server | undefined;
@@ -27,6 +29,8 @@ before(async () => {
   initDb();
   const { addUser } = await import("../src/auth/users.js");
   await addUser(ADMIN, PASS);
+  const { config } = await import("../src/config.js");
+  config.web.port = TEST_PORT;
   const { startWebServer } = await import("../src/web/server.js");
   server = startWebServer(undefined);
 
@@ -101,6 +105,20 @@ test("#4 CSRF: POST same-origin → ไม่โดนบล็อก (≠403)",
     body: "{}",
   });
   assert.notEqual(r.status, 403);
+});
+
+test('#4 CSRF: "Origin: null" (sandboxed iframe) → 403', async () => {
+  const r = await fetch(`${BASE}/api/action/lock`, {
+    method: "POST",
+    headers: { Cookie: cookie, "Content-Type": "application/json", Origin: "null" },
+    body: "{}",
+  });
+  assert.equal(r.status, 403);
+});
+
+test("#4 Referrer-Policy ต้องเป็น same-origin — no-referrer จะทำให้เบราว์เซอร์ส่ง Origin: null จน login โดน CSRF block", async () => {
+  const r = await fetch(`${BASE}/login`);
+  assert.equal(r.headers.get("referrer-policy"), "same-origin");
 });
 
 test("#3 username อักขระอันตราย → 400", async () => {

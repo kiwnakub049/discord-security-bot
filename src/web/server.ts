@@ -144,7 +144,10 @@ export function startWebServer(client?: Client): Server | undefined {
   app.use((_req: Request, res: Response, next: NextFunction) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("X-Frame-Options", "DENY");
-    res.setHeader("Referrer-Policy", "no-referrer");
+    // same-origin ไม่ใช่ no-referrer — no-referrer ทำให้เบราว์เซอร์ส่ง "Origin: null"
+    // กับ form POST ของหน้าตัวเอง (ตามสเปค Fetch) จน CSRF check ด้านล่างบล็อก login ทั้งเว็บ
+    // same-origin: ส่ง Origin/Referer ปกติภายในเว็บตัวเอง แต่ไม่รั่วไปเว็บอื่นเหมือนกัน
+    res.setHeader("Referrer-Policy", "same-origin");
     res.setHeader(
       "Content-Security-Policy",
       "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'",
@@ -171,6 +174,10 @@ export function startWebServer(client?: Client): Server | undefined {
         /* header เพี้ยน */
       }
       if (sourceHost !== req.headers.host) {
+        // log ไว้วินิจฉัย — ถ้าผู้ใช้จริงโดนบล็อกจะได้เห็นว่า header อะไรเพี้ยน
+        console.warn(
+          `🛑 CSRF block ${req.method} ${req.path} — origin=${req.headers.origin ?? "-"} referer=${req.headers.referer ?? "-"} host=${req.headers.host}`,
+        );
         res.status(403).json({ error: "cross-site request blocked" });
         return;
       }

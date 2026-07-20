@@ -7,6 +7,7 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "deploy": "tsx src/deploy-commands.ts",
+    "web": "tsx src/scripts/webOnly.ts",
     "user:add": "tsx src/scripts/userAdd.ts",
     "user:remove": "tsx src/scripts/userRemove.ts",
     "db:migrate": "tsx src/scripts/migrateJson.ts",
