@@ -56,6 +56,8 @@ export const config = {
     // การใช้ permission ผ่าน audit log: ban, kick, แก้ role, แก้สิทธิ์ห้อง ฯลฯ
     // ⚠️ บอทต้องมีสิทธิ์ "View Audit Log" ในเซิร์ฟเวอร์ ถึงจะรับ event นี้ได้
     auditLog: true,
+    // เก็บ log ในฐานข้อมูลกี่วัน แล้วลบทิ้งอัตโนมัติ (0 = เก็บตลอด ไม่ลบ)
+    retentionDays: 90,
   },
 
   /**

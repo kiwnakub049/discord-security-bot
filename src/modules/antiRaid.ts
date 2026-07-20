@@ -1,6 +1,7 @@
-import { ChannelType, type GuildMember } from "discord.js";
+import { type GuildMember } from "discord.js";
 import { config } from "../config.js";
 import { logEvent } from "../utils/logger.js";
+import { setGuildLock } from "./lockdown.js";
 
 // เก็บผู้เข้าล่าสุดของแต่ละเซิร์ฟเวอร์ (member + เวลา) ไว้จัดการทั้ง batch ตอน raid
 const recentJoins = new Map<string, { member: GuildMember; at: number }[]>();
@@ -117,26 +118,14 @@ async function triggerRaidResponse(
 }
 
 /**
- * ล็อกห้องแชตทั้งหมด: ปิดสิทธิ์ SendMessages ของ @everyone ชั่วคราว
+ * ล็อกทุกห้อง (ผ่าน setGuildLock — ครอบคลุม text/forum/voice ทั้งหมด)
  */
 async function lockdownGuild(member: GuildMember): Promise<void> {
-  const guild = member.guild;
-  const everyone = guild.roles.everyone;
-  const channels = guild.channels.cache.filter(
-    (c) => c.type === ChannelType.GuildText,
-  );
+  const { ok } = await setGuildLock(member.guild, true);
 
-  for (const channel of channels.values()) {
-    try {
-      await channel.permissionOverwrites.edit(everyone, {
-        SendMessages: false,
-      });
-    } catch {
-      // ข้ามห้องที่บอทไม่มีสิทธิ์
-    }
-  }
-
-  await logEvent(member.client, "alert", "security", "security_lockdown", "Lockdown สำเร็จ", [], [
+  await logEvent(member.client, "alert", "security", "security_lockdown", "Lockdown สำเร็จ", [
+    { name: "ห้องที่ล็อก", value: `${ok}` },
+  ], [
     "ปิดการส่งข้อความของทุกห้องแล้ว",
     "ใช้คำสั่ง /unlock เพื่อปลดล็อกเมื่อสถานการณ์ปกติ",
   ].join("\n"));

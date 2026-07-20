@@ -1,9 +1,9 @@
 import {
-  ChannelType,
   PermissionFlagsBits,
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
 } from "discord.js";
+import { setGuildLock } from "../modules/lockdown.js";
 import { logEvent } from "../utils/logger.js";
 
 export const lock = {
@@ -33,23 +33,7 @@ async function setLockState(
   if (!interaction.guild) return;
   await interaction.deferReply({ ephemeral: true });
 
-  const everyone = interaction.guild.roles.everyone;
-  const channels = interaction.guild.channels.cache.filter(
-    (c) => c.type === ChannelType.GuildText,
-  );
-
-  let ok = 0;
-  let fail = 0;
-  for (const channel of channels.values()) {
-    try {
-      await channel.permissionOverwrites.edit(everyone, {
-        SendMessages: allowSend ? null : false,
-      });
-      ok++;
-    } catch {
-      fail++;
-    }
-  }
+  const { ok, fail } = await setGuildLock(interaction.guild, !allowSend);
 
   const verb = allowSend ? "ปลดล็อก" : "ล็อก";
   await interaction.editReply(

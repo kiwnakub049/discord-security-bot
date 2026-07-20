@@ -52,10 +52,24 @@ export const logEmitter = new EventEmitter();
 logEmitter.setMaxListeners(0); // SSE client ได้ไม่จำกัด
 
 /**
+ * ลบ log ที่เก่ากว่า retentionDays ทิ้ง (0 = ปิด ไม่ลบ) — คืนจำนวนแถวที่ลบ
+ */
+export function pruneLogs(): number {
+  const days = config.logging.retentionDays;
+  if (!days || days <= 0) return 0;
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  return db.prepare("DELETE FROM logs WHERE timestamp < ?").run(cutoff).changes;
+}
+
+/**
  * เตรียม log store — ตาราง logs ถูกสร้างใน initDb() แล้ว
- * (เก็บไว้เพื่อความเข้ากันได้กับโค้ดที่เรียกตอนบูต)
+ * ลบ log เก่าตอนบูต + ตั้งลบซ้ำทุกวัน (retention ตาม config.logging.retentionDays)
  */
 export async function initLogStore(): Promise<void> {
+  const pruned = pruneLogs();
+  if (pruned) console.log(`🧹 ลบ log เก่าเกิน ${config.logging.retentionDays} วัน: ${pruned} รายการ`);
+  setInterval(pruneLogs, 24 * 60 * 60 * 1000).unref();
+
   const n = (db.prepare("SELECT COUNT(*) AS n FROM logs").get() as { n: number })
     .n;
   console.log(`📒 log ใน DB: ${n} รายการ`);

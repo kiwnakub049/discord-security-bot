@@ -53,6 +53,7 @@ export const SECTIONS: { section: string; items: Item[] }[] = [
       { key: "logging.memberJoinLeave", label: "เข้า-ออกเซิร์ฟเวอร์", type: "bool" },
       { key: "logging.voice", label: "ห้องเสียง", type: "bool" },
       { key: "logging.auditLog", label: "permission/audit", type: "bool" },
+      { key: "logging.retentionDays", label: "เก็บ log กี่วัน (0 = ตลอด)", type: "int" },
       { key: "logChannelId", label: "ห้อง log (channel ID)", type: "id" },
     ],
   },

@@ -3,7 +3,7 @@ import express, {
   type Response,
   type NextFunction,
 } from "express";
-import { ChannelType, type Client, type Guild } from "discord.js";
+import { type Client, type Guild } from "discord.js";
 import type { Server } from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,6 +19,7 @@ import {
   type Activity,
 } from "../store/activityStore.js";
 import { clearWarnings, totalWarnings } from "../modules/warningStore.js";
+import { setGuildLock } from "../modules/lockdown.js";
 import { warnMember } from "../modules/warnAction.js";
 import { dmAction } from "../modules/dmNotice.js";
 import {
@@ -498,18 +499,7 @@ export function startWebServer(client?: Client): Server | undefined {
   async function lockGuild(allow: boolean, actor: string) {
     const guild = getGuild();
     if (!guild) return { ok: false, message: "ไม่พบเซิร์ฟเวอร์" };
-    const everyone = guild.roles.everyone;
-    let ok = 0;
-    let fail = 0;
-    for (const ch of guild.channels.cache.values()) {
-      if (ch.type !== ChannelType.GuildText) continue;
-      try {
-        await ch.permissionOverwrites.edit(everyone, { SendMessages: allow ? null : false });
-        ok++;
-      } catch {
-        fail++;
-      }
-    }
+    const { ok, fail } = await setGuildLock(guild, !allow);
     if (client) {
       await logEvent(
         client,
