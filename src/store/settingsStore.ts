@@ -54,6 +54,16 @@ export const SECTIONS: { section: string; items: Item[] }[] = [
     section: "Warnings",
     items: [{ key: "warnings.enabled", label: "เปิดระบบเตือน", type: "bool" }],
   },
+  {
+    section: "Activity / XP",
+    items: [
+      { key: "activity.enabled", label: "เปิดระบบ XP", type: "bool" },
+      { key: "activity.messageXp", label: "XP ต่อข้อความ", type: "int" },
+      { key: "activity.messageCooldownMs", label: "cooldown ข้อความ (ms)", type: "int" },
+      { key: "activity.voiceXpPerMin", label: "XP ต่อนาที (ห้องเสียง)", type: "int" },
+      { key: "activity.voiceCountWhileMuted", label: "นับเวลาแม้ปิดไมค์", type: "bool" },
+    ],
+  },
 ];
 
 const ALL = SECTIONS.flatMap((s) => s.items);

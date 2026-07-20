@@ -1,6 +1,9 @@
 import { Events, type Message } from "discord.js";
+import { config } from "../config.js";
 import { handleSpamCheck } from "../modules/antiSpam.js";
 import { handleAutoMod } from "../modules/autoMod.js";
+import { recordMessage } from "../store/activityStore.js";
+import { logEvent } from "../utils/logger.js";
 
 export const name = Events.MessageCreate;
 
@@ -12,5 +15,18 @@ export async function execute(message: Message): Promise<void> {
   const handled = await handleAutoMod(message);
   if (handled) return;
 
-  await handleSpamCheck(message);
+  const spam = await handleSpamCheck(message);
+  if (spam) return;
+
+  // ข้อความที่ผ่านด่านแล้ว = activity จริง → สะสม XP (มี cooldown กัน farm)
+  if (config.activity.enabled) {
+    const r = recordMessage(message.author.id);
+    if (r.leveledUp) {
+      await logEvent(message.client, "info", "member", "member_levelup", "เลื่อนเลเวล!", [
+        { name: "User", value: `${message.author.tag} (${message.author.id})` },
+        { name: "เลเวล", value: `${r.oldLevel} → ${r.newLevel}` },
+        { name: "จาก", value: "ข้อความ" },
+      ]);
+    }
+  }
 }

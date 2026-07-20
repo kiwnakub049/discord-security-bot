@@ -61,6 +61,16 @@ export function initDb(): void {
       value TEXT NOT NULL        -- JSON ของค่าที่ override
     );
 
+    CREATE TABLE IF NOT EXISTS activity (
+      user_id         TEXT PRIMARY KEY,
+      messages        INTEGER NOT NULL DEFAULT 0,
+      voice_seconds   INTEGER NOT NULL DEFAULT 0,
+      xp              INTEGER NOT NULL DEFAULT 0,
+      last_message_at INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS idx_activity_xp    ON activity(xp DESC);
+    CREATE INDEX IF NOT EXISTS idx_activity_voice ON activity(voice_seconds DESC);
+
     CREATE TABLE IF NOT EXISTS logs (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       timestamp   INTEGER NOT NULL,

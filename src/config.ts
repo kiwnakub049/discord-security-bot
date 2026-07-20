@@ -113,4 +113,19 @@ export const config = {
       { count: 7, action: "ban" }, // 7 ครั้ง: แบน
     ] as { count: number; action: "timeout" | "ban"; ms?: number }[],
   },
+
+  /**
+   * ระบบ activity / XP — สะสมแต้มจากข้อความ + เวลาในห้องเสียง
+   * ป้อนข้อมูลให้ "เลเวลบนบัตร" และ "หน้าโปรไฟล์" ต่อไป
+   */
+  activity: {
+    enabled: true,
+    // ข้อความ: ได้ XP เท่านี้ต่อ 1 ข้อความ (แต่ได้ไม่ถี่กว่า messageCooldownMs กัน spam farm)
+    messageXp: 10,
+    messageCooldownMs: 60_000, // 60 วินาที
+    // ห้องเสียง: ได้ XP เท่านี้ต่อ 1 นาทีที่อยู่ในห้อง
+    voiceXpPerMin: 5,
+    // ไม่นับเวลา/XP ห้องเสียงถ้าปิดไมค์หรือปิดหูฟัง (กัน AFK farm) — true = นับทุกกรณี
+    voiceCountWhileMuted: false,
+  },
 };

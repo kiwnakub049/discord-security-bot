@@ -75,7 +75,7 @@ test("#2 scrypt: login ถูก → 302 ไป / + ได้ cookie", async () 
   const r = await login(ADMIN, PASS);
   assert.equal(r.headers.get("location"), "/");
   const sc = r.headers.get("set-cookie");
-  assert.ok(sc?.startsWith("sid="), "ต้องมี Set-Cookie: sid=");
+  assert.ok(sc && sc.startsWith("sid="), "ต้องมี Set-Cookie: sid=");
   cookie = sc.split(";")[0];
 });
 
@@ -120,6 +120,21 @@ test("#3/#2 username ถูกต้อง + addUser async → 200", async () =>
   });
   assert.equal(r.status, 200);
   assert.equal((await r.json()).ok, true);
+});
+
+test("GET /api/activity/:id → มี xp/level/pct", async () => {
+  const r = await fetch(`${BASE}/api/activity/123`, { headers: { Cookie: cookie } });
+  assert.equal(r.status, 200);
+  const b = await r.json();
+  for (const k of ["xp", "level", "pct", "voiceSeconds"]) assert.ok(k in b, `ต้องมี field ${k}`);
+});
+
+test("GET /api/leaderboard → { by, entries[] }", async () => {
+  const r = await fetch(`${BASE}/api/leaderboard?by=xp&limit=5`, { headers: { Cookie: cookie } });
+  assert.equal(r.status, 200);
+  const b = await r.json();
+  assert.equal(b.by, "xp");
+  assert.ok(Array.isArray(b.entries));
 });
 
 // ทำท้ายสุด — จะล็อก IP 127.0.0.1

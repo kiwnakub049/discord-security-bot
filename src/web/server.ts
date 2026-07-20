@@ -11,6 +11,13 @@ import { config } from "../config.js";
 import { getMember, listMembers } from "../idcard/members.js";
 import { getCardImage } from "../idcard/cardCache.js";
 import { getVoiceState, getVoiceStates } from "../store/voiceState.js";
+import {
+  getActivity,
+  levelProgress,
+  topByVoice,
+  topByXp,
+  type Activity,
+} from "../store/activityStore.js";
 import { clearWarnings, totalWarnings } from "../modules/warningStore.js";
 import { warnMember } from "../modules/warnAction.js";
 import { dmAction } from "../modules/dmNotice.js";
@@ -343,6 +350,36 @@ export function startWebServer(client?: Client): Server | undefined {
     } catch {
       res.status(500).send("card error");
     }
+  });
+
+  // ---------- Activity / XP ----------
+  // เติมชื่อผู้ใช้จาก Discord ให้ activity (best-effort)
+  async function withName(a: Activity) {
+    let username = a.userId;
+    try {
+      if (client) username = (await client.users.fetch(a.userId)).username;
+    } catch {
+      /* ดึงชื่อไม่ได้ */
+    }
+    return { ...a, username, ...levelProgress(a.xp) };
+  }
+
+  // XP/เลเวล/สถิติของคนคนนั้น (สำหรับหน้าโปรไฟล์)
+  app.get("/api/activity/:id", async (req: Request, res: Response) => {
+    const id = String(req.params.id ?? "");
+    if (!id) {
+      res.status(400).json({ error: "missing id" });
+      return;
+    }
+    res.json(await withName(getActivity(id)));
+  });
+
+  // อันดับ — ?by=xp|voice&limit=n (สำหรับ leaderboard)
+  app.get("/api/leaderboard", async (req: Request, res: Response) => {
+    const by = req.query.by === "voice" ? "voice" : "xp";
+    const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 10));
+    const rows = by === "voice" ? topByVoice(limit) : topByXp(limit);
+    res.json({ by, entries: await Promise.all(rows.map(withName)) });
   });
 
   // ---------- ปฏิบัติการจาก dashboard (ban/kick/timeout/warn/lock) ----------
