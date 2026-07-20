@@ -117,7 +117,7 @@ exit
 ```bash
 sudo -u botuser -s -c 'cd /home/botuser/discord-security-bot && npm run user:remove bob'
 ```
-> รหัสผ่านเก็บเป็น scrypt hash ในไฟล์ `data/users.json` (อยู่ใน .gitignore ไม่หลุดขึ้น git)
+> รหัสผ่านเก็บเป็น scrypt hash ในตาราง `users` ของ `data/bot.db` (โฟลเดอร์ `data/` อยู่ใน .gitignore ไม่หลุดขึ้น git)
 
 ## 7. เปิด dashboard ออกเน็ต (เลือกวิธีได้)
 
@@ -182,5 +182,5 @@ sudo systemctl restart discord-bot
   - **ปิด ufw 80/443 ได้** เพราะไม่ต้องรับ traffic เข้าตรง ๆ อีกต่อไป
   - บอทยัง bind `127.0.0.1:3000` เหมือนเดิม / login session เหมือนเดิม → **ไม่ต้องแตะโค้ด**
   - Cloudflare ให้ HTTPS อยู่แล้ว → คง `cookieSecure: true`
-- **เก็บข้อมูลถาวร:** ไฟล์ `data/` (users.json + logs.jsonl) ก็อปย้ายเครื่องได้ตรง ๆ — ไม่มี dependency กับ OS
+- **เก็บข้อมูลถาวร:** โฟลเดอร์ `data/` (SQLite `bot.db` + cache รูปบัตร) ก็อปย้ายเครื่องได้ตรง ๆ — ไม่มี dependency กับ OS (ปิดบอทก่อนก็อปเพื่อให้ WAL flush ครบ)
 - **SD card:** ถ้ากังวลเรื่องการเขียนบ่อย พิจารณาบูตจาก SSD/USB หรือย้าย `data/` ไปไว้บน storage ที่ทนกว่า
