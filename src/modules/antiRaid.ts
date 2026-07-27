@@ -1,6 +1,7 @@
 import { type GuildMember } from "discord.js";
 import { config } from "../config.js";
 import { logEvent } from "../utils/logger.js";
+import { isExempt } from "../utils/exempt.js";
 import { setGuildLock } from "./lockdown.js";
 
 // เก็บผู้เข้าล่าสุดของแต่ละเซิร์ฟเวอร์ (member + เวลา) ไว้จัดการทั้ง batch ตอน raid
@@ -14,6 +15,7 @@ function isNewAccount(member: GuildMember): boolean {
 
 /** kick/ban สมาชิกที่เป็น account ใหม่ (คืน true ถ้าลงมือจริง) */
 async function actOnMember(member: GuildMember): Promise<boolean> {
+  if (isExempt(member)) return false; // ไม่แตะ mod/บอท/รายชื่อยกเว้น แม้ account ใหม่
   if (!isNewAccount(member)) return false; // ไม่แตะสมาชิกจริง (account เก่า)
   try {
     if (config.antiRaid.action === "ban") {
@@ -69,9 +71,10 @@ export async function handleMemberJoin(member: GuildMember): Promise<void> {
 
   if (recent.length >= config.antiRaid.joinThreshold) {
     raidActive.add(guildId);
-    await triggerRaidResponse(member, recent);
-    // ปลดสถานะ raid หลังจากผ่านหน้าต่างเวลาไป เพื่อให้ตรวจจับรอบใหม่ได้
+    // ตั้งปลดสถานะ raid "ก่อน" await เสมอ — ถ้า triggerRaidResponse โยน error
+    // จะได้ไม่ค้าง raidActive ถาวร (ไม่งั้นทุกคนที่เข้ามาหลังจากนั้นโดน auto-kick ไม่จบ)
     setTimeout(() => raidActive.delete(guildId), config.antiRaid.joinWindowMs * 3);
+    await triggerRaidResponse(member, recent);
   }
 }
 

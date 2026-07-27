@@ -57,14 +57,22 @@ export const register = {
     ),
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     await interaction.deferReply({ ephemeral: true });
-    const bias = interaction.options.getString("bias") ?? "-";
-    const status = interaction.options.getString("status") ?? "-";
-    const card = registerMember(
+    const biasOpt = interaction.options.getString("bias");
+    const statusOpt = interaction.options.getString("status");
+    let card = registerMember(
       interaction.user.id,
       joinedAtOf(interaction.member),
-      bias,
-      status,
+      biasOpt ?? "-",
+      statusOpt ?? "-",
     );
+    // registerMember คืน row เดิมโดยไม่อัปเดตถ้าลงทะเบียนอยู่แล้ว —
+    // อัปเดตเฉพาะฟิลด์ที่ผู้ใช้ระบุมาจริง (กันเผลอทับค่าเดิมเป็น "-")
+    const patch: { bias?: string; status?: string } = {};
+    if (biasOpt !== null) patch.bias = biasOpt;
+    if (statusOpt !== null) patch.status = statusOpt;
+    if (Object.keys(patch).length > 0) {
+      card = updateMember(interaction.user.id, patch) ?? card;
+    }
     await syncCardRoleById(interaction.guild, interaction.user.id); // ให้ role มีบัตร
     await interaction.editReply({
       content: `✅ ลงทะเบียนสำเร็จ! หมายเลขของคุณคือ **${idLabel(card)}**`,
