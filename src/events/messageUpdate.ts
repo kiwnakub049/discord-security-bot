@@ -1,4 +1,5 @@
 import { Events, type Message, type PartialMessage } from "discord.js";
+import { handleAiMod } from "../modules/aiMod.js";
 import { handleAutoMod } from "../modules/autoMod.js";
 
 /**
@@ -20,5 +21,6 @@ export async function execute(
     }
   }
   if (msg.author?.bot || !msg.guild) return;
-  await handleAutoMod(msg as Message);
+  const handled = await handleAutoMod(msg as Message);
+  if (!handled) await handleAiMod(msg as Message);
 }

@@ -1,5 +1,6 @@
 import { Events, type Message } from "discord.js";
 import { config } from "../config.js";
+import { handleAiMod } from "../modules/aiMod.js";
 import { handleSpamCheck } from "../modules/antiSpam.js";
 import { handleAutoMod } from "../modules/autoMod.js";
 import { recordMessage } from "../store/activityStore.js";
@@ -17,6 +18,10 @@ export async function execute(message: Message): Promise<void> {
 
   const spam = await handleSpamCheck(message);
   if (spam) return;
+
+  // ด่านสุดท้าย: AI classifier — แพงสุด (~20ms + เรียก HTTP) เลยไว้หลัง regex/spam
+  const toxic = await handleAiMod(message);
+  if (toxic) return;
 
   // ข้อความที่ผ่านด่านแล้ว = activity จริง → สะสม XP (มี cooldown กัน farm)
   if (config.activity.enabled) {

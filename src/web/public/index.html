@@ -458,11 +458,11 @@
 
       // ---- chip กรองย่อย (เปลี่ยนตามหมวดที่เลือกในเมนูซ้าย) ----
       const EVENTS_BY_CAT = {
-        security: [["security_raid", "RAID"], ["security_spam", "สแปม"], ["security_automod", "Auto-mod"], ["security_warn", "เตือน"], ["security_newaccount", "Account ใหม่"], ["security_lockdown", "Lockdown"]],
+        security: [["security_raid", "RAID"], ["security_spam", "สแปม"], ["security_automod", "Auto-mod"], ["security_ai", "AI ตรวจจับ"], ["security_warn", "เตือน"], ["security_newaccount", "Account ใหม่"], ["security_lockdown", "Lockdown"]],
         member: [["member_join", "เข้าเซิร์ฟเวอร์"], ["member_leave", "ออกเซิร์ฟเวอร์"], ["member_register", "ลงทะเบียนบัตร"], ["member_issue", "ออกบัตร"], ["member_levelup", "เลื่อนเลเวล"]],
         voice: [["voice_join", "เข้าห้อง"], ["voice_leave", "ออกห้อง"], ["voice_move", "ย้ายห้อง"], ["voice_mute", "ไมค์"], ["voice_deafen", "หูฟัง"], ["voice_server", "แอดมินสั่ง"], ["voice_stream", "Go Live"], ["voice_camera", "กล้อง"]],
         audit: [["audit_ban", "แบน"], ["audit_unban", "ปลดแบน"], ["audit_kick", "เตะ"], ["audit_timeout", "Timeout"], ["audit_role", "Role"], ["audit_channel", "ห้อง/สิทธิ์"], ["audit_member", "แก้สมาชิก"], ["voice_lock", "ล็อกห้องเสียง"], ["voice_unlock", "ปลดล็อกเสียง"]],
-        system: [["system_online", "ออนไลน์"], ["system_login", "Login เว็บ"], ["system_lock", "ล็อก/ปลดล็อก"], ["system_settings", "ตั้งค่า"]],
+        system: [["system_online", "ออนไลน์"], ["system_login", "Login เว็บ"], ["system_lock", "ล็อก/ปลดล็อก"], ["system_settings", "ตั้งค่า"], ["system_ai", "AI service"]],
       };
 
       function buildChips(cat) {
