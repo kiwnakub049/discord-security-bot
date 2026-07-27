@@ -48,6 +48,15 @@ export const SECTIONS: { section: string; items: Item[] }[] = [
     ],
   },
   {
+    section: "AI Mod (toxic classifier)",
+    items: [
+      { key: "aiMod.enabled", label: "เปิดใช้งาน", type: "bool" },
+      { key: "aiMod.timeoutMs", label: "timeout เรียก service (ms)", type: "int" },
+      { key: "aiMod.deleteOnAuto", label: "ลบข้อความโซน auto ทันที", type: "bool" },
+      { key: "aiMod.minLength", label: "ความยาวขั้นต่ำที่ส่งตรวจ (ตัวอักษร)", type: "int" },
+    ],
+  },
+  {
     section: "Logging",
     items: [
       { key: "logging.memberJoinLeave", label: "เข้า-ออกเซิร์ฟเวอร์", type: "bool" },

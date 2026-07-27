@@ -48,6 +48,23 @@ export const config = {
   },
 
   /**
+   * AI mod: ส่งข้อความให้โมเดล toxic classifier ภาษาไทย (toxic-serve บน Pi)
+   * ช่วยตัดสินต่อจาก auto-mod — โซน "auto" ลงโทษเอง, โซน "review" ขึ้น dashboard
+   * threshold ของโซนอ่านจาก model_card.json ฝั่ง service ไม่ต้องตั้งที่นี่
+   */
+  aiMod: {
+    enabled: true,
+    // pi_serve.py ฟังแค่ 127.0.0.1 — บอทต้องรันบนเครื่องเดียวกับ service
+    url: "http://127.0.0.1:8081/classify",
+    // เกินนี้ถือว่า service ไม่ตอบ => ปล่อยข้อความผ่าน (fail-open)
+    timeoutMs: 3_000,
+    // ลบข้อความทันทีเมื่อเข้าโซน auto
+    deleteOnAuto: true,
+    // ข้อความสั้นกว่านี้ (ตัวอักษร) ไม่ส่งตรวจ
+    minLength: 2,
+  },
+
+  /**
    * Audit logging: บันทึกเหตุการณ์ในเซิร์ฟเวอร์ (ขึ้นทั้งหน้าเว็บ + ห้อง log)
    */
   logging: {
