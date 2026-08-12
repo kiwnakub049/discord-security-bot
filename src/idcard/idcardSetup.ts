@@ -4,6 +4,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
+  MessageFlags,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
@@ -11,6 +12,8 @@ import {
   type GuildMember,
   type ModalSubmitInteraction,
 } from "discord.js";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { getMember, registerMember, updateMember } from "./members.js";
 import { getCardImage } from "./cardCache.js";
 import { syncCardRoleById } from "../modules/cardRole.js";
@@ -19,12 +22,25 @@ import { logEvent } from "../utils/logger.js";
 export const IDCARD_BUTTON = "idcard_create";
 export const IDCARD_MODAL = "idcard_modal";
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+/**
+ * แบนเนอร์หัวพาเนล — แนบไฟล์ไปกับข้อความ ไม่ได้ใส่เป็น URL
+ *
+ * ลิงก์ CDN ของ Discord เดี๋ยวนี้เซ็นมาพร้อมวันหมดอายุ (พารามิเตอร์ ex=) ถ้าอ้าง URL ตรง ๆ
+ * อีกไม่กี่วันพาเนลที่ปักไว้ในห้องจะกลายเป็นรูปแตกโดยไม่มีใครรู้ตัว
+ * แนบเป็นไฟล์แล้วอ้างด้วย attachment:// ทำให้รูปอยู่กับข้อความนั้นถาวร
+ */
+export const PANEL_BANNER_NAME = "panel_banner.jpg";
+const PANEL_BANNER_PATH = join(__dirname, "assets", PANEL_BANNER_NAME);
+
 /** embed + ปุ่ม สำหรับวางในห้อง */
 export function buildPanel() {
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
     .setTitle("🪪 บัตรประจำตัวสมาชิก")
-    .setDescription("กดปุ่มด้านล่างเพื่อสร้าง/อัปเดตบัตรประจำตัวของคุณ");
+    .setDescription("กดปุ่มด้านล่างเพื่อสร้าง/อัปเดตบัตรประจำตัวของคุณ")
+    .setImage(`attachment://${PANEL_BANNER_NAME}`);
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(IDCARD_BUTTON)
@@ -32,7 +48,10 @@ export function buildPanel() {
       .setStyle(ButtonStyle.Primary)
       .setEmoji("🪪"),
   );
-  return { embeds: [embed], components: [row] };
+  const banner = new AttachmentBuilder(PANEL_BANNER_PATH, {
+    name: PANEL_BANNER_NAME,
+  });
+  return { embeds: [embed], components: [row], files: [banner] };
 }
 
 /** กดปุ่ม -> เปิด modal ให้กรอก */
@@ -65,7 +84,7 @@ export async function showIdcardModal(interaction: ButtonInteraction): Promise<v
 export async function submitIdcard(
   interaction: ModalSubmitInteraction,
 ): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const status = interaction.fields.getTextInputValue("status").trim() || "-";
   const bias = interaction.fields.getTextInputValue("bias").trim() || "-";
   const user = interaction.user;

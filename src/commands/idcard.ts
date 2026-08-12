@@ -1,5 +1,6 @@
 import {
   AttachmentBuilder,
+  MessageFlags,
   PermissionFlagsBits,
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
@@ -56,7 +57,7 @@ export const register = {
       o.setName("bias").setDescription("ไบแอสของคุณ").setMaxLength(40),
     ),
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const biasOpt = interaction.options.getString("bias");
     const statusOpt = interaction.options.getString("status");
     let card = registerMember(
@@ -113,7 +114,7 @@ export const setbias = {
       o.setName("bias").setDescription("ชื่อไบแอสใหม่").setRequired(true),
     ),
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const bias = interaction.options.getString("bias", true);
     const card = updateMember(interaction.user.id, { bias });
     if (!card) {
@@ -140,7 +141,7 @@ export const setstatus = {
         .addChoices(...STATUS_CHOICES),
     ),
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const status = interaction.options.getString("status", true);
     const card = updateMember(interaction.user.id, { status });
     if (!card) {
@@ -163,11 +164,11 @@ export const setupIdcard = {
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     const ch = interaction.channel;
     if (!ch || !ch.isSendable()) {
-      await interaction.reply({ content: "❌ ส่งข้อความในห้องนี้ไม่ได้", ephemeral: true });
+      await interaction.reply({ content: "❌ ส่งข้อความในห้องนี้ไม่ได้", flags: MessageFlags.Ephemeral });
       return;
     }
     await ch.send(buildPanel());
-    await interaction.reply({ content: "✅ วางปุ่มสร้างบัตรในห้องนี้แล้ว", ephemeral: true });
+    await interaction.reply({ content: "✅ วางปุ่มสร้างบัตรในห้องนี้แล้ว", flags: MessageFlags.Ephemeral });
   },
 };
 
@@ -179,7 +180,7 @@ export const syncCardRoles = {
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     if (!interaction.guild) return;
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const r = await syncAllCardRoles(interaction.guild);
     await interaction.editReply(
       `✅ ซิงค์ role บัตรเสร็จ — เพิ่ม ${r.added} คน, เอาออก ${r.removed} คน (จากทั้งหมด ${r.total} คน)`,
