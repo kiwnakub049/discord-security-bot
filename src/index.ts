@@ -7,6 +7,7 @@ import { initDb } from "./store/db.js";
 import { initLogStore } from "./store/logStore.js";
 import { applyOverrides } from "./store/settingsStore.js";
 import { startWebServer } from "./web/server.js";
+import { isPermanentLoginError, loginWithRetry } from "./utils/loginRetry.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -82,4 +83,26 @@ applyOverrides(); // โหลดค่า settings ที่ปรับจา�
 await initLogStore(); // เตรียม log store
 startWebServer(client); // เปิดเว็บ dashboard (ส่ง client ไว้ดึงข้อมูลสมาชิก/บัตร)
 await loadEvents();
-await client.login(token);
+
+// ต้อง try/catch ตรงนี้เอง ห้ามปล่อยให้ตกไปถึง handler uncaughtException ข้างบน
+// เพราะมันแค่ log แล้วปล่อยผ่าน ทำให้ได้ process ที่ "รันอยู่แต่ไม่มีบอท"
+try {
+  await loginWithRetry(() => client.login(token), {
+    shouldRetry: (err) => !isPermanentLoginError(err),
+    onRetry: (attempt, delayMs, err) =>
+      console.warn(
+        `⚠️  ล็อกอินไม่สำเร็จ (ครั้งที่ ${attempt}): ${err instanceof Error ? err.message : String(err)} — ลองใหม่ในอีก ${delayMs / 1000} วิ`,
+      ),
+  });
+} catch (err) {
+  if (isPermanentLoginError(err)) {
+    console.error("❌ โทเคนใช้ไม่ได้ — ต้องแก้ DISCORD_TOKEN ใน .env เอง:", err);
+    // 78 = EX_CONFIG จับคู่กับ RestartPreventExitStatus ใน unit
+    // ให้ systemd หยุดวนรีสตาร์ท แล้วขึ้นสถานะ failed ให้เห็นชัด ๆ
+    process.exit(78);
+  }
+  console.error("❌ ล็อกอิน Discord ไม่สำเร็จหลังลองครบทุกครั้ง:", err);
+  // ปัญหาชั่วคราว (เน็ต/DNS) — จบด้วย exit code ไม่ใช่ศูนย์
+  // ให้ Restart=on-failure พามาเริ่มใหม่ทั้งรอบ
+  process.exit(1);
+}
