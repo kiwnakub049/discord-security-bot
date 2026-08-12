@@ -216,6 +216,14 @@
       .mactions button.danger { color: #ff9a9c; }
       .mactions button.danger:hover { border-color: var(--alert); }
       button.act { margin-right: 6px; padding: 8px 14px; font-size: 13px; }
+      /* ปุ่มเลือกหน้าจอ OLED — เรียงลงเป็นแถวเต็มความกว้าง อ่านง่ายบนมือถือ */
+      .oled-pick { display: flex; flex-direction: column; gap: 6px; }
+      .oled-pick button {
+        width: 100%; margin: 0; text-align: left; display: flex; align-items: center; gap: 8px;
+      }
+      /* ตัวที่เลือกอยู่บอกด้วยเครื่องหมายถูกด้วย ไม่ใช่สีอย่างเดียว */
+      .oled-pick button.on { background: var(--info); color: #fff; border-color: var(--info); }
+      .oled-pick .tick { width: 14px; flex: none; }
       #toast {
         position: fixed; bottom: 22px; left: 50%;
         transform: translateX(-50%) translateY(20px);
@@ -263,6 +271,18 @@
       }
       .log.clickable { cursor: pointer; }
       .log.clickable:hover { border-color: var(--info); }
+
+      /* ---------- ปุ่มตัดสินผลของ AI (เก็บ label ไว้เทรนรอบหน้า) ---------- */
+      .vbar { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 8px; }
+      .vlabel { color: var(--muted); font-size: 12px; }
+      button.vbtn {
+        background: var(--bg); border: 1px solid var(--border); color: var(--muted);
+        padding: 4px 11px; border-radius: 7px; cursor: pointer; font-size: 12px;
+      }
+      button.vbtn:hover { color: var(--text); }
+      button.vbtn.yes.on { background: #3ba55d; border-color: #3ba55d; color: #fff; }
+      button.vbtn.no.on  { background: #d83c3e; border-color: #d83c3e; color: #fff; }
+      #verdictStats { color: var(--muted); font-size: 12px; }
 
       /* ---------- หน้าจัดอันดับ (leaderboard) ---------- */
       button.lf {
@@ -338,6 +358,10 @@
           </select>
           <button class="iconbtn" id="exportBtn"></button>
         </div>
+        <div class="controls">
+          <span id="verdictStats"></span>
+          <a class="iconbtn" id="labelExport" href="/api/ai/export.jsonl" download>ดาวน์โหลด label (.jsonl)</a>
+        </div>
         <div id="logs"></div>
       </div>
 
@@ -394,6 +418,7 @@
         menu: '<line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/>',
         trophy: '<path d="M10 14.66v1.626a2 2 0 0 1-.976 1.696A5 5 0 0 0 7 21.978"/><path d="M14 14.66v1.626a2 2 0 0 0 .976 1.696A5 5 0 0 1 17 21.978"/><path d="M18 9h1.5a1 1 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M6 9H4.5a1 1 0 0 1 0-5H6"/><path d="M6 2h12v7a6 6 0 0 1-12 0z"/>',
         "message-square": '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+        monitor: '<rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>',
       };
       function svg(name, size = 16) {
         return `<svg class="ico" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ""}</svg>`;
@@ -547,6 +572,48 @@
 
       // ---- render ----
       const USER_FIELDS = ["User", "ผู้ทำ", "เป้าหมาย"];
+
+      // ---- คำตัดสินของ mod ต่อสิ่งที่ AI จับได้ ----
+      // logId -> "toxic" | "ok"  (ไม่มีคีย์ = ยังไม่ตัดสิน)
+      let verdicts = {};
+      function verdictBar(id) {
+        const v = verdicts[id];
+        return `
+            <div class="vbar">
+              <span class="vlabel">AI จับถูกไหม?</span>
+              <button class="vbtn yes${v === "toxic" ? " on" : ""}" data-vid="${id}" data-v="toxic">toxic จริง</button>
+              <button class="vbtn no${v === "ok" ? " on" : ""}" data-vid="${id}" data-v="ok">ไม่ toxic</button>
+            </div>`;
+      }
+      function renderVerdictStats() {
+        const box = el("verdictStats");
+        if (!box) return;
+        const s = verdicts.__stats || { total: 0, toxic: 0, ok: 0 };
+        box.textContent = s.total
+          ? `ตัดสินแล้ว ${s.total} รายการ — AI ถูก ${s.toxic} / ผิด ${s.ok}`
+          : "ยังไม่มีการตัดสิน";
+      }
+      async function loadVerdicts() {
+        try {
+          const r = await fetch("/api/ai/verdicts");
+          if (!r.ok) return;
+          const d = await r.json();
+          verdicts = d.map || {};
+          verdicts.__stats = d.stats;
+          renderVerdictStats();
+        } catch { /* ออฟไลน์ชั่วคราว ไม่ต้องพัง */ }
+      }
+      async function setVerdict(id, v) {
+        // กดปุ่มเดิมซ้ำ = ยกเลิกคำตัดสิน
+        const next = verdicts[id] === v ? null : v;
+        const r = await postAction("/api/ai/verdict", { logId: Number(id), verdict: next });
+        if (!r.ok) { alert(r.message || "บันทึกไม่สำเร็จ"); return; }
+        if (next === null) delete verdicts[id];
+        else verdicts[id] = next;
+        verdicts.__stats = r.stats;
+        renderVerdictStats();
+        render();
+      }
       function filteredLogs() {
         const s = search.toLowerCase();
         const cutoff =
@@ -592,6 +659,7 @@
                       .join("")}</div>`
                   : ""
               }
+              ${e.event === "security_ai" ? verdictBar(e.id) : ""}
             </div>`;
               })
               .join("")
@@ -677,16 +745,31 @@
         else input = `<input type="number" data-skey="${i.key}" value="${i.value}" min="0"/>`;
         return `<div class="set-row"><span>${esc(i.label)}</span>${input}</div>`;
       }
-      function renderSettings(sections, users) {
+      function renderSettings(sections, users, oled) {
         const secHtml = sections
           .map((s) => `<div class="ov-card"><div class="ov-title">${svg("settings-2", 16)} ${esc(s.section)}</div>${s.items.map(settingRow).join("")}</div>`)
           .join("");
         const usersHtml = users
           .map((u) => `<div class="urow"><span>${svg("circle-user", 14)} ${esc(u)}</span><button class="act" data-remove-user="${esc(u)}">ลบ</button></div>`)
           .join("");
+        // ปุ่มละหน้า กดแล้วบันทึกเลย ไม่ต้องมีปุ่มบันทึกซ้อนอีกชั้น
+        const oledHtml = (oled.pages || [])
+          .map(
+            (p) =>
+              `<button class="act${p.id === oled.page ? " on" : ""}" data-oled="${esc(p.id)}">` +
+              `<span class="tick">${p.id === oled.page ? "✓" : ""}</span>` +
+              `<b>${esc(p.id)}</b><span>${esc(p.label)}</span></button>`,
+          )
+          .join("");
         el("settingsView").innerHTML = `
           <div class="set-grid">${secHtml}</div>
           <button class="act" id="saveSettings" style="margin:14px 0">บันทึกการตั้งค่า</button>
+          <div class="ov-card">
+            <div class="ov-title">${svg("monitor", 16)} จอ OLED บนตัวเครื่อง</div>
+            <div class="muted" style="margin-bottom:8px">เลือกหน้าที่อยากให้ค้างไว้</div>
+            <div class="oled-pick" id="oledPick">${oledHtml}</div>
+            <div class="muted" style="margin-top:8px">มีผลทันที ไม่ต้องรีสตาร์ท · กดปุ่ม power สั้น ๆ ที่เครื่องก็เลื่อนหน้าเองได้ · ไฟตกเมื่อไหร่จอจะเด้งไปหน้า THERM ให้เห็นก่อน</div>
+          </div>
           <div class="ov-card">
             <div class="ov-title">${svg("users", 16)} บัญชี mod (เข้า dashboard)</div>
             <div id="userList">${usersHtml}</div>
@@ -697,6 +780,17 @@
             </div>
           </div>`;
         el("saveSettings").onclick = saveSettings;
+        el("oledPick").onclick = (e) => {
+          const b = e.target.closest("[data-oled]");
+          if (b) pickOledPage(b.dataset.oled);
+        };
+      }
+      function pickOledPage(page) {
+        // ค่าจอเก็บคนละที่กับ settings ของบอท (ไฟล์ที่สคริปต์ Python อ่าน) เลยยิงคนละ endpoint
+        postAction("/api/oled", { page }).then((r) => {
+          toast(r.message || "");
+          if (r.ok) fetchSettings(); // วาดใหม่ให้เครื่องหมายถูกไปอยู่ปุ่มที่เพิ่งกด
+        });
       }
       function saveSettings() {
         const patch = {};
@@ -709,7 +803,8 @@
         Promise.all([
           fetch("/api/settings").then((r) => (r.status === 401 ? ((location.href = "/login"), []) : r.json())),
           fetch("/api/users").then((r) => (r.ok ? r.json() : [])),
-        ]).then(([s, u]) => renderSettings(s, u)).catch(() => {});
+          fetch("/api/oled").then((r) => (r.ok ? r.json() : { page: "LOAD", pages: [] })),
+        ]).then(([s, u, o]) => renderSettings(s, u, o)).catch(() => {});
       }
       async function addModUser() {
         const u = el("newUser").value.trim();
@@ -945,6 +1040,9 @@
         })
         .catch(() => {});
 
+      // โหลดคำตัดสินที่เคยกดไว้ แล้ว render ซ้ำให้ปุ่มขึ้นสถานะถูก
+      loadVerdicts().then(render);
+
       // ---- stream real-time ----
       const es = new EventSource("/api/stream");
       es.onopen = () => {
@@ -1077,6 +1175,13 @@
 
       // คลิก log -> กรองตาม user คนนั้น
       el("logs").addEventListener("click", (ev) => {
+        // ปุ่มตัดสินต้องมาก่อน ไม่งั้นคลิกโดนแถวแล้วเด้งไปกรองตาม user แทน
+        const vb = ev.target.closest("button.vbtn");
+        if (vb) {
+          ev.stopPropagation();
+          setVerdict(vb.dataset.vid, vb.dataset.v);
+          return;
+        }
         const card = ev.target.closest(".log.clickable");
         if (!card) return;
         const v = card.dataset.user || "";

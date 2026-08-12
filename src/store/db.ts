@@ -71,6 +71,21 @@ export function initDb(): void {
     CREATE INDEX IF NOT EXISTS idx_activity_xp    ON activity(xp DESC);
     CREATE INDEX IF NOT EXISTS idx_activity_voice ON activity(voice_seconds DESC);
 
+    -- คำตัดสินของ mod ต่อสิ่งที่ AI จับได้ = label สำหรับเทรนโมเดลรอบหน้า
+    -- จงใจ "ไม่" ผูก FK กับ logs เพราะ log ถูกลบตาม retentionDays แต่ข้อมูลเทรนต้องอยู่ถาวร
+    -- เลยก็อป text/score มาเก็บไว้เองแทนที่จะ join กลับไปดู
+    CREATE TABLE IF NOT EXISTS ai_verdicts (
+      log_id     INTEGER PRIMARY KEY,   -- 1 การตรวจจับ = 1 คำตัดสิน (กดซ้ำ = เปลี่ยนใจ ทับของเดิม)
+      verdict    TEXT NOT NULL,         -- 'toxic' = AI ถูก | 'ok' = AI จับผิดตัว
+      score      REAL NOT NULL,
+      zone       TEXT NOT NULL,         -- 'review' | 'auto' (ดูจาก level ของ log ตอนบันทึก)
+      text       TEXT NOT NULL,
+      user_id    TEXT NOT NULL,
+      decided_by TEXT NOT NULL,         -- username ของ mod ที่กด
+      decided_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_verdicts_at ON ai_verdicts(decided_at);
+
     CREATE TABLE IF NOT EXISTS logs (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       timestamp   INTEGER NOT NULL,

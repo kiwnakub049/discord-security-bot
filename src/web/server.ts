@@ -23,12 +23,21 @@ import { setGuildLock } from "../modules/lockdown.js";
 import { warnMember } from "../modules/warnAction.js";
 import { dmAction } from "../modules/dmNotice.js";
 import {
+  getLogById,
   getLogs,
   logEmitter,
   type LogCategory,
   type LogEntry,
   type LogLevel,
 } from "../store/logStore.js";
+import {
+  clearVerdict,
+  getAllVerdicts,
+  getVerdictMap,
+  setVerdict,
+  verdictStats,
+  type Verdict,
+} from "../store/aiVerdictStore.js";
 import {
   createSession,
   destroySession,
@@ -43,6 +52,13 @@ import {
   verifyPassword,
 } from "../auth/users.js";
 import { getSettings, updateSettings } from "../store/settingsStore.js";
+import {
+  getOledConfig,
+  setOledConfig,
+  isOledPage,
+  OLED_PAGES,
+  OLED_PAGE_LABELS,
+} from "../utils/oledConfig.js";
 import { logEvent } from "../utils/logger.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -585,6 +601,43 @@ export function startWebServer(client?: Client): Server | undefined {
     }
   });
 
+  // ---------- จอ OLED บนตัวเครื่อง ----------
+  app.get("/api/oled", (_req: Request, res: Response) => {
+    res.json({
+      ...getOledConfig(),
+      pages: OLED_PAGES.map((p) => ({ id: p, label: OLED_PAGE_LABELS[p] })),
+    });
+  });
+  app.post("/api/oled", async (req: Request, res: Response) => {
+    const page = (req.body as { page?: unknown })?.page;
+    if (!isOledPage(page)) {
+      res.status(400).json({
+        ok: false,
+        message: `หน้าจอต้องเป็นหนึ่งใน ${OLED_PAGES.join(", ")}`,
+      });
+      return;
+    }
+    let saved;
+    try {
+      saved = setOledConfig(String(page));
+    } catch {
+      // เขียนไม่ได้ = ปัญหาสิทธิ์ (ReadWritePaths ใน unit) ไม่ใช่ input ผู้ใช้ผิด
+      res.status(500).json({ ok: false, message: "เขียนไฟล์ตั้งค่าจอไม่ได้ (สิทธิ์?)" });
+      return;
+    }
+    res.json({
+      ok: true,
+      message: `จอค้างที่หน้า ${saved.page} แล้ว`,
+      ...saved,
+    });
+    if (client) {
+      await logEvent(client, "info", "system", "system_settings", "เปลี่ยนหน้าจอ OLED", [
+        { name: "โดย", value: String(res.locals.username) },
+        { name: "หน้าใหม่", value: `${saved.page} — ${OLED_PAGE_LABELS[saved.page]}` },
+      ]);
+    }
+  });
+
   // ---------- จัดการบัญชี mod ----------
   app.get("/api/users", (_req: Request, res: Response) => {
     res.json(listUsers());
@@ -628,6 +681,88 @@ export function startWebServer(client?: Client): Server | undefined {
         { name: "โดย", value: String(res.locals.username) },
       ]);
     }
+  });
+
+  // ---------- คำตัดสินของ mod ต่อสิ่งที่ AI จับได้ (= label สำหรับเทรนรอบหน้า) ----------
+
+  /** ดึงค่าจาก field ของ log ตามชื่อ */
+  function fieldOf(entry: LogEntry, name: string): string {
+    return entry.fields.find((f) => f.name === name)?.value ?? "";
+  }
+
+  /** "someone (123456789)" -> "123456789" */
+  function userIdFrom(value: string): string {
+    return /\((\d+)\)\s*$/.exec(value)?.[1] ?? "";
+  }
+
+  app.get("/api/ai/verdicts", (_req: Request, res: Response) => {
+    res.json({ map: getVerdictMap(), stats: verdictStats() });
+  });
+
+  app.post("/api/ai/verdict", (req: Request, res: Response) => {
+    const logId = Number(req.body?.logId);
+    const raw = req.body?.verdict;
+    if (!Number.isInteger(logId) || logId <= 0) {
+      res.status(400).json({ ok: false, message: "logId ไม่ถูกต้อง" });
+      return;
+    }
+    // verdict = null คือ "ยกเลิกคำตัดสิน" (กดปุ่มเดิมซ้ำ)
+    if (raw === null) {
+      const removed = clearVerdict(logId);
+      res.json({ ok: true, verdict: null, stats: verdictStats(), message: removed ? "ยกเลิกแล้ว" : "ไม่มีให้ยกเลิก" });
+      return;
+    }
+    if (raw !== "toxic" && raw !== "ok") {
+      res.status(400).json({ ok: false, message: "verdict ต้องเป็น toxic, ok หรือ null" });
+      return;
+    }
+    const verdict = raw as Verdict;
+
+    const entry = getLogById(logId);
+    // ผูกกับ log ที่มาจาก AI เท่านั้น กันคนยิง id มั่ว ๆ มาปนข้อมูลเทรน
+    if (!entry || entry.event !== "security_ai") {
+      res.status(404).json({ ok: false, message: "ไม่พบการตรวจจับของ AI ตาม id นี้" });
+      return;
+    }
+
+    const text = fieldOf(entry, "ข้อความ");
+    const score = Number(fieldOf(entry, "คะแนน"));
+    if (!text || !Number.isFinite(score)) {
+      res.status(422).json({ ok: false, message: "log นี้ไม่มีข้อความ/คะแนนให้เก็บ" });
+      return;
+    }
+
+    setVerdict({
+      log_id: logId,
+      verdict,
+      score,
+      // alert = ลบอัตโนมัติ (โซน auto), warn = แค่ขึ้นให้ดู (โซน review)
+      zone: entry.level === "alert" ? "auto" : "review",
+      text,
+      user_id: userIdFrom(fieldOf(entry, "User")),
+      decided_by: String(res.locals.username),
+    });
+    res.json({ ok: true, verdict, stats: verdictStats() });
+  });
+
+  // ชุดเทรนพร้อมใช้ — บรรทัดละ 1 ตัวอย่าง {text, label} ตรงกับที่ train_thai_toxic.py กิน
+  app.get("/api/ai/export.jsonl", (_req: Request, res: Response) => {
+    const rows = getAllVerdicts();
+    res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+    res.setHeader("Content-Disposition", 'attachment; filename="ai-labels.jsonl"');
+    res.send(
+      rows
+        .map((r) =>
+          JSON.stringify({
+            text: r.text,
+            label: r.verdict === "toxic" ? 1 : 0,
+            model_score: r.score,
+            zone: r.zone,
+            decided_at: r.decided_at,
+          }),
+        )
+        .join("\n") + (rows.length ? "\n" : ""),
+    );
   });
 
   app.get("/api/logs", (req: Request, res: Response) => {

@@ -117,6 +117,14 @@ export async function addLog(
   return entry;
 }
 
+/** ดึง log เดียวตาม id — ใช้ตอนบันทึกคำตัดสินของ mod ว่าอ้างถึงการตรวจจับอันไหน */
+export function getLogById(id: number): LogEntry | null {
+  const row = db.prepare("SELECT * FROM logs WHERE id = ?").get(id) as
+    | LogRow
+    | undefined;
+  return row ? rowToEntry(row) : null;
+}
+
 /**
  * ดึง log จาก DB พร้อม filter — ใช้โดย API ของเว็บ
  * คืนรายการล่าสุดก่อน (id มากสุดก่อน)
