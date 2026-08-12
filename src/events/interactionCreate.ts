@@ -1,4 +1,4 @@
-import { Events, type Interaction } from "discord.js";
+import { Events, MessageFlags, type Interaction } from "discord.js";
 import { commands } from "../commands/index.js";
 import {
   IDCARD_BUTTON,
@@ -29,7 +29,12 @@ export async function execute(interaction: Interaction): Promise<void> {
   } catch (err) {
     console.error("interaction ผิดพลาด:", err);
     if (interaction.isRepliable()) {
-      const msg = { content: "❌ เกิดข้อผิดพลาด", ephemeral: true };
+      // as const จำเป็น — ไม่งั้น flags ถูกกว้างเป็น MessageFlags ทั้ง enum
+      // ซึ่งไม่ตรงกับ BitFieldResolvable ที่ reply/followUp รับ
+      const msg = {
+        content: "❌ เกิดข้อผิดพลาด",
+        flags: MessageFlags.Ephemeral,
+      } as const;
       if (interaction.replied || interaction.deferred) {
         await interaction.followUp(msg).catch(() => {});
       } else {

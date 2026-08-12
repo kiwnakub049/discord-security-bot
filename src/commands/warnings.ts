@@ -1,5 +1,6 @@
 import {
   EmbedBuilder,
+  MessageFlags,
   PermissionFlagsBits,
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
@@ -22,7 +23,7 @@ export const warn = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     if (!config.warnings.enabled) {
-      await interaction.reply({ content: "ระบบเตือนปิดอยู่", ephemeral: true });
+      await interaction.reply({ content: "ระบบเตือนปิดอยู่", flags: MessageFlags.Ephemeral });
       return;
     }
     await interaction.deferReply();
@@ -80,7 +81,7 @@ export const warnings = {
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const target = interaction.options.getUser("user", true);
     const list = getWarnings(target.id);
     if (!list.length) {
@@ -113,7 +114,7 @@ export const clearwarnings = {
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const target = interaction.options.getUser("user", true);
     const n = clearWarnings(target.id);
     await interaction.editReply(

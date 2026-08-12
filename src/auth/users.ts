@@ -49,6 +49,27 @@ export async function addUser(username: string, password: string): Promise<void>
   ).run(username, salt, hash);
 }
 
+/**
+ * ตั้งรหัสผ่านใหม่ให้ user ที่มีอยู่ — คืน false ถ้าไม่เจอ user นี้
+ *
+ * สุ่ม salt ใหม่ทุกครั้ง ไม่ใช้ของเดิมซ้ำ เพื่อให้ hash เก่าที่อาจหลุดไปแล้ว
+ * ใช้เทียบกับอันใหม่ไม่ได้เลย
+ */
+export async function setPassword(
+  username: string,
+  password: string,
+): Promise<boolean> {
+  if (!userExists(username)) return false;
+  const salt = randomBytes(16).toString("hex");
+  const hash = (await deriveHash(password, salt)).toString("hex");
+  db.prepare("UPDATE users SET salt = ?, hash = ? WHERE username = ?").run(
+    salt,
+    hash,
+    username,
+  );
+  return true;
+}
+
 /** คืน true ถ้าลบจริง, false ถ้าไม่เจอ user นี้ */
 export function removeUser(username: string): boolean {
   const info = db.prepare("DELETE FROM users WHERE username = ?").run(username);

@@ -1,5 +1,6 @@
 import {
   ChannelType,
+  MessageFlags,
   OverwriteType,
   PermissionFlagsBits,
   PermissionsBitField,
@@ -56,7 +57,7 @@ export const lockVoice = {
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     try {
       const channel = resolveVoiceChannel(interaction);
       if (!channel) {
@@ -152,7 +153,7 @@ export const unlockVoice = {
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     try {
       const channel = resolveVoiceChannel(interaction);
       if (!channel) {
