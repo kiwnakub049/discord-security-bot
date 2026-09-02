@@ -4,13 +4,19 @@ import { handleAiMod } from "../modules/aiMod.js";
 import { handleSpamCheck } from "../modules/antiSpam.js";
 import { handleAutoMod } from "../modules/autoMod.js";
 import { recordMessage } from "../store/activityStore.js";
+import { handleDmReply } from "../modules/dmRelay.js";
 import { logEvent } from "../utils/logger.js";
 
 export const name = Events.MessageCreate;
 
 export async function execute(message: Message): Promise<void> {
-  // ข้ามข้อความจากบอทและ DM
-  if (message.author.bot || !message.guild) return;
+  if (message.author.bot) return; // ข้ามข้อความจากบอท (รวม DM ที่บอทส่งเอง)
+
+  // DM จากคน (ไม่มี guild) = คำตอบกลับหลังถูกเตือน → relay ให้ mod เห็น แล้วจบ
+  if (!message.guild) {
+    await handleDmReply(message);
+    return;
+  }
 
   // auto-mod ก่อน (ลบลิงก์อันตรายให้ไวที่สุด) แล้วค่อย anti-spam
   const handled = await handleAutoMod(message);

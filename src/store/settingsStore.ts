@@ -11,7 +11,8 @@ type Item = {
   key: string;
   label: string;
   // id = Discord ID เดี่ยว (ตัวเลขหรือว่าง), list = ข้อความหลายค่า, idlist = Discord ID หลายค่า
-  type: "bool" | "int" | "select" | "id" | "list" | "idlist";
+  // float = ทศนิยม 0–1 (เช่น threshold คะแนน)
+  type: "bool" | "int" | "float" | "select" | "id" | "list" | "idlist";
   options?: string[];
 };
 
@@ -53,6 +54,7 @@ export const SECTIONS: { section: string; items: Item[] }[] = [
       { key: "aiMod.enabled", label: "เปิดใช้งาน", type: "bool" },
       { key: "aiMod.timeoutMs", label: "timeout เรียก service (ms)", type: "int" },
       { key: "aiMod.deleteOnAuto", label: "ลบข้อความโซน auto ทันที", type: "bool" },
+      { key: "aiMod.reviewDeleteScore", label: "คะแนนที่ลบเลย (0–1, 0=ปิด)", type: "float" },
       { key: "aiMod.minLength", label: "ความยาวขั้นต่ำที่ส่งตรวจ (ตัวอักษร)", type: "int" },
     ],
   },
@@ -118,6 +120,11 @@ function coerce(item: Item, v: unknown): unknown {
   if (item.type === "int") {
     const n = Math.floor(Number(v));
     return Number.isFinite(n) ? Math.max(0, n) : 0;
+  }
+  if (item.type === "float") {
+    // threshold คะแนน 0–1 — ค่าเพี้ยน/นอกช่วงให้คงค่าเดิม ป้องกันตั้งพลาดจนปิด/ลบทุกข้อความ
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : getPath(item.key);
   }
   if (item.type === "select") {
     return item.options?.includes(String(v)) ? String(v) : getPath(item.key);

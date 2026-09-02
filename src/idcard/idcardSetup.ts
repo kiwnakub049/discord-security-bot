@@ -34,24 +34,49 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export const PANEL_BANNER_NAME = "panel_banner.jpg";
 const PANEL_BANNER_PATH = join(__dirname, "assets", PANEL_BANNER_NAME);
 
-/** embed + ปุ่ม สำหรับวางในห้อง */
-export function buildPanel() {
-  const embed = new EmbedBuilder()
-    .setColor(0x5865f2)
+/** สีเริ่มต้นของขอบแผง (ก่อนลูปไล่สีจะหมุนต่อ) */
+export const PANEL_DEFAULT_COLOR = 0x5865f2;
+
+/**
+ * embed ของแผง — แยกออกมาเพื่อให้ลูปไล่สี (idcard/panelColor.ts) เอาไป edit
+ * ทับข้อความเดิมด้วยสีใหม่ได้ โดยไม่ต้องแนบไฟล์แบนเนอร์ใหม่ทุกครั้ง
+ */
+export function panelEmbed(color: number = PANEL_DEFAULT_COLOR): EmbedBuilder {
+  return new EmbedBuilder()
+    .setColor(color)
     .setTitle("🪪 บัตรประจำตัวสมาชิก")
     .setDescription("กดปุ่มด้านล่างเพื่อสร้าง/อัปเดตบัตรประจำตัวของคุณ")
     .setImage(`attachment://${PANEL_BANNER_NAME}`);
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+}
+
+/**
+ * แถวปุ่มของแผง — แยกออกมาเพื่อให้ลูปไล่สี edit สไตล์ปุ่มให้ล้อกับโทน embed ได้
+ *
+ * Discord กำหนดสีปุ่มเป็น hex ไม่ได้ มีแค่สไตล์สำเร็จรูป ลูปเลยสลับได้แค่
+ * เขียว (Success) กับ น้ำเงิน (Primary) ตามช่วงสี ไม่ใช่ fade เนียนเหมือน embed
+ */
+export function panelButtonRow(
+  style: ButtonStyle = ButtonStyle.Primary,
+): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(IDCARD_BUTTON)
       .setLabel("สร้างบัตรประจำตัว")
-      .setStyle(ButtonStyle.Primary)
+      .setStyle(style)
       .setEmoji("🪪"),
   );
+}
+
+/** embed + ปุ่ม + แบนเนอร์ สำหรับวางในห้องครั้งแรก */
+export function buildPanel() {
   const banner = new AttachmentBuilder(PANEL_BANNER_PATH, {
     name: PANEL_BANNER_NAME,
   });
-  return { embeds: [embed], components: [row], files: [banner] };
+  return {
+    embeds: [panelEmbed()],
+    components: [panelButtonRow()],
+    files: [banner],
+  };
 }
 
 /** กดปุ่ม -> เปิด modal ให้กรอก */
@@ -103,9 +128,17 @@ export async function submitIdcard(
     user.displayAvatarURL({ extension: "png", size: 256 }),
     card,
   );
-  await syncCardRoleById(interaction.guild, user.id); // มีบัตรแล้ว -> ให้ role
+  const roleResult = await syncCardRoleById(interaction.guild, user.id);
+  /*
+   * บอกตรง ๆ ถ้า role ไม่ได้ให้ — เดิมข้อความจะขึ้น "สร้างบัตรแล้ว" เสมอ
+   * ทำให้คนกดคิดว่าเรียบร้อยดี ทั้งที่ยังเข้าห้องที่ต้องใช้ role ไม่ได้
+   */
+  const note =
+    roleResult === "failed"
+      ? "\n⚠️ แต่ยังให้ยศไม่ได้ — แจ้งแอดมินให้เช็คลำดับ role ของบอท"
+      : "";
   await interaction.editReply({
-    content: `✅ สร้างบัตรแล้ว! หมายเลข **VL-${String(card.member_number).padStart(4, "0")}**`,
+    content: `✅ สร้างบัตรแล้ว! หมายเลข **VL-${String(card.member_number).padStart(4, "0")}**${note}`,
     files: [new AttachmentBuilder(buf, { name: "idcard.png" })],
   });
   await logEvent(interaction.client, "info", "member", "member_register", "สร้างบัตรผ่านปุ่ม", [

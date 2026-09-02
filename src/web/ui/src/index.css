@@ -1,0 +1,314 @@
+@import "tailwindcss";
+
+/*
+ * ═══ ธีมแบบ Slack ═══
+ *
+ * แบน สะอาด: แถบข้าง aubergine + เนื้อหาพื้นสว่าง การ์ดขาวขอบบาง (ไม่มีกระจก/เบลอแล้ว)
+ * ทุกอย่างขับเคลื่อนด้วย CSS variable — เปลี่ยนสีที่นี่ที่เดียวครอบทั้งแอป
+ *
+ * ลำดับของธีม:
+ *   1) :root                → โทนสว่าง (ค่าเริ่มต้น — แบบ Slack light)
+ *   2) prefers-color-scheme → ตามเครื่อง (Slack dark) ทำงานก่อน JS = ไม่มีจอกระพริบ
+ *   3) [data-theme]         → ผู้ใช้กดสลับเอง ชนะทั้งสองข้อบน
+ *
+ * .glass/.glass-strong/.pane = ชื่อคลาสเดิมของคอมโพเนนต์ แต่ตอนนี้เรนเดอร์เป็นการ์ดแบน
+ * (คงชื่อไว้เพื่อไม่ต้องแก้ทุกไฟล์) · .side = แถบข้าง aubergine ที่ override token เป็นสีสว่าง
+ */
+
+/* ─────────── โทนสว่าง (Slack light) ─────────── */
+:root {
+  color-scheme: light;
+
+  --c-bg: #f6f6f6;          /* พื้นหลังแอป (หลังการ์ด) */
+  --c-surface: #ffffff;      /* การ์ด/หัวเว็บ/แถบ */
+  --c-raised: #f1f1f1;       /* พื้น hover / ช่องกรอก */
+  --c-border: #e4e4e6;
+
+  --c-text: #1d1c1d;         /* ดำเกือบสนิทของ Slack */
+  --c-muted: #616061;
+  --c-faint: #868789;
+
+  --c-accent: #007a5a;       /* เขียว Slack — ปุ่มหลัก/โฟกัส/active */
+  --c-accent-soft: rgba(0, 122, 90, 0.12);
+  --c-info: #1264a3;         /* ฟ้า Slack — ลิงก์/info */
+  --c-info-soft: rgba(18, 100, 163, 0.12);
+  --c-warn: #b7860b;         /* เหลืองอ่านเป็นตัวอักษรได้ */
+  --c-warn-soft: rgba(236, 178, 46, 0.18);
+  --c-alert: #e01e5a;        /* แดง/ชมพู Slack */
+  --c-alert-soft: rgba(224, 30, 90, 0.11);
+  --c-ok: #007a5a;
+  --c-ok-soft: rgba(43, 172, 118, 0.15);
+
+  /* แถบข้าง aubergine (คงที่ทั้งสองโทน — เอกลักษณ์ Slack) */
+  --c-sidebar: #3f0e40;
+  --c-sidebar-active: #1164a3;
+
+  /* คงชื่อตัวแปรกระจกเดิมไว้ แต่ทำให้ "แบน": ไม่มีแสงขอบบน เงาบางเฉย ๆ */
+  --glass-spec: transparent;
+  --glass-shade: rgba(0, 0, 0, 0.10);
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+/* ─────────── โทนมืด (Slack dark) ─────────── */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --c-bg: #1a1d21;
+    --c-surface: #222529;
+    --c-raised: #2c2d30;
+    --c-border: #35373b;
+    --c-text: #d1d2d3;
+    --c-muted: #ababad;
+    --c-faint: #8d8d8e;
+    --c-accent: #2bac76;
+    --c-accent-soft: rgba(43, 172, 118, 0.18);
+    --c-info: #36c5f0;
+    --c-info-soft: rgba(54, 197, 240, 0.16);
+    --c-warn: #ecb22e;
+    --c-warn-soft: rgba(236, 178, 46, 0.16);
+    --c-alert: #ff5c8a;
+    --c-alert-soft: rgba(255, 92, 138, 0.16);
+    --c-ok: #2bac76;
+    --c-ok-soft: rgba(43, 172, 118, 0.16);
+    --c-sidebar: #19171d;
+    --c-sidebar-active: #1164a3;
+    --glass-spec: transparent;
+    --glass-shade: rgba(0, 0, 0, 0.45);
+    --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --c-bg: #1a1d21;
+  --c-surface: #222529;
+  --c-raised: #2c2d30;
+  --c-border: #35373b;
+  --c-text: #d1d2d3;
+  --c-muted: #ababad;
+  --c-faint: #8d8d8e;
+  --c-accent: #2bac76;
+  --c-accent-soft: rgba(43, 172, 118, 0.18);
+  --c-info: #36c5f0;
+  --c-info-soft: rgba(54, 197, 240, 0.16);
+  --c-warn: #ecb22e;
+  --c-warn-soft: rgba(236, 178, 46, 0.16);
+  --c-alert: #ff5c8a;
+  --c-alert-soft: rgba(255, 92, 138, 0.16);
+  --c-ok: #2bac76;
+  --c-ok-soft: rgba(43, 172, 118, 0.16);
+  --c-sidebar: #19171d;
+  --c-sidebar-active: #1164a3;
+  --glass-spec: transparent;
+  --glass-shade: rgba(0, 0, 0, 0.45);
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+@theme inline {
+  --color-bg: var(--c-bg);
+  --color-surface: var(--c-surface);
+  --color-raised: var(--c-raised);
+  --color-line: var(--c-border);
+  --color-text: var(--c-text);
+  --color-muted: var(--c-muted);
+  --color-faint: var(--c-faint);
+  --color-accent: var(--c-accent);
+  --color-accent-soft: var(--c-accent-soft);
+  --color-info: var(--c-info);
+  --color-info-soft: var(--c-info-soft);
+  --color-warn: var(--c-warn);
+  --color-warn-soft: var(--c-warn-soft);
+  --color-alert: var(--c-alert);
+  --color-alert-soft: var(--c-alert-soft);
+  --color-ok: var(--c-ok);
+  --color-ok-soft: var(--c-ok-soft);
+
+  --font-sans: "Sarabun", "Noto Sans Thai", "Lato", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+
+  --ease-spring: cubic-bezier(0.22, 1.2, 0.36, 1);
+  --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    background: var(--c-bg);
+    overscroll-behavior-y: none;
+  }
+
+  body {
+    background: var(--c-bg);
+    color: var(--c-text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    transition: background-color 0.3s var(--ease-out-soft), color 0.3s var(--ease-out-soft);
+  }
+
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--c-border);
+    border-radius: 6px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* พื้นหลังแบน — คงคลาส .aurora ไว้ (Shell ยังอ้างถึง) แต่เป็นสีทึบเฉย ๆ */
+  .aurora {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: var(--c-bg);
+  }
+
+  /* การ์ด/แถบ — แบนแบบ Slack: พื้น surface, ขอบบาง, เงาจาง */
+  .glass {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    box-shadow: var(--card-shadow);
+  }
+  .glass-strong {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    box-shadow: 0 12px 32px -12px var(--glass-shade);
+  }
+  .pane {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    box-shadow: var(--card-shadow);
+    content-visibility: auto;
+    contain-intrinsic-size: auto 88px;
+    transition:
+      background-color 0.2s var(--ease-out-soft),
+      border-color 0.2s var(--ease-out-soft),
+      box-shadow 0.2s var(--ease-out-soft);
+  }
+
+  @media (hover: hover) {
+    .pane-lift:hover,
+    .glass-lift:hover {
+      border-color: var(--c-faint);
+      box-shadow: 0 4px 12px -4px var(--glass-shade);
+    }
+  }
+
+  .press {
+    transition: transform 0.14s var(--ease-spring), background-color 0.14s var(--ease-out-soft);
+  }
+  .press:active {
+    transform: scale(0.97);
+  }
+
+  /*
+   * แถบข้าง aubergine — override token เป็นสีสว่างเฉพาะข้างใน
+   * ลูก ๆ ที่ใช้คลาส token เดิม (text-muted, text-accent, bg-accent-soft, LogTree ฯลฯ)
+   * เลยกลายเป็นสีอ่อนอ่านออกบนพื้นม่วงเข้มโดยอัตโนมัติ ไม่ต้องแก้ทีละอัน
+   */
+  .side {
+    background: var(--c-sidebar);
+    color: #cfc3cf;
+    --c-text: #ffffff;
+    --c-muted: #cfc3cf;
+    --c-faint: #b7a9b7;
+    --c-border: rgba(255, 255, 255, 0.12);
+    --c-surface: transparent;
+    --c-raised: rgba(255, 255, 255, 0.08);
+    --c-accent: #ffffff;
+    --c-accent-soft: var(--c-sidebar-active);
+    --glass-spec: transparent;
+  }
+}
+
+@layer utilities {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .rise {
+    animation: rise 0.4s var(--ease-out-soft) both;
+  }
+
+  .stagger > * {
+    animation: rise 0.4s var(--ease-out-soft) both;
+    animation-delay: 0.24s;
+  }
+  .stagger > *:nth-child(1) { animation-delay: 0.02s; }
+  .stagger > *:nth-child(2) { animation-delay: 0.05s; }
+  .stagger > *:nth-child(3) { animation-delay: 0.08s; }
+  .stagger > *:nth-child(4) { animation-delay: 0.11s; }
+  .stagger > *:nth-child(5) { animation-delay: 0.14s; }
+  .stagger > *:nth-child(6) { animation-delay: 0.17s; }
+  .stagger > *:nth-child(7) { animation-delay: 0.2s; }
+
+  .sheet-in {
+    animation: sheet-in 0.36s var(--ease-spring) both;
+  }
+  .fade-in {
+    animation: fade-in 0.25s var(--ease-out-soft) both;
+  }
+  .toast-in {
+    animation: toast-in 0.36s var(--ease-spring) both;
+  }
+
+  /* แสงวาบตอน log ใหม่ไหลเข้ามา — จางลงให้เข้ากับธีมแบน */
+  .flash {
+    position: relative;
+  }
+  .flash::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--c-accent-soft);
+    opacity: 0;
+    animation: flashfade 1.1s var(--ease-out-soft) 1;
+    pointer-events: none;
+    border-radius: inherit;
+  }
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes sheet-in {
+  from { opacity: 0; transform: translateY(20px) scale(0.99); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes flashfade {
+  0% { opacity: 0.5; }
+  100% { opacity: 0; }
+}

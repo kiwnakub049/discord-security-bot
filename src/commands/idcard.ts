@@ -9,7 +9,20 @@ import {
 } from "discord.js";
 import { getCardImage } from "../idcard/cardCache.js";
 import { buildPanel } from "../idcard/idcardSetup.js";
-import { syncAllCardRoles, syncCardRoleById } from "../modules/cardRole.js";
+import { addPanel } from "../idcard/panelStore.js";
+import {
+  checkCardRoleSetup,
+  syncAllCardRoles,
+  syncCardRoleById,
+  type CardRoleResult,
+} from "../modules/cardRole.js";
+
+/** ต่อท้ายข้อความตอบกลับเมื่อออกบัตรได้แต่ให้ role ไม่ได้ */
+function roleFailNote(r: CardRoleResult): string {
+  return r === "failed"
+    ? "\n⚠️ แต่ยังให้ยศไม่ได้ — แจ้งแอดมินให้เช็คลำดับ role ของบอท"
+    : "";
+}
 import {
   getMember,
   registerMember,
@@ -74,9 +87,10 @@ export const register = {
     if (Object.keys(patch).length > 0) {
       card = updateMember(interaction.user.id, patch) ?? card;
     }
-    await syncCardRoleById(interaction.guild, interaction.user.id); // ให้ role มีบัตร
+    const roleResult = await syncCardRoleById(interaction.guild, interaction.user.id);
+    const note = roleFailNote(roleResult);
     await interaction.editReply({
-      content: `✅ ลงทะเบียนสำเร็จ! หมายเลขของคุณคือ **${idLabel(card)}**`,
+      content: `✅ ลงทะเบียนสำเร็จ! หมายเลขของคุณคือ **${idLabel(card)}**${note}`,
       files: [await cardAttachment(interaction.user, card)],
     });
     await logEvent(interaction.client, "info", "member", "member_register", "ลงทะเบียนรับบัตร", [
@@ -167,8 +181,16 @@ export const setupIdcard = {
       await interaction.reply({ content: "❌ ส่งข้อความในห้องนี้ไม่ได้", flags: MessageFlags.Ephemeral });
       return;
     }
-    await ch.send(buildPanel());
-    await interaction.reply({ content: "✅ วางปุ่มสร้างบัตรในห้องนี้แล้ว", flags: MessageFlags.Ephemeral });
+    const panel = await ch.send(buildPanel());
+    // จำแผงไว้ให้ลูปไล่สีขอบ embed หาเจอ (แม้หลัง restart)
+    if (interaction.guildId) {
+      addPanel({
+        guildId: interaction.guildId,
+        channelId: ch.id,
+        messageId: panel.id,
+      });
+    }
+    await interaction.reply({ content: "✅ วางปุ่มสร้างบัตรในห้องนี้แล้ว (ขอบสีจะไล่เปลี่ยนไปเรื่อย ๆ)", flags: MessageFlags.Ephemeral });
   },
 };
 
@@ -182,8 +204,13 @@ export const syncCardRoles = {
     if (!interaction.guild) return;
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const r = await syncAllCardRoles(interaction.guild);
+    // นับ failed แยกไว้ ไม่งั้น "เพิ่ม 0 คน" อ่านได้ทั้งว่าทุกคนมีอยู่แล้ว และว่าทำไม่สำเร็จเลยสักคน
+    const problem = checkCardRoleSetup(interaction.guild);
     await interaction.editReply(
-      `✅ ซิงค์ role บัตรเสร็จ — เพิ่ม ${r.added} คน, เอาออก ${r.removed} คน (จากทั้งหมด ${r.total} คน)`,
+      `✅ ซิงค์ role บัตรเสร็จ — เพิ่ม ${r.added} คน, เอาออก ${r.removed} คน` +
+        (r.failed > 0 ? `, ❌ ไม่สำเร็จ ${r.failed} คน` : "") +
+        ` (จากทั้งหมด ${r.total} คน)` +
+        (problem ? `\n\n⚠️ ${problem}` : ""),
     );
   },
 };
@@ -204,9 +231,10 @@ export const issue = {
       target.id,
       joinedAtOf(interaction.options.getMember("member")),
     );
-    await syncCardRoleById(interaction.guild, target.id); // ให้ role มีบัตร
+    const roleResult = await syncCardRoleById(interaction.guild, target.id);
+    const note = roleFailNote(roleResult);
     await interaction.editReply({
-      content: `📋 ออกบัตรให้ **${target.username}** หมายเลข **${idLabel(card)}** แล้ว`,
+      content: `📋 ออกบัตรให้ **${target.username}** หมายเลข **${idLabel(card)}** แล้ว${note}`,
       files: [await cardAttachment(target, card)],
     });
     await logEvent(interaction.client, "info", "member", "member_issue", "แอดมินออกบัตร (issue)", [

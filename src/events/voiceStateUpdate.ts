@@ -2,6 +2,7 @@ import { Events, type VoiceState } from "discord.js";
 import { logVoice } from "../modules/serverLog.js";
 import { updateVoiceState } from "../store/voiceState.js";
 import { enforceVoiceLock } from "../modules/voiceLockEnforce.js";
+import { enforceMute } from "../modules/muteEnforce.js";
 import { trackVoiceActivity } from "../modules/voiceActivity.js";
 import { logEvent } from "../utils/logger.js";
 
@@ -12,6 +13,7 @@ export async function execute(
   newState: VoiceState,
 ): Promise<void> {
   await enforceVoiceLock(oldState, newState); // กัน admin bypass ห้องที่ล็อก (เตะออกทันที)
+  await enforceMute(oldState, newState); // บังคับไมค์แดง: มีคนปลด/เพิ่งเข้าห้อง → ปิดกลับ
   updateVoiceState(oldState, newState); // อัปเดตสถานะปัจจุบันสำหรับ dashboard
   const xp = trackVoiceActivity(oldState, newState); // สะสมเวลาห้องเสียงเป็น XP
   if (xp?.leveledUp) {

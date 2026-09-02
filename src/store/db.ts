@@ -1,5 +1,5 @@
 import Database from "better-sqlite3";
-import { mkdirSync } from "node:fs";
+import { chmodSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -22,13 +22,53 @@ export const db = new Database(dbPath);
 db.pragma("journal_mode = WAL"); // ทนไฟดับ + ไม่ล็อกอ่านระหว่างเขียน
 db.pragma("foreign_keys = ON");
 
+// จำกัดสิทธิ์ไฟล์ DB เป็นเจ้าของอ่านเท่านั้น — ในไฟล์มี password hash / session hash
+// self-heal ทุกครั้งที่บูต เผื่อไฟล์เดิมถูกสร้างด้วย umask หลวม (เดิมได้ 0644 = ใครก็อ่าน)
+// -wal/-shm ถูก SQLite สร้างตาม umask เช่นกัน เลย chmod ให้ครบ (best-effort ตอนยังไม่มีไฟล์)
+if (!process.env.BOT_DB_PATH) {
+  for (const suffix of ["", "-wal", "-shm"]) {
+    try {
+      chmodSync(dbPath + suffix, 0o600);
+    } catch {
+      // ไฟล์ยังไม่ถูกสร้าง (เช่น -wal ก่อนเขียนครั้งแรก) — ข้ามไป
+    }
+  }
+}
+
 /** สร้างตารางทั้งหมดถ้ายังไม่มี — เรียกครั้งเดียวตอนบูต (idempotent) */
 export function initDb(): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       username TEXT PRIMARY KEY,
       salt     TEXT NOT NULL,
-      hash     TEXT NOT NULL
+      hash     TEXT NOT NULL,
+      -- 'admin' = จัดการบัญชี + ตั้งค่าบอทได้ | 'mod' = ดู + moderate (ban/kick/warn) เท่านั้น
+      role     TEXT NOT NULL DEFAULT 'mod'
+    );
+
+    -- session ของ dashboard — เก็บใน DB ไม่ใช่ RAM เพื่อให้รีสตาร์ทบอทแล้วไม่หลุด
+    -- (ของเดิมอยู่ใน Map ในหน่วยความจำ ทุกครั้งที่ deploy ทุกคนต้อง login ใหม่)
+    --
+    -- id เก็บเป็น sha256 ของ token จริง ไม่ใช่ตัว token — ไฟล์ DB ถูกสำรองเป็น .gz
+    -- ทุกคืนและก็อปออกนอกเครื่องได้ ถ้าเก็บ token ดิบ ใครได้ไฟล์สำรองไปก็สวมสิทธิ์ได้ทันที
+    CREATE TABLE IF NOT EXISTS sessions (
+      id         TEXT PRIMARY KEY,
+      username   TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      last_seen  INTEGER NOT NULL,
+      expires    INTEGER NOT NULL,
+      user_agent TEXT NOT NULL DEFAULT '',
+      ip         TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(username);
+    CREATE INDEX IF NOT EXISTS idx_sessions_exp  ON sessions(expires);
+
+    -- แผงบัตรที่ /setup-idcard ปักไว้ในห้อง — เก็บไว้ให้ลูปไล่สีขอบ embed หาเจอ
+    -- หลัง restart (สี embed แก้หลังส่งไม่ได้ ต้อง edit ข้อความเดิมเป็นระยะ)
+    CREATE TABLE IF NOT EXISTS idcard_panels (
+      message_id TEXT PRIMARY KEY,
+      channel_id TEXT NOT NULL,
+      guild_id   TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS members (
@@ -49,11 +89,39 @@ export function initDb(): void {
     );
     CREATE INDEX IF NOT EXISTS idx_warnings_user ON warnings(user_id);
 
+    -- key-value เล็ก ๆ ของบอท (เช่น message id ของสถานะเครื่องที่ส่งผ่าน webhook
+    -- ไว้ "แก้ข้อความเดิม" ไม่สแปมห้อง — ต้องจำข้าม restart)
+    CREATE TABLE IF NOT EXISTS bot_kv (
+      k TEXT PRIMARY KEY,
+      v TEXT NOT NULL
+    );
+
+    -- คนที่โดนลงโทษ "ไมค์แดง" (server mute) จากระบบเตือน — เก็บว่าใครโดนถึงเมื่อไหร่
+    -- ต้องเก็บใน DB เพราะ Discord server mute ไม่มี timer ในตัว บอทต้องปลดเอง +
+    -- บังคับปิดกลับถ้ามีคนปลดก่อนเวลา (รอด restart ด้วย)
+    CREATE TABLE IF NOT EXISTS mute_punishments (
+      user_id  TEXT PRIMARY KEY,
+      guild_id TEXT NOT NULL,
+      until    INTEGER NOT NULL,  -- ปลดเมื่อ epoch ms นี้
+      reason   TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_mute_until ON mute_punishments(until);
+
     CREATE TABLE IF NOT EXISTS voice_locks (
       channel_id TEXT PRIMARY KEY,
       locked_by  TEXT NOT NULL,
       locked_at  INTEGER NOT NULL,
       overwrites TEXT NOT NULL   -- JSON ของ ConnectSnapshot[]
+    );
+
+    -- lockdown ทั้งเซิร์ฟ: เก็บสถานะเดิมของ 4 permission บน @everyone รายห้อง
+    -- ก่อนล็อก เพื่อ "คืนค่าเดิม" ตอนปลด แทนที่จะลบ override ทิ้ง (= เผลอเปิด
+    -- ห้องที่เดิม deny ไว้ เช่นห้องประกาศ/กติกา ให้ทุกคนพิมพ์ได้)
+    CREATE TABLE IF NOT EXISTS guild_locks (
+      channel_id TEXT PRIMARY KEY,
+      guild_id   TEXT NOT NULL,
+      locked_at  INTEGER NOT NULL,
+      perms      TEXT NOT NULL   -- JSON ของ LockPermSnapshot (perm -> true/false/null)
     );
 
     CREATE TABLE IF NOT EXISTS settings (
@@ -100,6 +168,25 @@ export function initDb(): void {
     CREATE INDEX IF NOT EXISTS idx_logs_level ON logs(level);
     CREATE INDEX IF NOT EXISTS idx_logs_cat   ON logs(category);
   `);
+
+  migrateSchema();
+}
+
+/**
+ * ปรับ schema ของ DB เดิมให้ทันรุ่นปัจจุบัน (idempotent — รันซ้ำได้ไม่พัง)
+ *
+ * ตาราง `CREATE TABLE IF NOT EXISTS` ไม่เพิ่มคอลัมน์ให้ตารางที่มีอยู่แล้ว
+ * เลยต้อง ALTER เอง โดยเช็คก่อนว่ายังไม่มีคอลัมน์นั้น
+ */
+function migrateSchema(): void {
+  const userCols = db.prepare("PRAGMA table_info(users)").all() as {
+    name: string;
+  }[];
+  if (!userCols.some((c) => c.name === "role")) {
+    // DB เดิมมีแต่บัญชีที่ "มีสิทธิ์เต็ม" อยู่แล้ว — ตั้งเป็น admin ทั้งหมด
+    // จะได้ไม่ล็อกใครออกจากหน้าจัดการบัญชี/ตั้งค่าตอนอัปเกรด
+    db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'");
+  }
 }
 
 // สร้างตารางทันทีตอนโหลดโมดูล — กัน entry point ที่ import store โดยไม่ได้เรียก initDb()

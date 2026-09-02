@@ -71,6 +71,8 @@ if (password.length < 8) {
   process.exit(1);
 }
 
-await addUser(username, password);
-console.log(`✅ เพิ่ม user "${username}" เรียบร้อย — login เข้า dashboard ได้เลย`);
+// บัญชีที่สร้างจาก CLI = admin เสมอ (เป็นทางเดียวที่ bootstrap บัญชีแรก
+// ซึ่งต้องมีสิทธิ์จัดการบัญชีอื่นต่อ ส่วนบัญชีที่เพิ่มผ่าน dashboard ดีฟอลต์เป็น mod)
+await addUser(username, password, "admin");
+console.log(`✅ เพิ่ม user "${username}" (admin) เรียบร้อย — login เข้า dashboard ได้เลย`);
 process.exit(0);

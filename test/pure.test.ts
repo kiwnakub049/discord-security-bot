@@ -1,44 +1,16 @@
 /**
- * ทดสอบ #3 esc() และ #6 csvCell() — ดึงซอร์สจริงจาก index.html มา eval (ไม่เขียนซ้ำ)
- * กันไม่ให้ escaping / formula-injection guard หลุดหายตอนแก้ dashboard ครั้งหน้า
+ * กันไม่ให้ formula-injection guard ของไฟล์ CSV หลุดหายตอนแก้ dashboard ครั้งหน้า
+ *
+ * เดิมเทสนี้ดึงฟังก์ชัน esc() กับ csvCell() ออกจาก <script> ใน index.html มา eval
+ * ตอนนี้หน้าเว็บเขียนใหม่ด้วย React แล้ว:
+ *  - esc() ไม่ต้องมีอีก JSX escape ข้อความให้เองทุกจุดโดยโครงสร้างของภาษา
+ *  - csvCell() ย้ายมาอยู่ฝั่ง server ที่ src/web/csv.ts เพราะการส่งออกทำที่นั่นแล้ว
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { BOM, csvCell, toCsv } from "../src/web/csv.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const html = readFileSync(
-  join(__dirname, "..", "src", "web", "public", "index.html"),
-  "utf8",
-);
-
-function extract(name: string, re: RegExp): string {
-  const m = html.match(re);
-  if (!m) throw new Error(`หา ${name} ในไฟล์ไม่เจอ`);
-  return m[0];
-}
-const esc = new Function(
-  `${extract("esc", /function esc\(s\) \{[\s\S]*?\n {6}\}/)}\nreturn esc;`,
-)() as (s: unknown) => string;
-const csvCell = new Function(
-  `${extract("csvCell", /function csvCell\(v\) \{[\s\S]*?\n {6}\}/)}\nreturn csvCell;`,
-)() as (v: unknown) => string;
-
-test("#3 esc(): escape & < > \" '", () => {
-  assert.equal(esc("a'b"), "a&#39;b");
-  assert.equal(esc("<b>"), "&lt;b&gt;");
-  assert.equal(esc('"x"'), "&quot;x&quot;");
-  assert.equal(esc("a&b"), "a&amp;b");
-});
-
-test("#3 esc(): XSS payload ไม่มี single quote ดิบเหลือ", () => {
-  const payload = "x'),alert(document.cookie),removeModUser('x";
-  assert.ok(!esc(payload).includes("'"));
-});
-
-test("#6 csvCell(): เติม ' นำหน้าเซลล์ที่ขึ้นต้นด้วย = + - @", () => {
+test("csvCell(): เติม ' นำหน้าเซลล์ที่ขึ้นต้นด้วย = + - @", () => {
   assert.equal(csvCell("=1+1"), "'=1+1");
   assert.ok(csvCell("+cmd").startsWith("'"));
   assert.ok(csvCell("-2+3").startsWith("'"));
@@ -46,7 +18,40 @@ test("#6 csvCell(): เติม ' นำหน้าเซลล์ที่ข
   assert.ok(csvCell("=HYPERLINK(x)").startsWith("'"));
 });
 
-test("#6 csvCell(): ค่าปกติ/comma ทำงานถูก", () => {
+test("csvCell(): tab และ CR ก็เป็นจุดเริ่มสูตรได้เหมือนกัน", () => {
+  assert.ok(csvCell("\t=cmd").startsWith("'"));
+  assert.ok(csvCell("\r=cmd").startsWith("'"));
+});
+
+test("csvCell(): ค่าปกติ / comma / quote / ขึ้นบรรทัด", () => {
   assert.equal(csvCell("hello"), "hello");
   assert.equal(csvCell("a,b"), '"a,b"');
+  assert.equal(csvCell('เขาพูดว่า "ไง"'), '"เขาพูดว่า ""ไง"""');
+  assert.equal(csvCell("บรรทัด1\nบรรทัด2"), '"บรรทัด1\nบรรทัด2"');
+});
+
+test("csvCell(): null / undefined กลายเป็นช่องว่าง ไม่ใช่ข้อความ null", () => {
+  assert.equal(csvCell(null), "");
+  assert.equal(csvCell(undefined), "");
+  assert.equal(csvCell(0), "0");
+});
+
+test("csvCell(): เซลล์ที่มีทั้งสูตรและ comma ต้องได้ทั้งสองอย่าง", () => {
+  // ต้องเติม ' ก่อน แล้วค่อยครอบ quote — ไม่งั้น ' ไปโผล่นอกเครื่องหมายคำพูด
+  assert.equal(csvCell("=SUM(A1,A2)"), `"'=SUM(A1,A2)"`);
+});
+
+test("toCsv(): หัวตารางกับแถวข้อมูลต่อกันถูกบรรทัด", () => {
+  const csv = toCsv(
+    ["เวลา", "หัวข้อ"],
+    [
+      ["12:00", "ปกติ"],
+      ["12:01", "=evil()"],
+    ],
+  );
+  assert.deepEqual(csv.split("\n"), ["เวลา,หัวข้อ", "12:00,ปกติ", "12:01,'=evil()"]);
+});
+
+test("BOM มีอยู่จริง — ขาดไปแล้ว Excel อ่านภาษาไทยเพี้ยน", () => {
+  assert.equal(BOM, "﻿");
 });

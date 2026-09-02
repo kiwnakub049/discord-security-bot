@@ -6,19 +6,50 @@ import {
   showIdcardModal,
   submitIdcard,
 } from "../idcard/idcardSetup.js";
+import {
+  CANCEL_ID,
+  CONFIRM_PREFIX,
+  SELECT_ID,
+  handleRoleButton,
+  handleRoleSelect,
+} from "../commands/deleterole.js";
 
 export const name = Events.InteractionCreate;
 
 export async function execute(interaction: Interaction): Promise<void> {
   try {
-    // ปุ่มสร้างบัตร -> เปิด modal
+    // ปุ่ม: สร้างบัตร / ยืนยัน-ยกเลิกลบ role
     if (interaction.isButton()) {
       if (interaction.customId === IDCARD_BUTTON) await showIdcardModal(interaction);
+      else if (
+        interaction.customId === CANCEL_ID ||
+        interaction.customId.startsWith(CONFIRM_PREFIX)
+      )
+        await handleRoleButton(interaction);
+      return;
+    }
+    // dropdown เลือก role ที่จะลบ -> โชว์ปุ่มยืนยัน
+    if (interaction.isStringSelectMenu()) {
+      if (interaction.customId === SELECT_ID) await handleRoleSelect(interaction);
       return;
     }
     // กรอก modal เสร็จ -> สร้างบัตร
     if (interaction.isModalSubmit()) {
       if (interaction.customId === IDCARD_MODAL) await submitIdcard(interaction);
+      return;
+    }
+    // autocomplete -> ให้คำสั่งเติมรายชื่อตัวเลือก (เช่น role ให้ /deleterole)
+    // ต้องตอบให้ทันภายใน 3 วิ และห้าม throw ออกไป ไม่งั้นช่องตัวเลือกจะค้างว่าง
+    if (interaction.isAutocomplete()) {
+      const cmd = commands.get(interaction.commandName);
+      if (cmd?.autocomplete) {
+        try {
+          await cmd.autocomplete(interaction);
+        } catch (err) {
+          console.error("autocomplete ผิดพลาด:", err);
+          if (!interaction.responded) await interaction.respond([]).catch(() => {});
+        }
+      }
       return;
     }
     // slash command

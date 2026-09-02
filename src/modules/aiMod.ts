@@ -101,7 +101,33 @@ export async function handleAiMod(message: Message): Promise<boolean> {
   }
 
   if (result.zone === "review") {
-    // ไม่แตะข้อความ — ขึ้น dashboard ให้ mod ตัดสิน
+    // คะแนนสูงถึงเกณฑ์ (เช่นคำหยาบชัด ๆ ที่ตกโซน review) → ลบข้อความเลย
+    // แต่ "ไม่" เตือน/ลงโทษ เพราะความแม่นโซนนี้ไม่พอจะลงโทษถาวร — แค่เอาข้อความออก
+    const del = config.aiMod.reviewDeleteScore;
+    if (del > 0 && result.score >= del) {
+      let deleted = false;
+      try {
+        if (message.deletable) {
+          await message.delete();
+          deleted = true;
+        }
+      } catch (err) {
+        console.error("ai-mod review delete ไม่สำเร็จ:", err);
+      }
+      await logEvent(
+        message.client, "warn", "security", "security_ai",
+        deleted ? "AI จับ toxic (คะแนนสูง) — ลบข้อความแล้ว (ยังไม่ลงโทษ)" : "AI จับ toxic (คะแนนสูง) — ลบไม่ได้ (เช็คสิทธิ์)",
+        [
+          { name: "User", value: `${message.author.tag} (${message.author.id})` },
+          { name: "ห้อง", value: `<#${message.channelId}>` },
+          { name: "คะแนน", value: result.score.toFixed(4) },
+          { name: "ข้อความ", value: excerpt(message.content) },
+        ],
+      );
+      return true; // จัดการแล้ว (ลบ) — ไม่ต้องนับ XP ต่อ
+    }
+
+    // คะแนนก้ำกึ่ง — ไม่แตะข้อความ ขึ้น dashboard ให้ mod ตัดสิน
     // (ผลตัดสินของ mod ในโซนนี้ = label ฟรีสำหรับเทรนโมเดลรอบหน้า)
     await logEvent(
       message.client, "warn", "security", "security_ai",

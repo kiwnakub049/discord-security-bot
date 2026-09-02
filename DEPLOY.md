@@ -86,12 +86,16 @@ nano .env
   openssl rand -hex 32
   ```
 
-แล้วล็อกไฟล์ + ลงทะเบียน slash commands:
+แล้วล็อกไฟล์ + ลงทะเบียน slash commands + build หน้าเว็บ:
 ```bash
 chmod 600 .env
 npm run deploy
-exit            # ออกจาก shell ของ botuser
+npm run build:ui   # ต้องรัน ไม่งั้น dashboard จะเป็นหน้าว่าง
+exit               # ออกจาก shell ของ botuser
 ```
+
+> `src/web/ui/dist/` อยู่ใน `.gitignore` เลยไม่ติดมากับ repo
+> ทุกครั้งที่ `git pull` แล้วมีการแก้ `src/web/ui/` ต้อง `npm run build:ui` ใหม่ก่อนรีสตาร์ท service
 
 ## 5. รันเป็น systemd service
 

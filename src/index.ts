@@ -2,12 +2,13 @@ import "dotenv/config";
 import { readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { Client, Events, GatewayIntentBits, Partials } from "discord.js";
+import { Client, Events, Partials } from "discord.js";
 import { initDb } from "./store/db.js";
 import { initLogStore } from "./store/logStore.js";
 import { applyOverrides } from "./store/settingsStore.js";
 import { startWebServer } from "./web/server.js";
 import { isPermanentLoginError, loginWithRetry } from "./utils/loginRetry.js";
+import { intents, warnIfDegraded } from "./intents.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -19,16 +20,12 @@ if (!token) {
   process.exit(1);
 }
 
+// รายการ intent กับเรื่องโหมดจำกัดสิทธิ์อยู่ใน src/intents.ts
+warnIfDegraded();
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers, // จำเป็นสำหรับ anti-raid (ต้องเปิด Server Members Intent ในหน้า dev portal)
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent, // จำเป็นสำหรับ anti-spam/auto-mod (ต้องเปิด Message Content Intent)
-    GatewayIntentBits.GuildVoiceStates, // สำหรับ log เข้า/ออกห้องเสียง (ไม่ใช่ privileged)
-    GatewayIntentBits.GuildModeration, // สำหรับ ban events + audit log (ไม่ใช่ privileged)
-  ],
-  partials: [Partials.GuildMember],
+  intents,
+  // Channel/Message = จำเป็นเพื่อรับ event ของ DM ที่ยังไม่อยู่ใน cache (คนตอบกลับบอท)
+  partials: [Partials.GuildMember, Partials.Channel, Partials.Message],
 });
 
 // โหลด event handler ทุกไฟล์ใน src/events อัตโนมัติ

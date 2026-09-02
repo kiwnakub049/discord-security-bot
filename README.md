@@ -51,11 +51,19 @@ Manage Messages, View Channels, Send Messages, View Audit Log
 ### 4. ลงทะเบียนคำสั่ง + รัน
 ```bash
 npm install
-npm run deploy   # ลงทะเบียน slash commands (รันครั้งเดียว / เมื่อเพิ่มคำสั่งใหม่)
-npm run dev      # รันแบบ auto-reload ตอนพัฒนา
+npm run deploy    # ลงทะเบียน slash commands (รันครั้งเดียว / เมื่อเพิ่มคำสั่งใหม่)
+npm run build:ui  # build หน้า dashboard — ต้องรันก่อน npm start ทุกครั้งที่แก้ src/web/ui/
+npm run dev       # รันแบบ auto-reload ตอนพัฒนา
 # หรือ
-npm start        # รันปกติ
+npm start         # รันปกติ
 ```
+
+> **หน้า dashboard ต้อง build ก่อน** — ผลลัพธ์ไปอยู่ที่ `src/web/ui/dist/`
+> ซึ่งอยู่ใน `.gitignore` เลยไม่ติดมากับ repo ถ้าลืม บอทจะยังทำงานปกติ
+> แต่เปิดเว็บแล้วเจอหน้าว่าง (และมีคำเตือนขึ้นใน log ตอนบูต)
+>
+> ตอนแก้หน้าเว็บ ใช้ `npm run dev:ui` คู่กับ `npm start` จะสะดวกกว่า —
+> Vite จะเสิร์ฟหน้าเว็บที่พอร์ตของตัวเองพร้อม hot reload แล้วส่งต่อ `/api` ไปให้บอท
 
 > เคยใช้เวอร์ชันเก่าที่เก็บข้อมูลเป็นไฟล์ JSON (`data/*.json`)?
 > รัน `npm run db:migrate` ครั้งเดียวเพื่อย้ายข้อมูลเข้า SQLite

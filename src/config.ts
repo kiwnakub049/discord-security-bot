@@ -60,6 +60,11 @@ export const config = {
     timeoutMs: 3_000,
     // ลบข้อความทันทีเมื่อเข้าโซน auto
     deleteOnAuto: true,
+    // โซน "review" ที่คะแนนถึงค่านี้ = ลบข้อความเลย (แต่ไม่เตือน/ลงโทษ ต่างจากโซน auto)
+    // เพราะคำหยาบชัด ๆ มักได้คะแนนกลาง ๆ (เช่น "ควย..." = 0.76) ตกโซน review ที่เดิม
+    // แค่ขึ้น dashboard เฉย ๆ = "เจอแต่ไม่ทำอะไร" — ตั้ง 0 เพื่อปิด (กลับไปแค่ขึ้น dashboard)
+    // ความแม่นโซนนี้ไม่พอจะลงโทษถาวร เลยแค่ "ลบ" ไม่เตือน/ไม่ไมค์แดง
+    reviewDeleteScore: 0.75,
     // ข้อความสั้นกว่านี้ (ตัวอักษร) ไม่ส่งตรวจ
     minLength: 2,
   },
@@ -99,7 +104,9 @@ export const config = {
    */
   web: {
     enabled: true,
-    port: 3000,
+    // override ด้วย WEB_PORT ได้ — ใช้ตอนอยากรันอีกตัวคู่กับของจริงที่ยังทำงานอยู่
+    // (เช่นเปิด dashboard จากฐานข้อมูลตัวอย่างเพื่อถ่ายภาพประกอบ โดยไม่ต้องหยุดบอท)
+    port: Number(process.env.WEB_PORT) || 3000,
     // interface ที่จะ bind:
     //  "127.0.0.1" = เข้าได้เฉพาะในเครื่อง (ปลอดภัยสุด — ใช้คู่กับ reverse proxy/SSH tunnel บน VPS)
     //  "0.0.0.0"   = เปิดออกเน็ตตรง ๆ (อันตราย ใช้เฉพาะตอนต้องการจริง ๆ และตั้ง authToken แล้ว)
@@ -125,12 +132,49 @@ export const config = {
    */
   warnings: {
     enabled: true,
-    // เมื่อจำนวนเตือนถึง count ให้ทำ action: timeout (ใส่ ms) หรือ ban
+    // เมื่อจำนวนเตือนถึง count ให้ทำ action:
+    //   'mute'    = server mute เฉพาะเสียง (ไมค์แดง) ใส่ ms = ระยะเวลา — บอทปลดให้เองเมื่อครบ
+    //               และถ้ามีคนไปปลดก่อนหมดเวลา บอทจะปิดกลับทันที (ดู muteEnforce)
+    //   'timeout' = ระงับทั้งพิมพ์และพูด (Discord timeout) ใส่ ms = ระยะเวลา
+    //   'ban'     = แบนออกจากเซิร์ฟเวอร์
     escalation: [
-      { count: 3, action: "timeout", ms: 60 * 60 * 1000 }, // 3 ครั้ง: timeout 1 ชม.
+      { count: 3, action: "mute", ms: 60 * 60 * 1000 }, // 3 ครั้ง: ไมค์แดง 1 ชม.
       { count: 5, action: "timeout", ms: 24 * 60 * 60 * 1000 }, // 5 ครั้ง: timeout 1 วัน
       { count: 7, action: "ban" }, // 7 ครั้ง: แบน
-    ] as { count: number; action: "timeout" | "ban"; ms?: number }[],
+    ] as { count: number; action: "mute" | "timeout" | "ban"; ms?: number }[],
+  },
+
+  /**
+   * ส่งสถานะเครื่อง (CPU/RAM/อุณหภูมิ ฯลฯ แบบย่อ) เข้า Discord ผ่าน webhook เป็นระยะ
+   * คล้าย Netdata แต่ไม่ลงรายละเอียด + แนบลิงก์นำทางไปเว็บที่ host อยู่
+   */
+  status: {
+    // ต้องมี STATUS_WEBHOOK_URL ใน .env ด้วย ไม่งั้นถือว่าปิด (ไม่มีปลายทางส่ง)
+    enabled: true,
+    // Discord webhook URL — สร้างที่ Server Settings > Integrations > Webhooks
+    webhookUrl: process.env.STATUS_WEBHOOK_URL || "",
+    // ส่ง/อัปเดตทุกกี่มิลลิวินาที (แก้ข้อความเดิม ไม่สแปมห้อง)
+    intervalMs: 10 * 60 * 1000, // 10 นาที
+    // ลิงก์นำทางไปเว็บที่ host อยู่ — แก้ url ให้ตรงเครื่องคุณ (เว้น list ว่างได้ถ้าไม่ต้องการ)
+    links: [
+      { name: "Dashboard", url: "https://bot.admindawn.top/logs" },
+      { name: "Netdata", url: "http://flick.tail538d1b.ts.net:19999" },
+    ] as { name: string; url: string }[],
+  },
+
+  /**
+   * ความเป็นส่วนตัว: ลบข้อมูลของคนที่ออกจากเซิร์ฟเวอร์อัตโนมัติ
+   */
+  privacy: {
+    // ออกจากเซิร์ฟเวอร์แล้วลบบัตร/เตือน/XP/โทษไมค์แดง + ไฟล์รูปบัตรของคนนั้นทิ้ง
+    purgeOnLeave: true,
+    // แต่ถ้าออกเพราะ "ถูกแอดมินจัดการ" (แบน/เตะ/มีประวัติเตือน/กำลังโดนไมค์แดง)
+    // ให้เก็บข้อมูลไว้เดิม ไม่ลบ — กันคนใกล้ครบเกณฑ์ชิงออกเพื่อรีเซ็ตประวัติ
+    // และเก็บหลักฐานไว้เผื่อสืบย้อนหลัง (ลบเฉพาะคนที่ออกเองสะอาด ๆ)
+    keepIfModerated: true,
+    // ลบ ai_verdicts (ข้อความ+คำตัดสินของ mod) ด้วยไหม — ค่าเริ่มต้น false เพราะเป็น
+    // ข้อมูลเทรนโมเดลรอบหน้า ตั้ง true ถ้าต้องการลบให้เกลี้ยงจริง ๆ (แลกกับคุณภาพเทรน)
+    purgeAiVerdicts: false,
   },
 
   /**
