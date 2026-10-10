@@ -1,4 +1,5 @@
 import {
+  type AutocompleteInteraction,
   type ChatInputCommandInteraction,
   type SlashCommandBuilder,
   type SlashCommandOptionsOnlyBuilder,
@@ -16,11 +17,15 @@ import {
 } from "./idcard.js";
 import { clearwarnings, warn, warnings } from "./warnings.js";
 import { lockVoice, unlockVoice } from "./voicelock.js";
+import { deleteRole } from "./deleterole.js";
 import { leaderboard, rank } from "./rank.js";
+import { beamng, beamngIp } from "./beamng.js";
 
 export interface Command {
   data: SlashCommandBuilder | SlashCommandOptionsOnlyBuilder;
   execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  // มีเฉพาะคำสั่งที่ option เป็น autocomplete (เช่น เลือก role จากรายชื่อในเซิร์ฟเวอร์)
+  autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
 }
 
 // รวมทุกคำสั่งไว้ที่นี่ — เพิ่มคำสั่งใหม่แค่ import แล้วใส่ใน array
@@ -40,8 +45,11 @@ const list: Command[] = [
   clearwarnings,
   lockVoice,
   unlockVoice,
+  deleteRole,
   rank,
   leaderboard,
+  beamng,
+  beamngIp,
 ];
 
 export const commands = new Map<string, Command>(

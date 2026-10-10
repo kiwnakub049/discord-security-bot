@@ -1,174 +1,40 @@
-import express, {
-  type Request,
-  type Response,
-  type NextFunction,
-} from "express";
-import { type Client, type Guild } from "discord.js";
+/**
+ * ตัวประกอบร่างของเว็บ — ไฟล์นี้ไม่มีตรรกะทางธุรกิจเลย
+ * มีแค่ "ลำดับ" ของ middleware กับ router ซึ่งเป็นเรื่องที่ผิดพลาดง่ายที่สุด
+ * เลยจงใจให้อ่านจบได้ในหน้าจอเดียว
+ *
+ * ลำดับสำคัญ:
+ *   security headers → CSRF → body parser → เส้นทางสาธารณะ → ด่าน login → ที่เหลือ
+ * ถ้าเอาด่าน login ขึ้นก่อนเส้นทางสาธารณะ จะ login ไม่ได้เลยเพราะโดนเด้งวนหน้า /login
+ */
+import express, { type Request, type Response } from "express";
+import type { Client } from "discord.js";
 import type { Server } from "node:http";
-import { dirname, join } from "node:path";
+import { existsSync } from "node:fs";
+import { dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "../config.js";
-import { getMember, listMembers } from "../idcard/members.js";
-import { getCardImage } from "../idcard/cardCache.js";
-import { getVoiceState, getVoiceStates } from "../store/voiceState.js";
-import {
-  getActivity,
-  levelProgress,
-  topByVoice,
-  topByXp,
-  type Activity,
-} from "../store/activityStore.js";
-import { clearWarnings, totalWarnings } from "../modules/warningStore.js";
-import { setGuildLock } from "../modules/lockdown.js";
-import { warnMember } from "../modules/warnAction.js";
-import { dmAction } from "../modules/dmNotice.js";
-import {
-  getLogById,
-  getLogs,
-  logEmitter,
-  type LogCategory,
-  type LogEntry,
-  type LogLevel,
-} from "../store/logStore.js";
-import {
-  clearVerdict,
-  getAllVerdicts,
-  getVerdictMap,
-  setVerdict,
-  verdictStats,
-  type Verdict,
-} from "../store/aiVerdictStore.js";
-import {
-  createSession,
-  destroySession,
-  resolveSession,
-  SESSION_TTL_MS,
-} from "../auth/session.js";
-import {
-  addUser,
-  listUsers,
-  removeUser,
-  userExists,
-  verifyPassword,
-} from "../auth/users.js";
-import { getSettings, updateSettings } from "../store/settingsStore.js";
-import {
-  getOledConfig,
-  setOledConfig,
-  isOledPage,
-  OLED_PAGES,
-  OLED_PAGE_LABELS,
-} from "../utils/oledConfig.js";
-import { logEvent } from "../utils/logger.js";
+import { csrfGuard, securityHeaders } from "./middleware/security.js";
+import { rateLimit } from "./middleware/rateLimit.js";
+import { requireAuth } from "./middleware/auth.js";
+import { notifySecurity } from "../modules/securityAlerts.js";
+import { meRoutes, publicAuthRoutes } from "./routes/auth.js";
+import { overviewRoutes } from "./routes/overview.js";
+import { systemRoutes } from "./routes/system.js";
+import { logRoutes } from "./routes/logs.js";
+import { memberRoutes } from "./routes/members.js";
+import { actionRoutes } from "./routes/actions.js";
+import { adminRoutes } from "./routes/admin.js";
+import { sessionRoutes } from "./routes/sessions.js";
+import { aiRoutes } from "./routes/ai.js";
+import { beammpRoutes } from "./routes/beammp.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+/** ไฟล์ที่ต้องเข้าถึงได้ก่อน login (หน้า login ก็ใช้) */
 const publicDir = join(__dirname, "public");
-const COOKIE_NAME = "sid";
-
-function cookieOptions() {
-  return {
-    httpOnly: true, // JS ฝั่ง browser อ่าน cookie นี้ไม่ได้ (กัน XSS ขโมย)
-    secure: config.web.cookieSecure, // ส่งเฉพาะผ่าน HTTPS (เปิดใน production)
-    sameSite: "lax" as const, // กัน CSRF ข้ามเว็บ
-    path: "/",
-  };
-}
-
-// ---- กัน brute-force หน้า login (นับต่อ IP) ----
-// inFlight = จำนวน attempt ที่กำลังคำนวณ scrypt อยู่ (นับ synchronous ตอนเข้า handler)
-// จำเป็นเพราะ verifyPassword เป็น async: ถ้านับ fail หลัง await เท่านั้น การยิงพร้อมกันหลาย request
-// จะผ่านด่านเช็คก่อนตัวนับขยับ (TOCTOU) — นับ inFlight ทันทีเลยปิดช่องนี้
-const loginTracker = new Map<
-  string,
-  { fails: number; inFlight: number; lockedUntil: number }
->();
-
-/** คืนจำนวนนาทีที่ยังถูกล็อก (0 = ไม่ถูกล็อก) */
-function loginLockedMinutes(ip: string): number {
-  const rec = loginTracker.get(ip);
-  if (rec && rec.lockedUntil > Date.now()) {
-    return Math.ceil((rec.lockedUntil - Date.now()) / 60_000);
-  }
-  return 0;
-}
-
-/**
- * จองสิทธิ์ลอง 1 ครั้ง (เรียก synchronous ตอนเข้า handler ก่อน await ใด ๆ)
- * คืน "locked" ถ้าล็อกอยู่/เต็มโควตาแล้ว (ต้องปฏิเสธ), "ok" ถ้าลองต่อได้
- * นับ fails + inFlight รวมกัน → burst พร้อมกันเกินโควตาก็โดนกันทันที
- */
-function beginLoginAttempt(ip: string): "ok" | "locked" {
-  const now = Date.now();
-  const rec = loginTracker.get(ip) ?? { fails: 0, inFlight: 0, lockedUntil: 0 };
-  if (rec.lockedUntil > now) {
-    loginTracker.set(ip, rec);
-    return "locked";
-  }
-  if (rec.fails + rec.inFlight >= config.web.loginMaxAttempts) {
-    rec.lockedUntil = now + config.web.loginLockMs;
-    loginTracker.set(ip, rec);
-    return "locked";
-  }
-  rec.inFlight += 1;
-  loginTracker.set(ip, rec);
-  return "ok";
-}
-
-/** ปิด attempt ที่จองไว้ — คืน true ถ้าการพลาดครั้งนี้ทำให้เพิ่งถูกล็อก */
-function endLoginAttempt(ip: string, success: boolean): boolean {
-  const rec = loginTracker.get(ip);
-  if (!rec) return false;
-  rec.inFlight = Math.max(0, rec.inFlight - 1);
-  if (success) {
-    loginTracker.delete(ip); // สำเร็จ → ล้างตัวนับทั้งหมด
-    return false;
-  }
-  rec.fails += 1;
-  let justLocked = false;
-  if (rec.fails >= config.web.loginMaxAttempts && rec.lockedUntil <= Date.now()) {
-    rec.lockedUntil = Date.now() + config.web.loginLockMs;
-    justLocked = true;
-  }
-  loginTracker.set(ip, rec);
-  return justLocked;
-}
-
-// เคลียร์ rate-limit record ที่หมดอายุทุก 1 ชม. กัน memory โต
-setInterval(
-  () => {
-    const now = Date.now();
-    for (const [ip, r] of loginTracker) {
-      if (r.lockedUntil < now && r.fails === 0 && r.inFlight === 0)
-        loginTracker.delete(ip);
-    }
-  },
-  60 * 60 * 1000,
-).unref();
-
-/** อ่าน cookie จาก header แบบไม่ต้องลง cookie-parser */
-function parseCookies(header?: string): Record<string, string> {
-  const out: Record<string, string> = {};
-  if (!header) return out;
-  for (const part of header.split(";")) {
-    const i = part.indexOf("=");
-    if (i < 0) continue;
-    const key = part.slice(0, i).trim();
-    out[key] = decodeURIComponent(part.slice(i + 1).trim());
-  }
-  return out;
-}
-
-/**
- * คืน username ถ้า request นี้ login แล้ว "และ" บัญชียังอยู่ในรายชื่อที่อนุญาต
- * (เช็ค userExists ทุกครั้ง → ลบ user เมื่อไหร่ session เดิมหลุดทันที)
- */
-function authUser(req: Request): string | null {
-  const cookies = parseCookies(req.headers.cookie);
-  const username = resolveSession(cookies[COOKIE_NAME]);
-  if (!username) return null;
-  if (!userExists(username)) return null;
-  return username;
-}
+/** หน้าเว็บที่ Vite build แล้ว — ต้อง login ก่อนถึงจะเห็น */
+const uiDir = join(__dirname, "ui", "dist");
 
 export function startWebServer(client?: Client): Server | undefined {
   if (!config.web.enabled) return undefined;
@@ -179,6 +45,12 @@ export function startWebServer(client?: Client): Server | undefined {
     );
     return undefined;
   }
+  if (!existsSync(join(uiDir, "index.html"))) {
+    console.error(
+      "⚠️  ยังไม่ได้ build หน้าเว็บ — dashboard จะขึ้นหน้าว่าง\n" +
+        "   สั่ง:  npm run build:ui",
+    );
+  }
 
   const app = express();
   // เชื่อ X-Forwarded-For เฉพาะจาก proxy จำนวนชั้นที่กำหนด (config.web.trustProxy)
@@ -186,626 +58,79 @@ export function startWebServer(client?: Client): Server | undefined {
   app.set("trust proxy", config.web.trustProxy);
   app.disable("x-powered-by"); // ไม่บอกว่าใช้ Express (กันสแกนหาช่องโหว่)
 
-  // security headers — กัน clickjacking / sniffing / XSS
-  app.use((_req: Request, res: Response, next: NextFunction) => {
-    res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("X-Frame-Options", "DENY");
-    // same-origin ไม่ใช่ no-referrer — no-referrer ทำให้เบราว์เซอร์ส่ง "Origin: null"
-    // กับ form POST ของหน้าตัวเอง (ตามสเปค Fetch) จน CSRF check ด้านล่างบล็อก login ทั้งเว็บ
-    // same-origin: ส่ง Origin/Referer ปกติภายในเว็บตัวเอง แต่ไม่รั่วไปเว็บอื่นเหมือนกัน
-    res.setHeader("Referrer-Policy", "same-origin");
-    res.setHeader(
-      "Content-Security-Policy",
-      "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'",
-    );
-    next();
+  app.use(securityHeaders);
+  // ปฏิเสธคำขอข้ามเว็บ "ก่อน" อ่าน body — ไม่มีเหตุผลให้เสียแรงแกะ JSON 16kb
+  // ของคำขอที่จะโดนตีกลับอยู่ดี
+  app.use(csrfGuard);
+  app.use(express.urlencoded({ extended: false, limit: "16kb" })); // ฟอร์ม login
+  app.use(express.json({ limit: "16kb" })); // body ของ API
+
+  // ---------- rate limit (กัน botnet ยิงถล่ม) ----------
+  // /login: backstop เหนือ lockout (5 ครั้ง/15 นาที) — จับการยิงรัวก่อนเสียแรง scrypt
+  // เพดาน 20 สูงกว่า lockout จงใจ: lockout คือตัวคุมหลัก อันนี้กันน้ำท่วมเฉย ๆ
+  app.post(
+    "/login",
+    rateLimit("login", 20, 15 * 60_000, (ip) =>
+      void notifySecurity("rate limit /login", `IP ${ip} ยิง POST /login เกิน 20 ครั้ง/15 นาที`),
+    ),
+  );
+  // API ทั้งหมด: 240 ครั้ง/นาที/IP — ยกเว้น /api/stream (SSE เชื่อมต่อยาว 1 ครั้ง
+  // แต่ตอน deploy/เน็ตสะดุด client จะ reconnect วน ถ้านับรวมจะเผาโควตาตัวเอง)
+  const apiLimiter = rateLimit("api", 240, 60_000, (ip) =>
+    void notifySecurity("rate limit API", `IP ${ip} ยิง API เกิน 240 ครั้ง/นาที`),
+  );
+  app.use("/api", (req: Request, res: Response, next) => {
+    if (req.path === "/stream") return next();
+    apiLimiter(req, res, next);
   });
+  // export CSV แพงสุด (query 5000 แถว) — โควตาแยกเข้มกว่า
+  app.get("/api/logs/export.csv", rateLimit("export", 10, 5 * 60_000));
 
-  app.use(express.urlencoded({ extended: false, limit: "16kb" })); // อ่านฟอร์ม + จำกัดขนาดกัน payload ใหญ่
-  app.use(express.json({ limit: "16kb" })); // อ่าน JSON body ของ action endpoints
-
-  // ---- ป้องกัน CSRF (ชั้นที่สองเสริม SameSite=lax) ----
-  // ทุก request ที่เปลี่ยนสถานะ (POST/PUT/PATCH/DELETE) ต้องมาจาก origin เดียวกัน
-  // เช็คจาก Origin ก่อน ถ้าไม่มีค่อยดู Referer — ถ้า host ไม่ตรง = ปฏิเสธ
-  // (cross-site fetch ของเบราว์เซอร์จะแนบ Origin เสมอ จึงบล็อกได้; เครื่องมือ non-browser ที่ไม่มี header ทั้งคู่ปล่อยผ่าน)
-  const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    if (SAFE_METHODS.has(req.method)) return next();
-    const source = req.headers.origin || req.headers.referer;
-    if (source) {
-      let sourceHost: string | null = null;
-      try {
-        sourceHost = new URL(source).host;
-      } catch {
-        /* header เพี้ยน */
-      }
-      if (sourceHost !== req.headers.host) {
-        // log ไว้วินิจฉัย — ถ้าผู้ใช้จริงโดนบล็อกจะได้เห็นว่า header อะไรเพี้ยน
-        console.warn(
-          `🛑 CSRF block ${req.method} ${req.path} — origin=${req.headers.origin ?? "-"} referer=${req.headers.referer ?? "-"} host=${req.headers.host}`,
-        );
-        res.status(403).json({ error: "cross-site request blocked" });
-        return;
-      }
-    }
-    next();
-  });
-
-  // ---------- เส้นทางสาธารณะ (ไม่ต้อง login) ----------
-  // ไอคอน/โลโก้ — ต้องเข้าถึงได้ก่อน login (หน้า login ก็ใช้รูปนี้)
+  // ---------- ก่อน login ----------
   app.get("/icon.svg", (_req: Request, res: Response) => {
     res.sendFile(join(publicDir, "icon.svg"));
   });
+  app.use(publicAuthRoutes(client));
 
-  app.get("/login", (_req: Request, res: Response) => {
-    res.sendFile(join(publicDir, "login.html"));
+  // ---------- ด่านตรวจ ----------
+  app.use(requireAuth);
+
+  // ---------- หลัง login ----------
+  app.use(meRoutes(client));
+  app.use(overviewRoutes(client));
+  app.use(systemRoutes());
+  app.use(logRoutes());
+  app.use(memberRoutes(client));
+  app.use(actionRoutes(client));
+  app.use(adminRoutes(client));
+  app.use(sessionRoutes(client));
+  app.use(aiRoutes());
+  app.use(beammpRoutes(client)); // เห็นเฉพาะเจ้าของเครื่อง (requireOwner อยู่ในนั้น)
+
+  // API ที่ไม่มีจริง ต้องได้ 404 เป็น JSON — ไม่ใช่ index.html ของหน้าเว็บ
+  // ไม่งั้นฝั่ง client จะพยายาม JSON.parse หน้า HTML แล้วพังด้วย error ที่อ่านไม่รู้เรื่อง
+  app.use("/api", (_req: Request, res: Response) => {
+    res.status(404).json({ error: "not found" });
   });
 
-  app.post("/login", async (req: Request, res: Response) => {
-    const ip = req.ip ?? "?";
-    // จองสิทธิ์ลองแบบ synchronous ก่อน await (กัน concurrency bypass ของ lockout)
-    if (beginLoginAttempt(ip) === "locked") {
-      res.redirect(
-        `/login?locked=${loginLockedMinutes(ip) || Math.ceil(config.web.loginLockMs / 60000)}`,
-      );
-      return;
-    }
-    const username = String(req.body?.username ?? "");
-    const password = String(req.body?.password ?? "");
-    let ok = false;
-    try {
-      ok = Boolean(username && password && (await verifyPassword(username, password)));
-    } catch {
-      ok = false;
-    }
-    const justLocked = endLoginAttempt(ip, ok);
-    if (ok) {
-      const token = createSession(username);
-      res.cookie(COOKIE_NAME, token, {
-        ...cookieOptions(),
-        maxAge: SESSION_TTL_MS,
-      });
-      res.redirect("/");
-      if (client) {
-        void logEvent(client, "info", "system", "system_login", "เข้าสู่ระบบ dashboard", [
-          { name: "User", value: username },
-          { name: "IP", value: ip },
-        ]);
-      }
-    } else {
-      const mins = loginLockedMinutes(ip);
-      res.redirect(`/login?${mins ? "locked=" + mins : "error=1"}`);
-      if (justLocked && client) {
-        // ล็อก IP เพราะลองผิดหลายครั้ง = น่าจะมีคนพยายามเจาะ
-        void logEvent(client, "alert", "system", "system_login", "🚨 ล็อก IP — login ผิดหลายครั้ง", [
-          { name: "IP", value: ip },
-          { name: "ลองชื่อ", value: username || "(ว่าง)" },
-        ]);
-      }
-    }
-  });
-
-  app.post("/logout", (req: Request, res: Response) => {
-    const cookies = parseCookies(req.headers.cookie);
-    destroySession(cookies[COOKIE_NAME]);
-    res.clearCookie(COOKIE_NAME, cookieOptions());
-    res.redirect("/login");
-  });
-
-  // ---------- ด่านตรวจ: ทุกอย่างหลังจากนี้ต้อง login ----------
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    const username = authUser(req);
-    if (!username) {
-      if (req.path.startsWith("/api")) {
-        res.status(401).json({ error: "unauthorized" });
-      } else {
-        res.redirect("/login");
-      }
-      return;
-    }
-    res.locals.username = username;
-    next();
-  });
-
-  // ---------- เส้นทางที่ต้อง login ----------
-  app.get("/api/me", (_req: Request, res: Response) => {
-    res.json({ username: res.locals.username });
-  });
-
-  // สถิติภาพรวมสำหรับหน้า Overview
-  app.get("/api/stats", async (_req: Request, res: Response) => {
-    const logs = getLogs();
-    const now = Date.now();
-    const dayAgo = now - 24 * 60 * 60 * 1000;
-    const byLevel: Record<string, number> = { info: 0, warn: 0, alert: 0 };
-    const byCat: Record<string, number> = {
-      security: 0,
-      member: 0,
-      voice: 0,
-      audit: 0,
-      system: 0,
-    };
-    const perHour = new Array(24).fill(0); // ดัชนี 23 = ชั่วโมงล่าสุด
-    let today = 0;
-    const alerts: LogEntry[] = [];
-    for (const e of logs) {
-      byLevel[e.level] = (byLevel[e.level] ?? 0) + 1;
-      const c = e.category || "system";
-      byCat[c] = (byCat[c] ?? 0) + 1;
-      if (e.timestamp >= dayAgo) {
-        today++;
-        const hoursAgo = Math.floor((now - e.timestamp) / 3_600_000);
-        if (hoursAgo >= 0 && hoursAgo < 24) perHour[23 - hoursAgo]++;
-      }
-      if (e.level === "alert" && alerts.length < 6) alerts.push(e);
-    }
-
-    // คนในห้องเสียงตอนนี้ + ดึงชื่อ (มีไม่กี่คน)
-    const voice = getVoiceStates();
-    const inVoice = await Promise.all(
-      voice.slice(0, 25).map(async (v) => {
-        let username = v.userId;
-        try {
-          if (client) username = (await client.users.fetch(v.userId)).username;
-        } catch {
-          /* ดึงชื่อไม่ได้ */
+  // ---------- หน้าเว็บ ----------
+  // ไฟล์ที่มี hash ในชื่อ (assets/*.js, *.css ของ Vite) เปลี่ยนชื่อทุกครั้งที่ build
+  // เลย cache ยาวได้ปลอดภัย ส่วน index.html ต้องไม่ cache ไม่งั้นจะชี้ไปไฟล์เก่าที่ลบไปแล้ว
+  app.use(
+    express.static(uiDir, {
+      index: false,
+      setHeaders(res, filePath) {
+        if (filePath.includes(`${sep}assets${sep}`)) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
         }
-        return {
-          username,
-          channel: v.channelName,
-          muted: v.selfMute || v.serverMute,
-          deaf: v.selfDeaf || v.serverDeaf,
-        };
-      }),
-    );
-
-    res.json({
-      bufferedLogs: logs.length,
-      today,
-      byLevel,
-      byCat,
-      perHour,
-      members: listMembers().length,
-      warnings: totalWarnings(),
-      inVoiceCount: voice.length,
-      inVoice,
-      alerts,
-    });
+      },
+    }),
+  );
+  // ทุก path ที่เหลือคืน index.html — router ฝั่งหน้าเว็บจัดการเอง (กดรีเฟรชกลางทางแล้วไม่ 404)
+  app.use((_req: Request, res: Response) => {
+    res.setHeader("Cache-Control", "no-cache");
+    res.sendFile(join(uiDir, "index.html"));
   });
-
-  // รายชื่อสมาชิก + สถานะเสียงปัจจุบัน (ไมค์/หูฟัง/ห้องที่อยู่)
-  app.get("/api/members", async (_req: Request, res: Response) => {
-    const members = listMembers();
-    const result = await Promise.all(
-      members.map(async (m) => {
-        let username = m.id;
-        try {
-          if (client) username = (await client.users.fetch(m.id)).username;
-        } catch {
-          // ดึง user ไม่ได้ (ออกจากเซิร์ฟเวอร์?) — ใช้ id แทน
-        }
-        return {
-          ...m,
-          username,
-          voice: getVoiceState(m.id),
-          level: getActivity(m.id).level,
-        };
-      }),
-    );
-    res.json(result);
-  });
-
-  // รูปบัตรของสมาชิกคนนั้น (สร้างสด ๆ จาก avatar + ข้อมูล)
-  app.get("/api/members/:id/card.png", async (req: Request, res: Response) => {
-    const id = req.params.id;
-    const card = id ? getMember(id) : null;
-    if (!id || !card || !client) {
-      res.status(404).send("not found");
-      return;
-    }
-    try {
-      const user = await client.users.fetch(id);
-      const buf = await getCardImage(
-        user.id,
-        user.username,
-        user.displayAvatarURL({ extension: "png", size: 256 }),
-        card,
-      );
-      res.setHeader("Content-Type", "image/png");
-      res.setHeader("Cache-Control", "no-cache");
-      res.send(buf);
-    } catch {
-      res.status(500).send("card error");
-    }
-  });
-
-  // ---------- Activity / XP ----------
-  // เติมชื่อผู้ใช้จาก Discord ให้ activity (best-effort)
-  async function withName(a: Activity) {
-    let username = a.userId;
-    try {
-      if (client) username = (await client.users.fetch(a.userId)).username;
-    } catch {
-      /* ดึงชื่อไม่ได้ */
-    }
-    return { ...a, username, ...levelProgress(a.xp) };
-  }
-
-  // XP/เลเวล/สถิติของคนคนนั้น (สำหรับหน้าโปรไฟล์)
-  app.get("/api/activity/:id", async (req: Request, res: Response) => {
-    const id = String(req.params.id ?? "");
-    if (!id) {
-      res.status(400).json({ error: "missing id" });
-      return;
-    }
-    res.json(await withName(getActivity(id)));
-  });
-
-  // อันดับ — ?by=xp|voice&limit=n (สำหรับ leaderboard)
-  app.get("/api/leaderboard", async (req: Request, res: Response) => {
-    const by = req.query.by === "voice" ? "voice" : "xp";
-    const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 10));
-    const rows = by === "voice" ? topByVoice(limit) : topByXp(limit);
-    res.json({ by, entries: await Promise.all(rows.map(withName)) });
-  });
-
-  // ---------- ปฏิบัติการจาก dashboard (ban/kick/timeout/warn/lock) ----------
-  const getGuild = (): Guild | null => {
-    if (!client) return null;
-    const gid = process.env.GUILD_ID;
-    return (
-      (gid ? client.guilds.cache.get(gid) : null) ??
-      client.guilds.cache.first() ??
-      null
-    );
-  };
-
-  async function runMemberAction(
-    req: Request,
-    res: Response,
-    type: "ban" | "kick" | "timeout" | "untimeout" | "warn",
-  ): Promise<void> {
-    const guild = getGuild();
-    const userId = String(req.body?.userId ?? "");
-    const reason = String(req.body?.reason || "ดำเนินการจาก dashboard");
-    const actor = String(res.locals.username);
-    if (!guild || !userId) {
-      res.status(400).json({ ok: false, message: "ข้อมูลไม่ครบ" });
-      return;
-    }
-    try {
-      let msg = "";
-      let level: LogLevel = "warn";
-      let category: LogCategory = "audit";
-      let event = "audit_member";
-
-      // หาสมาชิก (เผื่อ DM ก่อนลงโทษ) — อาจไม่อยู่ในเซิร์ฟเวอร์แล้ว
-      const member = await guild.members.fetch(userId).catch(() => null);
-      const dmTag = (sent: boolean) => (member ? (sent ? "📨 DM แล้ว" : "(DM ไม่ได้)") : "");
-
-      if (type === "ban") {
-        const sent = member ? await dmAction(member, "ban", reason) : false;
-        if (member) await member.ban({ reason });
-        else await guild.members.ban(userId, { reason });
-        msg = `แบนแล้ว ${dmTag(sent)}`.trim();
-        level = "alert";
-        event = "audit_ban";
-      } else if (!member) {
-        res.status(404).json({ ok: false, message: "ไม่พบสมาชิกในเซิร์ฟเวอร์" });
-        return;
-      } else if (type === "kick") {
-        const sent = await dmAction(member, "kick", reason);
-        await member.kick(reason);
-        msg = `เตะออกแล้ว ${dmTag(sent)}`.trim();
-        event = "audit_kick";
-      } else if (type === "timeout") {
-        const min = Number(req.body?.minutes) || 60;
-        const sent = await dmAction(member, "timeout", reason, min * 60_000);
-        await member.timeout(min * 60_000, reason);
-        msg = `timeout ${min} นาที ${dmTag(sent)}`.trim();
-        event = "audit_timeout";
-      } else if (type === "untimeout") {
-        await member.timeout(null, reason);
-        msg = "ปลด timeout แล้ว";
-        level = "info";
-        event = "audit_timeout";
-      } else {
-        // warn
-        const r = await warnMember(member, "dashboard", actor, reason);
-        msg = `เตือนแล้ว (ครั้งที่ ${r.count}) ${r.actionMsg} ${r.dmSent ? "📨 DM แล้ว" : "(DM ไม่ได้)"}`.trim();
-        level = r.level;
-        category = "security";
-        event = "security_warn";
-      }
-
-      res.json({ ok: true, message: msg });
-      if (client) {
-        await logEvent(client, level, category, event, `${msg} (จาก dashboard)`, [
-          { name: "เป้าหมาย", value: userId },
-          { name: "โดย (dashboard)", value: actor },
-          { name: "เหตุผล", value: reason },
-        ]);
-      }
-    } catch {
-      res
-        .status(500)
-        .json({ ok: false, message: "ทำไม่สำเร็จ (เช็คสิทธิ์/ลำดับ role ของบอท)" });
-    }
-  }
-
-  app.post("/api/action/ban", (req, res) => runMemberAction(req, res, "ban"));
-  app.post("/api/action/kick", (req, res) => runMemberAction(req, res, "kick"));
-  app.post("/api/action/timeout", (req, res) => runMemberAction(req, res, "timeout"));
-  app.post("/api/action/untimeout", (req, res) => runMemberAction(req, res, "untimeout"));
-  app.post("/api/action/warn", (req, res) => runMemberAction(req, res, "warn"));
-
-  app.post("/api/action/clearwarnings", async (req: Request, res: Response) => {
-    const userId = String(req.body?.userId ?? "");
-    const actor = String(res.locals.username);
-    if (!userId) {
-      res.status(400).json({ ok: false, message: "ข้อมูลไม่ครบ" });
-      return;
-    }
-    const n = clearWarnings(userId);
-    res.json({ ok: true, message: n ? `ล้างเตือน ${n} ครั้ง` : "ไม่มีเตือนให้ลบ" });
-    if (n && client) {
-      await logEvent(client, "info", "security", "security_warn", "ล้างเตือน (จาก dashboard)", [
-        { name: "เป้าหมาย", value: userId },
-        { name: "โดย (dashboard)", value: actor },
-        { name: "ลบ", value: `${n} ครั้ง` },
-      ]);
-    }
-  });
-
-  async function lockGuild(allow: boolean, actor: string) {
-    const guild = getGuild();
-    if (!guild) return { ok: false, message: "ไม่พบเซิร์ฟเวอร์" };
-    const { ok, fail } = await setGuildLock(guild, !allow);
-    if (client) {
-      await logEvent(
-        client,
-        allow ? "info" : "alert",
-        "system",
-        "system_lock",
-        `${allow ? "ปลดล็อก" : "ล็อก"}เซิร์ฟเวอร์ (จาก dashboard)`,
-        [
-          { name: "โดย (dashboard)", value: actor },
-          { name: "ห้องสำเร็จ", value: `${ok}` },
-        ],
-      );
-    }
-    return { ok: true, message: `${allow ? "ปลดล็อก" : "ล็อก"} ${ok} ห้อง${fail ? ` (พลาด ${fail})` : ""}` };
-  }
-  app.post("/api/action/lock", async (_req, res) => {
-    res.json(await lockGuild(false, String(res.locals.username)));
-  });
-  app.post("/api/action/unlock", async (_req, res) => {
-    res.json(await lockGuild(true, String(res.locals.username)));
-  });
-
-  // ---------- Settings ----------
-  app.get("/api/settings", (_req: Request, res: Response) => {
-    res.json(getSettings());
-  });
-  app.post("/api/settings", async (req: Request, res: Response) => {
-    if (!req.body || typeof req.body !== "object") {
-      res.status(400).json({ ok: false, message: "ข้อมูลไม่ถูกต้อง" });
-      return;
-    }
-    updateSettings(req.body as Record<string, unknown>);
-    res.json({ ok: true, message: "บันทึกการตั้งค่าแล้ว" });
-    if (client) {
-      await logEvent(client, "warn", "system", "system_settings", "แก้ไขการตั้งค่า (จาก dashboard)", [
-        { name: "โดย", value: String(res.locals.username) },
-      ]);
-    }
-  });
-
-  // ---------- จอ OLED บนตัวเครื่อง ----------
-  app.get("/api/oled", (_req: Request, res: Response) => {
-    res.json({
-      ...getOledConfig(),
-      pages: OLED_PAGES.map((p) => ({ id: p, label: OLED_PAGE_LABELS[p] })),
-    });
-  });
-  app.post("/api/oled", async (req: Request, res: Response) => {
-    const page = (req.body as { page?: unknown })?.page;
-    if (!isOledPage(page)) {
-      res.status(400).json({
-        ok: false,
-        message: `หน้าจอต้องเป็นหนึ่งใน ${OLED_PAGES.join(", ")}`,
-      });
-      return;
-    }
-    let saved;
-    try {
-      saved = setOledConfig(String(page));
-    } catch {
-      // เขียนไม่ได้ = ปัญหาสิทธิ์ (ReadWritePaths ใน unit) ไม่ใช่ input ผู้ใช้ผิด
-      res.status(500).json({ ok: false, message: "เขียนไฟล์ตั้งค่าจอไม่ได้ (สิทธิ์?)" });
-      return;
-    }
-    res.json({
-      ok: true,
-      message: `จอค้างที่หน้า ${saved.page} แล้ว`,
-      ...saved,
-    });
-    if (client) {
-      await logEvent(client, "info", "system", "system_settings", "เปลี่ยนหน้าจอ OLED", [
-        { name: "โดย", value: String(res.locals.username) },
-        { name: "หน้าใหม่", value: `${saved.page} — ${OLED_PAGE_LABELS[saved.page]}` },
-      ]);
-    }
-  });
-
-  // ---------- จัดการบัญชี mod ----------
-  app.get("/api/users", (_req: Request, res: Response) => {
-    res.json(listUsers());
-  });
-  app.post("/api/users/add", async (req: Request, res: Response) => {
-    const username = String(req.body?.username ?? "").trim();
-    const password = String(req.body?.password ?? "");
-    // จำกัดรูปแบบ username: a-z A-Z 0-9 _ . - ยาว 3–32 ตัว
-    // กัน stored XSS (เช่นชื่อที่มี ' " < >) ที่จะถูกฝังในหน้า dashboard
-    if (!/^[A-Za-z0-9_.-]{3,32}$/.test(username) || password.length < 8) {
-      res.status(400).json({
-        ok: false,
-        message: "username 3–32 ตัว (a-z 0-9 _ . -) + รหัสผ่าน ≥ 8 ตัว",
-      });
-      return;
-    }
-    try {
-      await addUser(username, password);
-      res.json({ ok: true, message: `เพิ่มบัญชี ${username} แล้ว` });
-      if (client) {
-        await logEvent(client, "warn", "system", "system_settings", "เพิ่มบัญชี mod (จาก dashboard)", [
-          { name: "บัญชีใหม่", value: username },
-          { name: "โดย", value: String(res.locals.username) },
-        ]);
-      }
-    } catch {
-      res.status(400).json({ ok: false, message: "มีบัญชีนี้อยู่แล้ว" });
-    }
-  });
-  app.post("/api/users/remove", async (req: Request, res: Response) => {
-    const username = String(req.body?.username ?? "");
-    if (listUsers().length <= 1) {
-      res.status(400).json({ ok: false, message: "ลบไม่ได้ — ต้องเหลือบัญชีอย่างน้อย 1" });
-      return;
-    }
-    const ok = removeUser(username);
-    res.json({ ok, message: ok ? `ลบบัญชี ${username} แล้ว` : "ไม่พบบัญชีนี้" });
-    if (ok && client) {
-      await logEvent(client, "alert", "system", "system_settings", "ลบบัญชี mod (จาก dashboard)", [
-        { name: "บัญชีที่ลบ", value: username },
-        { name: "โดย", value: String(res.locals.username) },
-      ]);
-    }
-  });
-
-  // ---------- คำตัดสินของ mod ต่อสิ่งที่ AI จับได้ (= label สำหรับเทรนรอบหน้า) ----------
-
-  /** ดึงค่าจาก field ของ log ตามชื่อ */
-  function fieldOf(entry: LogEntry, name: string): string {
-    return entry.fields.find((f) => f.name === name)?.value ?? "";
-  }
-
-  /** "someone (123456789)" -> "123456789" */
-  function userIdFrom(value: string): string {
-    return /\((\d+)\)\s*$/.exec(value)?.[1] ?? "";
-  }
-
-  app.get("/api/ai/verdicts", (_req: Request, res: Response) => {
-    res.json({ map: getVerdictMap(), stats: verdictStats() });
-  });
-
-  app.post("/api/ai/verdict", (req: Request, res: Response) => {
-    const logId = Number(req.body?.logId);
-    const raw = req.body?.verdict;
-    if (!Number.isInteger(logId) || logId <= 0) {
-      res.status(400).json({ ok: false, message: "logId ไม่ถูกต้อง" });
-      return;
-    }
-    // verdict = null คือ "ยกเลิกคำตัดสิน" (กดปุ่มเดิมซ้ำ)
-    if (raw === null) {
-      const removed = clearVerdict(logId);
-      res.json({ ok: true, verdict: null, stats: verdictStats(), message: removed ? "ยกเลิกแล้ว" : "ไม่มีให้ยกเลิก" });
-      return;
-    }
-    if (raw !== "toxic" && raw !== "ok") {
-      res.status(400).json({ ok: false, message: "verdict ต้องเป็น toxic, ok หรือ null" });
-      return;
-    }
-    const verdict = raw as Verdict;
-
-    const entry = getLogById(logId);
-    // ผูกกับ log ที่มาจาก AI เท่านั้น กันคนยิง id มั่ว ๆ มาปนข้อมูลเทรน
-    if (!entry || entry.event !== "security_ai") {
-      res.status(404).json({ ok: false, message: "ไม่พบการตรวจจับของ AI ตาม id นี้" });
-      return;
-    }
-
-    const text = fieldOf(entry, "ข้อความ");
-    const score = Number(fieldOf(entry, "คะแนน"));
-    if (!text || !Number.isFinite(score)) {
-      res.status(422).json({ ok: false, message: "log นี้ไม่มีข้อความ/คะแนนให้เก็บ" });
-      return;
-    }
-
-    setVerdict({
-      log_id: logId,
-      verdict,
-      score,
-      // alert = ลบอัตโนมัติ (โซน auto), warn = แค่ขึ้นให้ดู (โซน review)
-      zone: entry.level === "alert" ? "auto" : "review",
-      text,
-      user_id: userIdFrom(fieldOf(entry, "User")),
-      decided_by: String(res.locals.username),
-    });
-    res.json({ ok: true, verdict, stats: verdictStats() });
-  });
-
-  // ชุดเทรนพร้อมใช้ — บรรทัดละ 1 ตัวอย่าง {text, label} ตรงกับที่ train_thai_toxic.py กิน
-  app.get("/api/ai/export.jsonl", (_req: Request, res: Response) => {
-    const rows = getAllVerdicts();
-    res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
-    res.setHeader("Content-Disposition", 'attachment; filename="ai-labels.jsonl"');
-    res.send(
-      rows
-        .map((r) =>
-          JSON.stringify({
-            text: r.text,
-            label: r.verdict === "toxic" ? 1 : 0,
-            model_score: r.score,
-            zone: r.zone,
-            decided_at: r.decided_at,
-          }),
-        )
-        .join("\n") + (rows.length ? "\n" : ""),
-    );
-  });
-
-  app.get("/api/logs", (req: Request, res: Response) => {
-    const level = req.query.level as LogLevel | undefined;
-    const category = req.query.category as LogCategory | undefined;
-    const search = req.query.search as string | undefined;
-    const limit = req.query.limit ? Number(req.query.limit) : undefined;
-    res.json(getLogs({ level, category, search, limit }));
-  });
-
-  app.get("/api/stream", (req: Request, res: Response) => {
-    const username = res.locals.username as string;
-    res.writeHead(200, {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    });
-    res.write(": connected\n\n");
-
-    const onLog = (entry: LogEntry) => {
-      res.write(`data: ${JSON.stringify(entry)}\n\n`);
-    };
-    logEmitter.on("log", onLog);
-
-    // ทุก 15 วิ: ส่ง ping กันหลุด + เช็คว่าบัญชียังอยู่ไหม (ถูกลบ → ปิด stream)
-    const tick = setInterval(() => {
-      if (!userExists(username)) {
-        cleanup();
-        res.end();
-        return;
-      }
-      res.write(": ping\n\n");
-    }, 15_000);
-
-    function cleanup() {
-      clearInterval(tick);
-      logEmitter.off("log", onLog);
-    }
-    req.on("close", cleanup);
-  });
-
-  // หน้า dashboard + ไฟล์ static (ถูกป้องกันด้วยด่านตรวจด้านบนแล้ว)
-  app.use(express.static(publicDir));
 
   return app.listen(config.web.port, config.web.host, () => {
     console.log(

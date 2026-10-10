@@ -32,6 +32,7 @@ function mockMessage(opts: {
   userId?: string;
   mentions?: number;
   bot?: boolean;
+  files?: string[]; // ชื่อไฟล์แนบ (จำลอง attachments)
 }): Mock {
   let deleted = false;
   let timedOut = false;
@@ -53,6 +54,8 @@ function mockMessage(opts: {
     channelId: "c1",
     client: {},
     mentions: { users: { size: opts.mentions ?? 0 }, roles: { size: 0 } },
+    // Map มี .values() เหมือน Collection ของ discord.js (โค้ดจริง spread เป็น array ก่อนใช้)
+    attachments: new Map((opts.files ?? []).map((n, i) => [String(i), { name: n }])),
     deletable: true,
     delete: async () => { deleted = true; },
   };
@@ -78,6 +81,30 @@ test("auto-mod: จับคำต้องห้ามแบบไม่สน�
   const m = mockMessage({ content: "นี่ไง ห้ามคำนี้ เลย" });
   assert.equal(await handleAutoMod(m.msg), true);
   config.autoMod.bannedWords = [];
+});
+
+test("auto-mod: ไฟล์แนบ .exe โดนลบ (กัน XWorm/RAT)", async () => {
+  const m = mockMessage({ content: "เกมฟรีมาแล้ว", files: ["FreeGame.exe"] });
+  assert.equal(await handleAutoMod(m.msg), true);
+  assert.equal(m.deleted(), true);
+});
+
+test("auto-mod: double extension invoice.pdf.exe ก็โดน + ไม่สนตัวพิมพ์", async () => {
+  const m = mockMessage({ content: "", files: ["invoice.pdf.eXe"] });
+  assert.equal(await handleAutoMod(m.msg), true);
+  assert.equal(m.deleted(), true);
+});
+
+test("auto-mod: ไฟล์ปกติ (.png .zip) ไม่โดน", async () => {
+  const m = mockMessage({ content: "รูปสวย ๆ", files: ["photo.PNG", "pack.zip"] });
+  assert.equal(await handleAutoMod(m.msg), false);
+  assert.equal(m.deleted(), false);
+});
+
+test("auto-mod: ลิงก์ย่อ (bit.ly) แค่เตือน ไม่ลบข้อความ", async () => {
+  const m = mockMessage({ content: "ดูนี่ https://bit.ly/abc123" });
+  assert.equal(await handleAutoMod(m.msg), false, "ต้องไม่นับว่าจัดการแล้ว");
+  assert.equal(m.deleted(), false, "ต้องไม่ลบ");
 });
 
 test("auto-mod: ข้อความปกติผ่านได้", async () => {

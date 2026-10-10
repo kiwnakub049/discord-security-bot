@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <!-- viewport-fit=cover + env(safe-area-inset-*) ในซีเอสเอส = แถบล่างไม่โดนขีดโฮมของ iPhone บัง -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- เพิ่มลงหน้าโฮมแล้วเปิดเต็มจอเหมือนแอป -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Security Bot" />
+    <!-- สีแถบสถานะบนมือถือ ตามธีมที่เครื่องตั้งไว้ -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f5efe6" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#070a10" />
+    <title>Security Bot</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

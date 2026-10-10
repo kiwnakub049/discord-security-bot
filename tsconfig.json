@@ -11,5 +11,7 @@
     "noUncheckedIndexedAccess": true,
     "outDir": "dist"
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  // หน้าเว็บมี tsconfig ของตัวเอง (JSX + lib DOM) — ตรวจแยกด้วย npm run typecheck:ui
+  "exclude": ["src/web/ui"]
 }

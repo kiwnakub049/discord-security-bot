@@ -9,6 +9,7 @@
  */
 import Database from "better-sqlite3";
 import {
+  chmodSync,
   createReadStream,
   createWriteStream,
   mkdirSync,
@@ -73,15 +74,21 @@ function prune(): string[] {
 }
 
 async function main(): Promise<void> {
-  mkdirSync(BACKUP_DIR, { recursive: true });
+  // 0o700 = โฟลเดอร์สำรองเจ้าของเข้าถึงคนเดียว (ในไฟล์มี password/session hash)
+  mkdirSync(BACKUP_DIR, { recursive: true, mode: 0o700 });
   const name = `bot-${stamp(new Date())}.db`;
   const raw = join(BACKUP_DIR, name);
   const gz = `${raw}.gz`;
 
   await db.backup(raw);
+  chmodSync(raw, 0o600); // ไฟล์ชั่วคราวก่อนบีบ — จำกัดสิทธิ์ตั้งแต่แรก เผื่อ verify ค้าง
   const rows = verify(raw); // ตรวจก่อนบีบ ถ้าพังจะได้รู้ตั้งแต่ตอนนี้
 
-  await pipeline(createReadStream(raw), createGzip(), createWriteStream(gz));
+  await pipeline(
+    createReadStream(raw),
+    createGzip(),
+    createWriteStream(gz, { mode: 0o600 }), // .gz สำรองต้องอ่านได้เฉพาะเจ้าของ
+  );
   // ต้องลบ -wal กับ -shm ด้วย ไม่ใช่แค่ตัว .db
   // การเปิดไฟล์ตอน verify() สร้างสองตัวนี้ขึ้นมา (DB สืบ WAL mode มาจากต้นฉบับ)
   // ถ้าไม่เก็บกวาด โฟลเดอร์สำรองจะมีขยะค้างเพิ่มขึ้นทุกวัน

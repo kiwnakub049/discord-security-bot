@@ -28,7 +28,7 @@ before(async () => {
   const { initDb } = await import("../src/store/db.js");
   initDb();
   const { addUser } = await import("../src/auth/users.js");
-  await addUser(ADMIN, PASS);
+  await addUser(ADMIN, PASS, "admin"); // บัญชีทดสอบต้องเป็น admin เพื่อยิง route จัดการบัญชี/ตั้งค่า
   const { config } = await import("../src/config.js");
   config.web.port = TEST_PORT;
   const { startWebServer } = await import("../src/web/server.js");
@@ -79,14 +79,25 @@ test("#2 scrypt: login ถูก → 302 ไป / + ได้ cookie", async () 
   const r = await login(ADMIN, PASS);
   assert.equal(r.headers.get("location"), "/");
   const sc = r.headers.get("set-cookie");
-  assert.ok(sc && sc.startsWith("sid="), "ต้องมี Set-Cookie: sid=");
+  assert.ok(sc && sc.startsWith("__Host-sid="), "ต้องมี Set-Cookie: __Host-sid=");
   cookie = sc.split(";")[0];
 });
 
-test("GET /api/me (มี cookie) → username ถูก", async () => {
+test("GET /api/me (มี cookie) → username ถูก + มี guildId", async () => {
   const r = await fetch(`${BASE}/api/me`, { headers: { Cookie: cookie } });
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { username: ADMIN });
+  const body = (await r.json()) as { username: string; guildId: string | null };
+  assert.equal(body.username, ADMIN);
+  /*
+   * guildId ต้องมีคีย์เสมอ — หน้าเว็บใช้ประกอบลิงก์ห้องใน log
+   * ถ้าหายไปเงียบ ๆ ชื่อห้องจะกลายเป็นข้อความธรรมดาโดยไม่มีอะไรฟ้อง
+   * ค่าเป็น null ได้ในเทส เพราะรันโดยไม่ได้ต่อ Discord จริง
+   */
+  assert.ok("guildId" in body, "ต้องมีคีย์ guildId");
+  assert.ok(
+    body.guildId === null || /^\d{17,20}$/.test(body.guildId),
+    `guildId ต้องเป็น null หรือ snowflake — ได้ ${JSON.stringify(body.guildId)}`,
+  );
 });
 
 test("#4 CSRF: POST + Origin ต่างเว็บ → 403", async () => {
@@ -153,6 +164,86 @@ test("GET /api/leaderboard → { by, entries[] }", async () => {
   const b = await r.json();
   assert.equal(b.by, "xp");
   assert.ok(Array.isArray(b.entries));
+});
+
+// ---- แบ่งชั้นสิทธิ์ admin / mod ----
+let modCookie = "";
+
+test("role: สร้างบัญชี mod แล้ว login ได้ + /api/me บอก role=mod", async () => {
+  const { addUser } = await import("../src/auth/users.js");
+  await addUser("mod_only", "password123", "mod");
+  const r = await login("mod_only", "password123");
+  assert.equal(r.headers.get("location"), "/");
+  modCookie = (r.headers.get("set-cookie") ?? "").split(";")[0];
+
+  const me = await fetch(`${BASE}/api/me`, { headers: { Cookie: modCookie } });
+  assert.equal((await me.json()).role, "mod");
+});
+
+test("role: admin /api/me → role=admin", async () => {
+  const me = await fetch(`${BASE}/api/me`, { headers: { Cookie: cookie } });
+  assert.equal((await me.json()).role, "admin");
+});
+
+for (const [method, path, body] of [
+  ["POST", "/api/users/add", { username: "sneaky", password: "password123" }],
+  ["POST", "/api/settings", { "antiSpam.maxMessages": 99 }],
+  ["GET", "/api/users", undefined],
+] as const) {
+  test(`role: mod ยิง ${method} ${path} → 403`, async () => {
+    const r = await fetch(`${BASE}${path}`, {
+      method,
+      headers: {
+        Cookie: modCookie,
+        "Content-Type": "application/json",
+        Origin: BASE,
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    assert.equal(r.status, 403);
+  });
+}
+
+test("role: ลบ admin คนสุดท้ายไม่ได้ (กันล็อกตัวเองออกจากการจัดการ)", async () => {
+  const r = await fetch(`${BASE}/api/users/remove`, {
+    method: "POST",
+    headers: { Cookie: cookie, "Content-Type": "application/json", Origin: BASE },
+    body: JSON.stringify({ username: ADMIN }),
+  });
+  const b = await r.json();
+  assert.equal(b.ok, false, "ต้องปฏิเสธการลบ admin คนสุดท้าย");
+});
+
+// lockout ต้องปลดเองเมื่อพ้นหน้าต่างเวลา ไม่ใช่ล็อกถาวรจน process restart
+// (เดิม fails ค้างที่ max ทำให้ attempt แรกหลังหมดเวลาโดนต่ออายุล็อกทันที)
+// ใช้ IP เฉพาะ + ย่อ loginLockMs ให้เร่งเวลาได้ ไม่ไปชนกับ 127.0.0.1 ของเทสอื่น
+test("login lockout: ปลดเองหลังพ้นหน้าต่างเวลา (ไม่ล็อกถาวร)", async () => {
+  const { beginLoginAttempt, endLoginAttempt } = await import(
+    "../src/web/middleware/auth.js"
+  );
+  const { config } = await import("../src/config.js");
+  const ip = "203.0.113.7";
+  const origLockMs = config.web.loginLockMs;
+  config.web.loginLockMs = 60; // 60ms พอให้ setTimeout รอได้จริง
+  try {
+    // ลองผิดจนล็อก
+    for (let i = 0; i < config.web.loginMaxAttempts; i++) {
+      assert.equal(beginLoginAttempt(ip), "ok");
+      endLoginAttempt(ip, false);
+    }
+    assert.equal(beginLoginAttempt(ip), "locked", "ครบโควตาต้องถูกล็อก");
+
+    // รอให้พ้นหน้าต่าง แล้วต้องลองต่อได้อีก (ไม่ค้างล็อกถาวร)
+    await new Promise((res) => setTimeout(res, 90));
+    assert.equal(
+      beginLoginAttempt(ip),
+      "ok",
+      "พ้นหน้าต่างเวลาแล้วต้องปลดล็อกเอง",
+    );
+    endLoginAttempt(ip, true); // ล้าง record ทิ้ง
+  } finally {
+    config.web.loginLockMs = origLockMs;
+  }
 });
 
 // ทำท้ายสุด — จะล็อก IP 127.0.0.1

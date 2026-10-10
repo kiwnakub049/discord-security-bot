@@ -2,105 +2,263 @@
 <html lang="th">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f5efe6" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#070a10" />
     <title>เข้าสู่ระบบ — Security Bot</title>
+    <!--
+      หน้านี้จงใจไม่ใช้ React/Vite เหมือนหน้าอื่น
+      เพราะต้องเข้าถึงได้ "ก่อน" login และเป็น form POST จริง ๆ ที่เบราว์เซอร์ส่งเอง
+      (เพื่อให้ตัวจัดการรหัสผ่านของเครื่องจำรหัสให้ได้ตามปกติ)
+      สีเลยต้องก็อปชุดเดียวกับ ui/src/index.css มาไว้ที่นี่ — ถ้าแก้ธีม แก้ทั้งสองที่
+
+      ⚠️ ห้ามมี <script> ในไฟล์นี้ — CSP ตั้ง script-src 'self' ไว้ จะถูกบล็อกเงียบ ๆ
+         animation ทุกอย่างจึงต้องเป็น CSS ล้วน (test/loginpage.test.ts คุมข้อนี้อยู่)
+    -->
     <style>
+      /* ── โทนสว่าง: ครีม/เบจ ── */
       :root {
-        --bg: #0f1117;
-        --panel: #1a1d27;
-        --border: #2a2e3c;
-        --text: #e4e6eb;
-        --muted: #8b8f9c;
-        --info: #5865f2;
-        --alert: #ed4245;
+        color-scheme: light;
+        --bg: #f5efe6;
+        --blob-1: rgba(255, 186, 140, 0.5);
+        --blob-2: rgba(240, 200, 120, 0.44);
+        --blob-3: rgba(238, 170, 175, 0.38);
+        --blob-4: rgba(190, 205, 160, 0.36);
+        --glass: rgba(255, 252, 247, 0.72);
+        --edge: rgba(255, 255, 255, 0.85);
+        --spec: rgba(255, 255, 255, 0.95);
+        --shade: rgba(92, 62, 32, 0.16);
+        --field: rgba(255, 252, 247, 0.55);
+        --text: #2a2118;
+        --muted: #6b5942;
+        --accent: #9a5410;
+        --accent-contrast: #fffaf3;
+        --alert: #b0203f;
+        --alert-soft: rgba(210, 50, 85, 0.14);
       }
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body {
-        font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+
+      /* ── โทนมืด ── */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: dark;
+          --bg: #070a10;
+          --blob-1: rgba(40, 110, 220, 0.36);
+          --blob-2: rgba(125, 70, 225, 0.3);
+          --blob-3: rgba(20, 165, 165, 0.24);
+          --blob-4: rgba(205, 60, 125, 0.2);
+          --glass: rgba(150, 182, 226, 0.11);
+          --edge: rgba(180, 208, 245, 0.17);
+          --spec: rgba(222, 238, 255, 0.3);
+          --shade: rgba(0, 0, 0, 0.55);
+          --field: rgba(150, 182, 226, 0.09);
+          --text: #e9f0fa;
+          --muted: #a3b6ce;
+          --accent: #5cc8ff;
+          --accent-contrast: #04121c;
+          --alert: #ff8098;
+          --alert-soft: rgba(255, 128, 152, 0.17);
+        }
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      html {
         background: var(--bg);
+      }
+
+      body {
+        font-family: "Sarabun", "Noto Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif;
         color: var(--text);
-        min-height: 100vh;
+        min-height: 100dvh;
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 20px;
+        padding: 24px 20px calc(24px + env(safe-area-inset-bottom, 0px));
+        -webkit-font-smoothing: antialiased;
       }
-      .card {
-        background: var(--panel);
-        border: 1px solid var(--border);
-        border-radius: 14px;
-        padding: 32px;
+
+      /* พื้นไล่สีที่ขยับช้า ๆ — ตัวเดียวกับที่หน้าอื่นใช้ ทำให้กระจกมีอะไรให้เห็นทะลุ */
+      .aurora {
+        position: fixed;
+        inset: -25%;
+        z-index: -1;
+        pointer-events: none;
+        background-color: var(--bg);
+        background-image:
+          radial-gradient(38% 32% at 18% 18%, var(--blob-1), transparent 68%),
+          radial-gradient(34% 30% at 84% 12%, var(--blob-2), transparent 68%),
+          radial-gradient(42% 38% at 74% 82%, var(--blob-3), transparent 70%),
+          radial-gradient(32% 30% at 24% 78%, var(--blob-4), transparent 70%);
+        animation: drift 48s ease-in-out infinite alternate;
+        will-change: transform;
+      }
+
+      form {
         width: 100%;
-        max-width: 360px;
+        max-width: 380px;
+        padding: 30px 26px;
+        border-radius: 24px;
+        background: var(--glass);
+        backdrop-filter: blur(32px) saturate(190%);
+        -webkit-backdrop-filter: blur(32px) saturate(190%);
+        border: 1px solid var(--edge);
+        /* เส้นแสงขอบบน = ขอบที่หันรับแสง ทำให้ดูเป็นแผ่นมีความหนา ไม่ใช่กล่องแบน */
+        box-shadow:
+          inset 0 1px 0 0 var(--spec),
+          0 24px 64px -24px var(--shade);
+        animation: rise 0.6s cubic-bezier(0.22, 1.2, 0.36, 1) both;
       }
-      .logo { width: 56px; height: 56px; margin-bottom: 14px; }
-      h1 { font-size: 20px; margin-bottom: 6px; }
-      .sub { color: var(--muted); font-size: 13px; margin-bottom: 22px; }
-      label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+
+      .logo {
+        width: 48px;
+        height: 48px;
+        margin-bottom: 16px;
+      }
+
+      h1 {
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+
+      .sub {
+        color: var(--muted);
+        font-size: 13px;
+        margin: 4px 0 24px;
+      }
+
+      label {
+        display: block;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+
       input {
         width: 100%;
-        background: var(--bg);
-        border: 1px solid var(--border);
+        background: var(--field);
+        border: 1px solid var(--edge);
+        border-radius: 14px;
         color: var(--text);
-        padding: 11px 13px;
-        border-radius: 9px;
-        font-size: 14px;
+        padding: 12px 14px;
+        /* 16px ขึ้นไป — เล็กกว่านี้ Safari บน iOS จะซูมหน้าเข้าเองตอนโฟกัส */
+        font-size: 16px;
+        font-family: inherit;
         margin-bottom: 16px;
+        box-shadow: inset 0 1px 0 0 var(--spec);
+        transition: border-color 0.25s ease;
       }
-      input:focus { outline: none; border-color: var(--info); }
+      input:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+
       button {
         width: 100%;
-        background: var(--info);
-        color: #fff;
+        background: var(--accent);
+        color: var(--accent-contrast);
         border: none;
-        padding: 12px;
-        border-radius: 9px;
+        border-radius: 14px;
+        padding: 14px;
         font-size: 15px;
         font-weight: 600;
+        font-family: inherit;
         cursor: pointer;
+        box-shadow:
+          inset 0 1px 0 0 rgba(255, 255, 255, 0.3),
+          0 6px 18px -8px var(--accent);
+        transition: transform 0.18s cubic-bezier(0.22, 1.2, 0.36, 1);
       }
-      button:hover { filter: brightness(1.1); }
+      button:active {
+        transform: scale(0.975);
+      }
+
       .error {
-        background: rgba(237, 66, 69, 0.12);
+        background: var(--alert-soft);
         border: 1px solid var(--alert);
-        color: #ff9a9c;
+        border-radius: 14px;
+        color: var(--alert);
         font-size: 13px;
-        padding: 10px 13px;
-        border-radius: 9px;
-        margin-bottom: 16px;
-        display: none;
+        line-height: 1.5;
+        padding: 11px 14px;
+        margin-bottom: 18px;
+        animation: rise 0.45s cubic-bezier(0.22, 1.2, 0.36, 1) both;
+      }
+
+      @keyframes drift {
+        0% {
+          transform: translate3d(0, 0, 0) scale(1);
+        }
+        50% {
+          transform: translate3d(2.5%, -2%, 0) scale(1.09);
+        }
+        100% {
+          transform: translate3d(-2%, 2.5%, 0) scale(1.04);
+        }
+      }
+
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(14px) scale(0.98);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
       }
     </style>
   </head>
   <body>
-    <form class="card" method="POST" action="/login">
+    <div class="aurora" aria-hidden="true"></div>
+
+    <form method="POST" action="/login">
       <img class="logo" src="/icon.svg" alt="" />
       <h1>Security Bot</h1>
-      <div class="sub">เข้าสู่ระบบเพื่อดู data-log</div>
+      <p class="sub">เข้าสู่ระบบเพื่อดูแลเซิร์ฟเวอร์</p>
 
-      <div class="error" id="err">ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง</div>
+      <!--ERROR-->
 
       <label for="username">ชื่อผู้ใช้</label>
-      <input id="username" name="username" autocomplete="username" autofocus required />
+      <input
+        id="username"
+        name="username"
+        autocomplete="username"
+        autocapitalize="off"
+        autocorrect="off"
+        autofocus
+        required
+      />
 
       <label for="password">รหัสผ่าน</label>
-      <input id="password" name="password" type="password" autocomplete="current-password" required />
+      <input
+        id="password"
+        name="password"
+        type="password"
+        autocomplete="current-password"
+        required
+      />
 
       <button type="submit">เข้าสู่ระบบ</button>
     </form>
-
-    <script>
-      // แสดงข้อความ error/ถูกล็อก
-      const params = new URLSearchParams(location.search);
-      const err = document.getElementById("err");
-      const locked = params.get("locked");
-      if (locked) {
-        err.textContent = `พยายาม login ผิดหลายครั้ง — ถูกล็อกชั่วคราว ลองใหม่ใน ${locked} นาที`;
-        err.style.display = "block";
-      } else if (params.get("error")) {
-        err.style.display = "block";
-      }
-    </script>
   </body>
 </html>

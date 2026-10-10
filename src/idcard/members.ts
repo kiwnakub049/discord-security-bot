@@ -109,3 +109,8 @@ export function memberCount(): number {
     db.prepare("SELECT COUNT(*) AS n FROM members").get() as { n: number }
   ).n;
 }
+
+/** ลบบัตร/สมาชิกคนนี้ — คืน true ถ้าลบจริง (ใช้ตอนคนออกจากเซิร์ฟเวอร์) */
+export function deleteMember(userId: string): boolean {
+  return db.prepare("DELETE FROM members WHERE user_id = ?").run(userId).changes > 0;
+}

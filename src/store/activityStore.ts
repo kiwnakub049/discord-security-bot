@@ -156,3 +156,8 @@ export function topByVoice(limit = 10): Activity[] {
     .all(limit);
   return rows.map(toActivity);
 }
+
+/** ลบ activity/XP ของคนนี้ — คืน true ถ้าลบจริง (ใช้ตอนคนออกจากเซิร์ฟเวอร์) */
+export function deleteActivity(userId: string): boolean {
+  return db.prepare("DELETE FROM activity WHERE user_id = ?").run(userId).changes > 0;
+}
