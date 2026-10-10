@@ -13,6 +13,7 @@ import { Badge, Button, Card, Chip, SectionTitle, Spinner } from "../components/
 import { Icon } from "../components/Icon";
 import { useToast } from "../components/Toast";
 import { setLinkTarget, useLinkTarget } from "../lib/linkTarget";
+import { setSkin, useSkin } from "../lib/skin";
 
 export function Settings({
   username,
@@ -25,6 +26,7 @@ export function Settings({
     <div className="space-y-6">
       {/* ตั้งค่าบอท + จัดการบัญชี = admin เท่านั้น (backend ก็บังคับซ้ำอีกชั้น) */}
       {isAdmin && <BotSettings />}
+      <SkinPicker />
       <LinkTargetPicker />
       <OledPicker />
       <ServerLock />
@@ -32,6 +34,32 @@ export function Settings({
       {isAdmin && <ModAccounts me={username} />}
       <SignOut username={username} />
     </div>
+  );
+}
+
+/* ---------------- หน้าตาบนจอคอม ---------------- */
+
+/** ซ่อนบนมือถือ — หน้าตา macOS มีผลแค่จอกว้าง มือถือเป็นสมุดเวรเสมอ */
+function SkinPicker() {
+  const skin = useSkin();
+  return (
+    <section className="hidden md:block">
+      <SectionTitle>หน้าตาบนจอคอม</SectionTitle>
+      <Card className="p-4">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="หน้าตาของเว็บ">
+          <Chip active={skin === "duty"} onClick={() => setSkin("duty")}>
+            สมุดเวรยาม
+          </Chip>
+          <Chip active={skin === "mac"} onClick={() => setSkin("mac")}>
+            macOS
+          </Chip>
+        </div>
+        <p className="mt-3 text-xs text-faint">
+          ใช้เฉพาะจอกว้าง มือถือยังเป็นสมุดเวรยามเสมอ · ธีมสว่าง/มืดยังเลือกจากปุ่มบนหัวเว็บได้เหมือนเดิม
+          · เก็บไว้ในเครื่องนี้เท่านั้น
+        </p>
+      </Card>
+    </section>
   );
 }
 

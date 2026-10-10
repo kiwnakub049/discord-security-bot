@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { applyStoredSkin } from "./lib/skin";
 // ฟอนต์ self-host — CSP ตั้ง font-src 'self' ไว้ ลิงก์ Google Fonts จะโดนบล็อก
 // แต่ละไฟล์มี unicode-range แยกภาษา เบราว์เซอร์โหลดเฉพาะชุดที่หน้าใช้จริง
 import "@fontsource/ibm-plex-sans-thai-looped/400.css";
@@ -9,6 +10,9 @@ import "@fontsource/ibm-plex-sans-thai-looped/600.css";
 import "@fontsource/ibm-plex-sans-thai-looped/700.css";
 import "@fontsource/ibm-plex-mono/latin-400.css";
 import "./index.css";
+
+// ตั้ง data-skin ก่อน render — กันหน้าวาบเป็นหน้าตาสมุดเวรหนึ่งเฟรมตอนเลือก macOS ไว้
+applyStoredSkin();
 
 const root = document.getElementById("root");
 if (!root) throw new Error("ไม่พบ #root ใน index.html");

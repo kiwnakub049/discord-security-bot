@@ -239,8 +239,8 @@
     border-left-width: 3px !important;
     border-left-color: var(--rule, var(--c-accent)) !important;
   }
-  .rule-alert { --rule: var(--c-alert); }
-  .rule-warn { --rule: var(--c-warn); }
+  .rule-alert { --rule: var(--c-alert-rule, var(--c-alert)); }
+  .rule-warn { --rule: var(--c-warn-rule, var(--c-warn)); }
   .rule-info { --rule: var(--c-accent); }
   .rule-none { --rule: var(--c-border); }
 
@@ -317,4 +317,162 @@
 }
 @keyframes leave {
   to { opacity: 0; transform: translateX(16px); }
+}
+
+/*
+ * ═══ หน้าตา macOS (data-skin="mac") — เฉพาะจอคอม ═══
+ *
+ * ค่ามาจาก apple-macos-27-ui-kit.tokens.json — ชื่อกลุ่มใน token เขียนกำกับไว้ทุกบรรทัด
+ * ครอบด้วย min-width: 768px ทั้งก้อน มือถือจึงเป็นสมุดเวรเสมอแม้จะเลือก mac ไว้
+ *
+ * ที่ "ไม่ได้" ใช้ค่าจาก kit ตรง ๆ (ตั้งใจ):
+ *  - สีตัวอักษรเตือน/แดง/ฟ้า: สีระบบของ Apple ทำมาเป็นสีพื้น บนพื้นขาวได้แค่ 1.5–3.6:1
+ *    เลยผสมดำเพิ่มจนผ่าน 4.5:1 (ระบุ % ไว้) ส่วนสีระบบแท้ใช้กับเส้นระดับและพื้นจาง
+ *  - ป้ายรอง: kit ใช้ดำ 50% (3.9:1) → ใช้ 60% แทน · ป้ายระดับสามดำ 25% อ่านไม่ออก → ใช้เทาเข้มขึ้น
+ *  - ฟอนต์: ไม่โหลด SF Pro (license ไม่อนุญาตบนเว็บ) ใช้ -apple-system ให้เครื่อง Mac ดึง SF Pro
+ *    ของตัวเอง ภาษาไทย macOS จะใช้ Thonburi ให้เอง
+ *  - CSS ชุดนี้อยู่นอก @layer จงใจ เพื่อให้ชนะคลาส Tailwind ของ Shell โดยไม่ต้องแก้ JSX
+ */
+@media (min-width: 768px) {
+  /* ── macOS สว่าง ── */
+  :root[data-skin="mac"] {
+    --c-bg: #ffffff;                       /* Window Backgrounds / Light */
+    --c-surface: #f5f5f5;                  /* Fills / Light / Tertiary (ดำ 5%) บนพื้นขาว ทำเป็นสีทึบ */
+    --c-raised: #ebebeb;                   /* Fills / Light / Secondary (ดำ 8%) */
+    --c-border: rgba(0, 0, 0, 0.1);        /* Global / Color Area Outline */
+
+    --c-text: #262626;                     /* Labels / Light / Primary (ดำ 85%) */
+    --c-muted: #666666;                    /* Labels / Light / Secondary — ปรับจาก 50% เป็น 60% */
+    --c-faint: #6b6b70;                    /* Grays / Light / Grey เข้มขึ้นให้ผ่าน 4.5:1 */
+
+    --c-accent: #006ecf;                   /* System Colors / Blue #0088FF + ดำ 19% */
+    --c-accent-soft: rgba(0, 136, 255, 0.12);
+    --c-info: #006ecf;
+    --c-info-soft: rgba(0, 136, 255, 0.12);
+    --c-warn: #a65c1a;                     /* System Colors / Orange #FF8D28 + ดำ 35% */
+    --c-warn-soft: rgba(255, 141, 40, 0.16);
+    --c-warn-rule: #ff8d28;                /* สีระบบแท้ — ใช้กับเส้นระดับ (ไม่ใช่ตัวอักษร) */
+    --c-alert: #d12e31;                    /* System Colors / Red #FF383C + ดำ 18% */
+    --c-alert-soft: rgba(255, 56, 60, 0.1);
+    --c-alert-rule: #ff383c;
+    --c-ok: #217f39;                       /* System Colors / Green #34C759 + ดำ 36% */
+    --c-ok-soft: rgba(52, 199, 89, 0.14);
+
+    --c-sidebar: rgba(250, 250, 250, 0.8); /* Sidebar / Background / Light / Active */
+    --c-backdrop: rgba(0, 0, 0, 0.2);
+    --glass-shade: rgba(0, 0, 0, 0.3);     /* Panels / Light / shadow */
+
+    --mac-material: rgba(236, 236, 236, 0.63);   /* Materials / Light / Regular */
+    --mac-selected: rgba(0, 0, 0, 0.08);         /* Fills / Light / Secondary */
+    --mac-focus: rgba(0, 136, 255, 0.45);        /* Global / Focus Ring (เข้มขึ้นจาก 25% ให้เห็นชัด) */
+
+    /* ขนาดฐาน 15px: สเกล rem ทั้งเว็บหดลง ~6% ให้ได้ความแน่นแบบแอปเดสก์ท็อป
+       text-sm ≈ 13px (Body) · text-xs ≈ 11px (ใหญ่กว่า Footnote 10px ของ kit — ไทยต่ำกว่านี้อ่านยาก) */
+    font-size: 15px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --font-sans: -apple-system, BlinkMacSystemFont, system-ui, "IBM Plex Sans Thai Looped", sans-serif;
+  }
+
+  /* ── macOS มืด ── */
+  :root[data-skin="mac"][data-theme="dark"] {
+    --c-bg: #1e1e1e;                       /* Window Backgrounds / Dark */
+    --c-surface: #2a2a2a;                  /* Fills / Dark / Tertiary (ขาว 5%) ทำเป็นสีทึบ */
+    --c-raised: #303030;                   /* Fills / Dark / Secondary (ขาว 8%) */
+    --c-border: rgba(255, 255, 255, 0.1);  /* Fills / Dark / Primary */
+    --c-text: #ffffff;                     /* Labels / Dark / Primary */
+    --c-muted: #a0a0a0;                    /* Labels / Dark / Secondary (ขาว 55%) */
+    --c-faint: #98989d;                    /* Grays / Dark / Grey */
+    --c-accent: #0091ff;                   /* System Colors / Dark — ผ่าน 4.5:1 บนพื้นมืดอยู่แล้ว */
+    --c-accent-soft: rgba(0, 145, 255, 0.18);
+    --c-info: #0091ff;
+    --c-info-soft: rgba(0, 145, 255, 0.18);
+    --c-warn: #ff9230;
+    --c-warn-soft: rgba(255, 146, 48, 0.16);
+    --c-warn-rule: #ff9230;
+    --c-alert: #ff4245;
+    --c-alert-soft: rgba(255, 66, 69, 0.16);
+    --c-alert-rule: #ff4245;
+    --c-ok: #30d158;
+    --c-ok-soft: rgba(48, 209, 88, 0.16);
+    --c-sidebar: rgba(12, 12, 12, 0.85);   /* Sidebar / Background / Dark / Active */
+    --c-backdrop: rgba(0, 0, 0, 0.45);
+    --glass-shade: rgba(0, 0, 0, 0.4);     /* Panels / Dark / shadow */
+    --mac-material: rgba(44, 44, 44, 0.61);       /* Materials / Dark / Regular */
+    --mac-selected: rgba(255, 255, 255, 0.08);    /* Fills / Dark / Secondary */
+    --mac-focus: rgba(0, 145, 255, 0.5);
+  }
+
+  /* ── ส่วนประกอบแบบ macOS ── */
+  [data-skin="mac"] body {
+    line-height: 1.45; /* kit ใช้ ~1.25 — ไทยต้องการมากกว่านั้น */
+  }
+
+  /* แถบข้างลอยแบบหน้าต่าง macOS 27: เว้นขอบ มุมโค้ง พื้นกึ่งโปร่ง */
+  [data-skin="mac"] .side {
+    top: 8px;
+    height: calc(100dvh - 16px);
+    margin: 8px 0 8px 8px;
+    border: 1px solid var(--c-border);
+    border-radius: 14px;
+    -webkit-backdrop-filter: blur(30px) saturate(1.6);
+    backdrop-filter: blur(30px) saturate(1.6);
+    box-shadow: 0 8px 24px -14px var(--glass-shade);
+  }
+  /* เมนูที่เลือก = แถบไฮไลต์เทาทั้งแถว (แบบ Finder) ไม่ใช่เส้นซ้าย */
+  [data-skin="mac"] .side nav button {
+    border-left-color: transparent;
+  }
+  [data-skin="mac"] .side nav button[aria-current="page"] {
+    background: var(--mac-selected);
+  }
+
+  /* หัวเว็บเป็นวัสดุกึ่งโปร่ง — เนื้อหาเลื่อนลอดข้างใต้แล้วเบลอ */
+  [data-skin="mac"] header.sticky {
+    background: var(--mac-material);
+    -webkit-backdrop-filter: blur(24px) saturate(1.8);
+    backdrop-filter: blur(24px) saturate(1.8);
+  }
+
+  [data-skin="mac"] :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 1px var(--c-accent), 0 0 0 4px var(--mac-focus);
+  }
+
+  /* แผ่นลอย (sheet/toast) — Panels: พื้นทึบ + เงานุ่ม */
+  [data-skin="mac"] .glass-strong {
+    border-color: var(--c-border);
+    box-shadow: 0 20px 40px -12px var(--glass-shade), 0 0 0 0.5px var(--c-border);
+  }
+}
+
+/* ระบบเป็นโหมดมืดและผู้ใช้ไม่ได้บังคับสว่าง — ชุดมืดของ macOS */
+@media (min-width: 768px) and (prefers-color-scheme: dark) {
+  :root[data-skin="mac"]:not([data-theme="light"]) {
+    --c-bg: #1e1e1e;
+    --c-surface: #2a2a2a;
+    --c-raised: #303030;
+    --c-border: rgba(255, 255, 255, 0.1);
+    --c-text: #ffffff;
+    --c-muted: #a0a0a0;
+    --c-faint: #98989d;
+    --c-accent: #0091ff;
+    --c-accent-soft: rgba(0, 145, 255, 0.18);
+    --c-info: #0091ff;
+    --c-info-soft: rgba(0, 145, 255, 0.18);
+    --c-warn: #ff9230;
+    --c-warn-soft: rgba(255, 146, 48, 0.16);
+    --c-warn-rule: #ff9230;
+    --c-alert: #ff4245;
+    --c-alert-soft: rgba(255, 66, 69, 0.16);
+    --c-alert-rule: #ff4245;
+    --c-ok: #30d158;
+    --c-ok-soft: rgba(48, 209, 88, 0.16);
+    --c-sidebar: rgba(12, 12, 12, 0.85);
+    --c-backdrop: rgba(0, 0, 0, 0.45);
+    --glass-shade: rgba(0, 0, 0, 0.4);
+    --mac-material: rgba(44, 44, 44, 0.61);
+    --mac-selected: rgba(255, 255, 255, 0.08);
+    --mac-focus: rgba(0, 145, 255, 0.5);
+  }
 }
