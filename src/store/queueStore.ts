@@ -84,6 +84,22 @@ export function getItem(id: number): QueueRow | undefined {
 }
 
 /**
+ * ปิดเรื่องที่ค้างของคนคนหนึ่งในหมวดหนึ่ง (ถ้ามี) — คืน true ถ้ามีเรื่องถูกปิดจริง
+ *
+ * ใช้ตอนที่ระบบรู้ผลเองโดยไม่ต้องรอ mod เช่น สมาชิกออกจากเซิร์ฟไปก่อน
+ * หรือบอทเตะทิ้งไปแล้วตอน raid — ปล่อยไว้ mod จะเปิดมาเจอการ์ดของคนที่ไม่อยู่แล้ว
+ */
+export function resolveOpenFor(
+  category: string,
+  subjectId: string,
+  outcome: string,
+  by: string,
+): boolean {
+  const open = findOpen.get(category, subjectId) as QueueRow | undefined;
+  return open ? resolve(open.id, outcome, by) : false;
+}
+
+/**
  * ปิดเรื่อง — คืน false ถ้าเรื่องนี้ถูกปิดไปแล้ว
  *
  * เช็ค resolved_at IS NULL ใน WHERE เอง เพื่อกันสอง mod กดพร้อมกันแล้วต่างคนต่างคิดว่าตัวเองตัดสิน
