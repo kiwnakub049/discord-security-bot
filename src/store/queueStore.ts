@@ -83,6 +83,11 @@ export function getItem(id: number): QueueRow | undefined {
   return db.prepare("SELECT * FROM queue_items WHERE id = ?").get(id) as QueueRow | undefined;
 }
 
+/** เรื่องที่ยังค้างของคนคนหนึ่งในหมวดหนึ่ง (ถ้ามี) */
+export function openItemFor(category: string, subjectId: string): QueueRow | undefined {
+  return findOpen.get(category, subjectId) as QueueRow | undefined;
+}
+
 /**
  * ปิดเรื่องที่ค้างของคนคนหนึ่งในหมวดหนึ่ง (ถ้ามี) — คืน true ถ้ามีเรื่องถูกปิดจริง
  *
@@ -95,7 +100,7 @@ export function resolveOpenFor(
   outcome: string,
   by: string,
 ): boolean {
-  const open = findOpen.get(category, subjectId) as QueueRow | undefined;
+  const open = openItemFor(category, subjectId);
   return open ? resolve(open.id, outcome, by) : false;
 }
 

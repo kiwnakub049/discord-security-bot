@@ -9,6 +9,7 @@ import {
 } from "../../modules/queueCategories.js";
 import { getItem, listOpen, openSummary, resolve, type QueueRow } from "../../store/queueStore.js";
 import { dmAction } from "../../modules/dmNotice.js";
+import { notifyTicketClosed, TICKET_CATEGORY } from "../../modules/ticket.js";
 import { logEvent } from "../../utils/logger.js";
 import { resolveNames } from "../userNames.js";
 
@@ -123,6 +124,10 @@ export function queueRoutes(client?: Client): Router {
       return;
     }
     res.json({ ok: true, message: `${outcome.doneText}: ${item.title}` });
+
+    if (client && item.category === TICKET_CATEGORY) {
+      await notifyTicketClosed(client, item, getGuild()?.name);
+    }
 
     if (client) {
       await logEvent(

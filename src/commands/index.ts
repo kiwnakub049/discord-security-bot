@@ -20,6 +20,7 @@ import { lockVoice, unlockVoice } from "./voicelock.js";
 import { deleteRole } from "./deleterole.js";
 import { leaderboard, rank } from "./rank.js";
 import { beamng, beamngIp } from "./beamng.js";
+import { ticket } from "./ticket.js";
 
 export interface Command {
   data: SlashCommandBuilder | SlashCommandOptionsOnlyBuilder;
@@ -50,6 +51,7 @@ const list: Command[] = [
   leaderboard,
   beamng,
   beamngIp,
+  ticket,
 ];
 
 export const commands = new Map<string, Command>(
