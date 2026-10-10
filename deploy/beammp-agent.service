@@ -1,0 +1,45 @@
+# ตัวคุมเซิร์ฟเวอร์เกม BeamMP — แยกจาก discord-bot.service โดยตั้งใจ
+#
+# service ของบอทตั้ง NoNewPrivileges + ProtectHome=tmpfs ไว้ ทำให้แตะโฟลเดอร์เกม
+# และเรียก sudo ไม่ได้เลย ถ้าจะให้ dashboard คุมเซิร์ฟเกมได้ต้องปลดเกราะพวกนั้น
+# ซึ่งแปลว่าช่องโหว่ในบอทจะลามไปทั้ง home + sudo ได้ — ไม่คุ้ม
+# เลยแยกเป็น service เล็ก ๆ ที่เห็นเฉพาะโฟลเดอร์เกม แล้วให้คุยกันผ่าน 127.0.0.1:3101
+
+[Unit]
+Description=BeamMP server control agent (localhost only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=flick
+Group=flick
+WorkingDirectory=/home/flick/discord-security-bot
+ExecStart=/home/flick/discord-security-bot/node_modules/.bin/tsx src/beammp/agent.ts
+Restart=on-failure
+RestartSec=5
+# 78 = ยังไม่ได้ตั้ง BEAMMP_AGENT_TOKEN ซึ่งรีสตาร์ทกี่ครั้งก็เหมือนเดิม
+RestartPreventExitStatus=78
+Environment=NODE_ENV=production
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+# เห็นโค้ดแบบอ่านอย่างเดียว...
+BindReadOnlyPaths=/home/flick/discord-security-bot
+# ...เขียนได้เฉพาะโฟลเดอร์เกม (ตั้งค่า/ม็อด/log ของเซิร์ฟอยู่ในนี้)
+BindPaths=/home/flick/beammp-server
+# บ้านที่เหลือมองไม่เห็น — ถ้าโดนยึด agent จะไปไม่ถึง ~/.ssh หรือ .env ของโปรเจกต์อื่น
+ProtectHome=tmpfs
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+# agent ต่อออกเน็ตไม่ต้อง — คุยแค่ loopback กับรันโปรเซสลูกในเครื่อง
+# (เซิร์ฟเกมเป็นลูกของ agent จึงต้องเปิด AF_INET ไว้ให้มันฟังพอร์ต LAN)
+# AF_NETLINK จำเป็นสำหรับอ่านรายการ network interface — ไม่มีแล้ว Node จะโยน
+# uv_interface_addresses error 97 (EAFNOSUPPORT) ทำให้หน้าสถานะพังทั้งหน้า
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Icon, type IconName } from "./Icon";
 import type { StreamState } from "../hooks/useStream";
-import { ROUTES, type Route } from "../hooks/useRoute";
+import { type Route } from "../hooks/useRoute";
 import { useTheme } from "../hooks/useTheme";
 import { LogTree } from "./LogTree";
 import type { LogFilter } from "../lib/logTree";
@@ -15,13 +15,18 @@ const TABS: { route: Route; label: string; icon: IconName }[] = [
   { route: "/", label: "ภาพรวม", icon: "home" },
   { route: "/logs", label: "Logs", icon: "list" },
   { route: "/members", label: "สมาชิก", icon: "users" },
+  { route: "/beamng", label: "BeamNG", icon: "car" },
   { route: "/settings", label: "ตั้งค่า", icon: "settings" },
 ];
+
+/** แท็บที่มีให้เฉพาะเจ้าของเครื่อง — คนอื่นไม่เห็นแม้แต่ชื่อ */
+const OWNER_ONLY = new Set<Route>(["/beamng"]);
 
 const TITLES: Record<Route, string> = {
   "/": "ภาพรวม",
   "/logs": "Logs",
   "/members": "สมาชิก",
+  "/beamng": "เซิร์ฟเวอร์ BeamNG",
   "/settings": "ตั้งค่า",
 };
 
@@ -116,6 +121,7 @@ export function Shell({
   go,
   stream,
   username,
+  isOwner,
   logFilter,
   onPickLogFilter,
   children,
@@ -124,13 +130,20 @@ export function Shell({
   go: (r: Route) => void;
   stream: StreamState;
   username: string;
+  /** เจ้าของเครื่องเท่านั้นที่เห็นแท็บบางอัน (ด่านจริงอยู่ฝั่งเซิร์ฟเวอร์) */
+  isOwner: boolean;
   logFilter: LogFilter;
   onPickLogFilter: (f: LogFilter) => void;
   children: ReactNode;
 }) {
+  /*
+   * จำนวนแท็บไม่คงที่อีกต่อไป — เม็ดยาบนแถบล่างจึงต้องคิดจากแท็บ "ที่เห็นจริง"
+   * ไม่ใช่จาก ROUTES ทั้งหมด ไม่งั้นตำแหน่งจะเลื่อนผิดไปหนึ่งช่องสำหรับคนที่ไม่ใช่เจ้าของ
+   */
+  const tabs = TABS.filter((t) => isOwner || !OWNER_ONLY.has(t.route));
   const activeIndex = Math.max(
     0,
-    ROUTES.findIndex((r) => r === route),
+    tabs.findIndex((t) => t.route === route),
   );
 
   return (
@@ -163,7 +176,7 @@ export function Shell({
           (แถบล่างบนมือถือยังใช้ได้เพราะทุกแท็บกว้างเท่ากันเสมอ)
         */}
         <nav className="flex flex-col gap-1 overflow-y-auto">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <div key={t.route}>
               <button
                 type="button"
@@ -235,13 +248,12 @@ export function Shell({
               aria-hidden="true"
               className="absolute bottom-1 top-1 rounded-2xl bg-accent-soft transition-transform duration-[350ms] [transition-timing-function:var(--ease-spring)]"
               style={{
-                width: `${100 / ROUTES.length}%`,
+                width: `${100 / tabs.length}%`,
                 transform: `translateX(${activeIndex * 100}%)`,
               }}
             />
-            {ROUTES.map((r) => {
-              const tab = TABS.find((t) => t.route === r);
-              if (!tab) return null;
+            {tabs.map((tab) => {
+              const r = tab.route;
               const active = route === r;
               return (
                 <button

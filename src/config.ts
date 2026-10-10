@@ -45,6 +45,10 @@ export const config = {
     bannedWords: [] as string[],
     // ถ้า true จะลบข้อความที่ผิดทันที
     deleteOnViolation: true,
+    // ลบไฟล์แนบนามสกุลอันตราย (.exe .scr .lnk ฯลฯ) — ช่องแพร่ XWorm/RAT ใน Discord
+    blockDangerousFiles: true,
+    // เตือน mod เมื่อมีลิงก์ย่อ/paste (bit.ly ฯลฯ) — เตือนอย่างเดียว ไม่ลบ
+    flagShorteners: true,
   },
 
   /**

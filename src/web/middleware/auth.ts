@@ -13,7 +13,12 @@ import {
 } from "../../auth/session.js";
 import { getRole, userExists } from "../../auth/users.js";
 
-export const COOKIE_NAME = "sid";
+/*
+ * __Host- prefix = เบราว์เซอร์บังคับเองว่า cookie นี้ต้อง Secure + Path=/ + ไม่มี Domain
+ * (ขโมย/ปลูก cookie ข้าม subdomain ไม่ได้) — ใช้ได้เพราะทางเข้าจริงคือ HTTPS ผ่าน
+ * Cloudflare และ COOKIE_SECURE=1 อยู่แล้ว · การเปลี่ยนชื่อทำให้ทุกคน login ใหม่ 1 ครั้ง
+ */
+export const COOKIE_NAME = "__Host-sid";
 
 export function cookieOptions() {
   return {
@@ -98,6 +103,34 @@ export function requireAdmin(
 ): void {
   if (res.locals.role !== "admin") {
     res.status(403).json({ error: "forbidden", message: "ต้องเป็น admin" });
+    return;
+  }
+  next();
+}
+
+/**
+ * ด่านสำหรับของที่ "เจ้าของเครื่องคนเดียวเห็น" — แม้แต่ admin คนอื่นก็ไม่เห็น
+ *
+ * ทำไมไม่ใช้ role admin: role เพิ่มให้ใครก็ได้ และตอนนี้มีแอดมินหลายคนแล้ว
+ * ของบางอย่าง (เช่นแผงคุมเซิร์ฟเวอร์เกม ซึ่งสั่งรันโปรเซสบนเครื่องได้)
+ * ควรผูกกับบัญชีเดียวที่ระบุไว้ตรง ๆ ไม่ใช่ผูกกับตำแหน่งที่โยกกันได้
+ *
+ * ตั้งชื่อบัญชีเจ้าของผ่าน DASHBOARD_OWNER ใน .env — ไม่ตั้ง = ปิดฟีเจอร์ทั้งหมด
+ * (ปลอดภัยกว่าเผลอเปิดให้ทุกคนเวลาลืมตั้ง)
+ */
+export function isOwner(username: unknown): boolean {
+  const owner = (process.env.DASHBOARD_OWNER ?? "").trim();
+  return owner.length > 0 && username === owner;
+}
+
+export function requireOwner(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  if (!isOwner(res.locals.username)) {
+    // 404 ไม่ใช่ 403 — คนอื่นไม่ควรรู้ด้วยซ้ำว่ามี endpoint นี้อยู่
+    res.status(404).json({ error: "not_found" });
     return;
   }
   next();

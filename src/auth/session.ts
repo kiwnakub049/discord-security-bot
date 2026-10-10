@@ -17,7 +17,9 @@ import { db } from "../store/db.js";
  * ทุก request อีกชั้น ลบ user เมื่อไหร่ session เดิมใช้ไม่ได้ทันที
  */
 
-export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 วัน
+// 7 วัน (เดิม 30) — สั้นลงเพื่อจำกัดอายุ cookie ที่ถูก stealer ขโมยไป
+// ยัง sliding เหมือนเดิม: ใช้งานเรื่อย ๆ ไม่หลุด ทิ้งไว้เกิน 7 วันค่อยหลุด
+export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * เขียน last_seen ถี่แค่ไหน

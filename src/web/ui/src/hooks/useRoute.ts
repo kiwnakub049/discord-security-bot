@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-export const ROUTES = ["/", "/logs", "/members", "/settings"] as const;
+export const ROUTES = ["/", "/logs", "/members", "/beamng", "/settings"] as const;
 export type Route = (typeof ROUTES)[number];
 
 function current(): Route {

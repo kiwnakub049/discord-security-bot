@@ -15,7 +15,9 @@ import { dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "../config.js";
 import { csrfGuard, securityHeaders } from "./middleware/security.js";
+import { rateLimit } from "./middleware/rateLimit.js";
 import { requireAuth } from "./middleware/auth.js";
+import { notifySecurity } from "../modules/securityAlerts.js";
 import { meRoutes, publicAuthRoutes } from "./routes/auth.js";
 import { overviewRoutes } from "./routes/overview.js";
 import { systemRoutes } from "./routes/system.js";
@@ -25,6 +27,7 @@ import { actionRoutes } from "./routes/actions.js";
 import { adminRoutes } from "./routes/admin.js";
 import { sessionRoutes } from "./routes/sessions.js";
 import { aiRoutes } from "./routes/ai.js";
+import { beammpRoutes } from "./routes/beammp.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -62,6 +65,27 @@ export function startWebServer(client?: Client): Server | undefined {
   app.use(express.urlencoded({ extended: false, limit: "16kb" })); // ฟอร์ม login
   app.use(express.json({ limit: "16kb" })); // body ของ API
 
+  // ---------- rate limit (กัน botnet ยิงถล่ม) ----------
+  // /login: backstop เหนือ lockout (5 ครั้ง/15 นาที) — จับการยิงรัวก่อนเสียแรง scrypt
+  // เพดาน 20 สูงกว่า lockout จงใจ: lockout คือตัวคุมหลัก อันนี้กันน้ำท่วมเฉย ๆ
+  app.post(
+    "/login",
+    rateLimit("login", 20, 15 * 60_000, (ip) =>
+      void notifySecurity("rate limit /login", `IP ${ip} ยิง POST /login เกิน 20 ครั้ง/15 นาที`),
+    ),
+  );
+  // API ทั้งหมด: 240 ครั้ง/นาที/IP — ยกเว้น /api/stream (SSE เชื่อมต่อยาว 1 ครั้ง
+  // แต่ตอน deploy/เน็ตสะดุด client จะ reconnect วน ถ้านับรวมจะเผาโควตาตัวเอง)
+  const apiLimiter = rateLimit("api", 240, 60_000, (ip) =>
+    void notifySecurity("rate limit API", `IP ${ip} ยิง API เกิน 240 ครั้ง/นาที`),
+  );
+  app.use("/api", (req: Request, res: Response, next) => {
+    if (req.path === "/stream") return next();
+    apiLimiter(req, res, next);
+  });
+  // export CSV แพงสุด (query 5000 แถว) — โควตาแยกเข้มกว่า
+  app.get("/api/logs/export.csv", rateLimit("export", 10, 5 * 60_000));
+
   // ---------- ก่อน login ----------
   app.get("/icon.svg", (_req: Request, res: Response) => {
     res.sendFile(join(publicDir, "icon.svg"));
@@ -81,6 +105,7 @@ export function startWebServer(client?: Client): Server | undefined {
   app.use(adminRoutes(client));
   app.use(sessionRoutes(client));
   app.use(aiRoutes());
+  app.use(beammpRoutes(client)); // เห็นเฉพาะเจ้าของเครื่อง (requireOwner อยู่ในนั้น)
 
   // API ที่ไม่มีจริง ต้องได้ 404 เป็น JSON — ไม่ใช่ index.html ของหน้าเว็บ
   // ไม่งั้นฝั่ง client จะพยายาม JSON.parse หน้า HTML แล้วพังด้วย error ที่อ่านไม่รู้เรื่อง

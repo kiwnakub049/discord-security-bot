@@ -6,8 +6,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "../../config.js";
 import { createSession, destroySession, SESSION_TTL_MS } from "../../auth/session.js";
-import { verifyPassword } from "../../auth/users.js";
+import { userExists, verifyPassword } from "../../auth/users.js";
 import { logEvent } from "../../utils/logger.js";
+import { notifySecurity } from "../../modules/securityAlerts.js";
+import { isOwner } from "../middleware/auth.js";
 import {
   beginLoginAttempt,
   cookieOptions,
@@ -97,12 +99,21 @@ export function publicAuthRoutes(client?: Client): Router {
 
     const mins = loginLockedMinutes(ip);
     res.redirect(`/login?${mins ? "locked=" + mins : "error=1"}`);
-    if (justLocked && client) {
-      // ล็อก IP เพราะลองผิดหลายครั้ง = น่าจะมีคนพยายามเจาะ
-      void logEvent(client, "alert", "system", "system_login", "🚨 ล็อก IP — login ผิดหลายครั้ง", [
-        { name: "IP", value: ip },
-        { name: "ลองชื่อ", value: username || "(ว่าง)" },
-      ]);
+    if (justLocked) {
+      // โชว์ชื่อเฉพาะเมื่อตรงบัญชีที่มีจริง — คนชอบเผลอพิมพ์ "รหัสผ่าน" ลงช่อง username
+      // ถ้าส่งดิบ ๆ รหัสจะไปโผล่ในห้อง log ให้ทุกคนเห็น
+      const who = userExists(username) ? username : "(ไม่ตรงบัญชีที่มีอยู่)";
+      void notifySecurity(
+        "ล็อก IP — login ผิดหลายครั้ง",
+        `IP ${ip} ลองผิดครบ ${config.web.loginMaxAttempts} ครั้ง · เป้าหมาย: ${who}`,
+      );
+      if (client) {
+        // ล็อก IP เพราะลองผิดหลายครั้ง = น่าจะมีคนพยายามเจาะ
+        void logEvent(client, "alert", "system", "system_login", "🚨 ล็อก IP — login ผิดหลายครั้ง", [
+          { name: "IP", value: ip },
+          { name: "ลองชื่อ", value: who },
+        ]);
+      }
     }
   });
 
@@ -128,6 +139,9 @@ export function meRoutes(client?: Client): Router {
       username: res.locals.username,
       role: res.locals.role ?? "mod",
       guildId,
+      // เมนูบางอย่างมีให้เจ้าของเครื่องคนเดียว — ฝั่งเว็บใช้ค่านี้ตัดสินใจว่าจะโชว์ไหม
+      // (ด่านจริงอยู่ที่ requireOwner ฝั่งเซิร์ฟเวอร์ ค่านี้แค่ทำให้เมนูไม่โผล่มาเปล่า ๆ)
+      isOwner: isOwner(res.locals.username),
     });
   });
   return r;

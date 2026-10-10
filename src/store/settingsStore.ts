@@ -45,6 +45,8 @@ export const SECTIONS: { section: string; items: Item[] }[] = [
       { key: "autoMod.blockInvites", label: "บล็อก invite เซิร์ฟเวอร์อื่น", type: "bool" },
       { key: "autoMod.blockPhishing", label: "บล็อกลิงก์ phishing", type: "bool" },
       { key: "autoMod.deleteOnViolation", label: "ลบข้อความที่ผิดทันที", type: "bool" },
+      { key: "autoMod.blockDangerousFiles", label: "ลบไฟล์แนบอันตราย (.exe ฯลฯ)", type: "bool" },
+      { key: "autoMod.flagShorteners", label: "เตือนลิงก์ย่อ/paste (ไม่ลบ)", type: "bool" },
       { key: "autoMod.bannedWords", label: "คำต้องห้าม", type: "list" },
     ],
   },

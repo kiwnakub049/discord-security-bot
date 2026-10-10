@@ -79,7 +79,7 @@ test("#2 scrypt: login ถูก → 302 ไป / + ได้ cookie", async () 
   const r = await login(ADMIN, PASS);
   assert.equal(r.headers.get("location"), "/");
   const sc = r.headers.get("set-cookie");
-  assert.ok(sc && sc.startsWith("sid="), "ต้องมี Set-Cookie: sid=");
+  assert.ok(sc && sc.startsWith("__Host-sid="), "ต้องมี Set-Cookie: __Host-sid=");
   cookie = sc.split(";")[0];
 });
 

@@ -3,6 +3,7 @@
  * แยกออกมาจาก server.ts เพื่อให้เห็นชัดว่ากติกาความปลอดภัยทั้งหมดอยู่ที่ไฟล์เดียว
  */
 import type { Request, Response, NextFunction } from "express";
+import { config } from "../../config.js";
 
 /**
  * หน้าเว็บถูก build เป็นไฟล์ .js/.css แยกแล้ว (Vite) ไม่มี inline <script> อีก
