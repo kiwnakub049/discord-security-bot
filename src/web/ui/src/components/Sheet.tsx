@@ -41,22 +41,22 @@ export function Sheet({
         type="button"
         aria-label="ปิด"
         onClick={onClose}
-        className="fade-in absolute inset-0 bg-black/40 backdrop-blur-[6px]"
+        className="fade-in absolute inset-0 bg-[var(--c-backdrop)]"
       />
       <div
         role="dialog"
         aria-modal="true"
-        className="glass-strong sheet-in relative flex max-h-[88vh] w-full flex-col rounded-t-3xl border-b-0 md:max-w-lg md:rounded-3xl md:border-b"
+        className="glass-strong sheet-in relative flex max-h-[88vh] w-full flex-col rounded-t-lg border-b-0 md:max-w-lg md:rounded-lg md:border-b"
       >
         <div className="flex items-center gap-3 border-b border-line px-4 py-3">
           {/* ขีดจับด้านบน — สัญญาณว่าปัดลงเพื่อปิดได้ (ตามแบบแผ่นของระบบ) */}
-          <div className="absolute inset-x-0 -top-3 mx-auto h-1 w-10 rounded-full bg-white/40 md:hidden" />
+          <div className="absolute inset-x-0 -top-3 mx-auto h-1 w-10 rounded-full bg-line md:hidden" />
           <div className="min-w-0 flex-1 truncate font-semibold">{title}</div>
           <button
             type="button"
             onClick={onClose}
             aria-label="ปิด"
-            className="press rounded-lg border border-line bg-surface p-2 text-muted"
+            className="press rounded-md border border-line bg-surface p-2 text-muted"
           >
             <Icon name="x" className="size-5" />
           </button>

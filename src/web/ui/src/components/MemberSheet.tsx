@@ -77,7 +77,7 @@ export function MemberSheet({
           src={`/api/members/${member.id}/card.png`}
           alt={`บัตรของ ${member.username}`}
           loading="lazy"
-          className="w-full rounded-xl border border-line bg-raised"
+          className="w-full rounded-md border border-line bg-raised"
         />
 
         {/* ---- ข้อมูลย่อ ---- */}
@@ -108,7 +108,7 @@ export function MemberSheet({
         </div>
 
         {member.voice && (
-          <div className="flex items-center gap-2 rounded-xl bg-info-soft px-3 py-2.5 text-sm text-info">
+          <div className="flex items-center gap-2 rounded-md bg-info-soft px-3 py-2.5 text-sm text-info">
             <Icon name="volume" className="size-4 shrink-0" />
             อยู่ใน {member.voice.channelName}
           </div>
@@ -158,7 +158,7 @@ export function MemberSheet({
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="เหตุผล (ไม่ใส่ก็ได้)"
-            className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-base outline-none placeholder:text-faint focus:border-accent"
+            className="w-full rounded-md border border-line bg-surface px-3 py-2.5 text-base outline-none placeholder:text-faint focus:border-accent"
           />
 
           <Button

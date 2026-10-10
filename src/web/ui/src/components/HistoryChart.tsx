@@ -13,7 +13,7 @@ import { fmtDay, fmtNum } from "../lib/format";
  */
 
 const LEVELS = [
-  { key: "info", label: "ปกติ", fill: "var(--c-info)", op: 0.55 },
+  { key: "info", label: "ปกติ", fill: "var(--c-info)", op: 0.45 },
   { key: "warn", label: "เตือน", fill: "var(--c-warn)", op: 0.85 },
   { key: "alert", label: "แจ้งเตือน", fill: "var(--c-alert)", op: 1 },
 ] as const;
@@ -38,9 +38,9 @@ export function HistoryChart({ history }: { history: History }) {
   return (
     <div>
       <div className="mb-2 flex items-baseline justify-between gap-2">
-        <div className="tnum text-2xl font-bold">
+        <div className="tnum text-2xl font-semibold">
           {fmtNum(points.reduce((s, p) => s + p.total, 0))}
-          <span className="ml-1.5 text-xs font-normal text-muted">
+          <span className="ml-1.5 text-sm font-normal text-muted">
             เหตุการณ์ใน {isHour ? "24 ชม." : `${n} วัน`}
           </span>
         </div>
@@ -65,19 +65,6 @@ export function HistoryChart({ history }: { history: History }) {
         aria-label={`กราฟเหตุการณ์ย้อนหลัง ${n} ช่วง สูงสุด ${max} รายการ`}
         onMouseLeave={() => setHover(null)}
       >
-        {/*
-          ไล่สีในแท่งจากอ่อน (บน) ไปเข้ม (ล่าง) ให้แต่ละชั้นดูเป็นของเหลวในหลอดแก้ว
-          ไม่ใช่แถบสีทึบ — เข้าชุดกับกระจกที่เหลือของหน้า
-        */}
-        <defs>
-          {LEVELS.map((lv) => (
-            <linearGradient key={lv.key} id={`bar-${lv.key}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={lv.fill} stopOpacity="0.95" />
-              <stop offset="100%" stopColor={lv.fill} stopOpacity="0.55" />
-            </linearGradient>
-          ))}
-        </defs>
-
         {/* เส้นอ้างอิงแนวนอน — ครึ่งหนึ่งและยอดสูงสุด */}
         {[0.5, 1].map((f) => (
           <line
@@ -116,27 +103,15 @@ export function HistoryChart({ history }: { history: History }) {
                 const h = (v / max) * H;
                 y -= h;
                 return (
-                  <g key={lv.key}>
-                    <rect
-                      x={x}
-                      y={y}
-                      width={barW}
-                      height={h}
-                      fill={`url(#bar-${lv.key})`}
-                      opacity={hover === null || hover === i ? lv.op : lv.op * 0.4}
-                      rx="0.6"
-                    />
-                    {/* เส้นแสงบางที่ยอดชั้น — ขอบรับแสงเหมือนที่การ์ดกระจกทำ */}
-                    <rect
-                      x={x}
-                      y={y}
-                      width={barW}
-                      height={Math.min(1.2, h)}
-                      fill={lv.fill}
-                      opacity={hover === null || hover === i ? 1 : 0.4}
-                      rx="0.6"
-                    />
-                  </g>
+                  <rect
+                    key={lv.key}
+                    x={x}
+                    y={y}
+                    width={barW}
+                    height={Math.max(0, h - 0.4)}
+                    fill={lv.fill}
+                    opacity={hover === null || hover === i ? lv.op : lv.op * 0.35}
+                  />
                 );
               })}
             </g>
@@ -144,13 +119,13 @@ export function HistoryChart({ history }: { history: History }) {
         })}
       </svg>
 
-      <div className="mt-1.5 flex justify-between text-[10px] text-faint">
+      <div className="mt-1.5 flex justify-between text-xs text-faint">
         <span>{labelFor(points[0]!.t)}</span>
         {n > 6 && <span>{labelFor(points[Math.floor(n / 2)]!.t)}</span>}
         <span>{isHour ? "ตอนนี้" : "วันนี้"}</span>
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted">
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
         {LEVELS.map((lv) => (
           <span key={lv.key} className="flex items-center gap-1.5">
             <span

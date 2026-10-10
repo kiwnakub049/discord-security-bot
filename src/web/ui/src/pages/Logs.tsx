@@ -223,7 +223,7 @@ export function Logs({
           type="button"
           onClick={() => setTreeOpen((v) => !v)}
           aria-expanded={treeOpen}
-          className="press flex w-full items-center gap-2.5 rounded-2xl border border-line bg-surface px-3.5 py-3 text-sm shadow-[inset_0_1px_0_0_var(--glass-spec)]"
+          className="press flex w-full items-center gap-2.5 rounded-md border border-line bg-surface px-3.5 py-3 text-sm shadow-[inset_0_1px_0_0_var(--glass-spec)]"
         >
           <Icon
             name={leaf?.icon ?? (category ? iconOf(category) : "list")}
@@ -244,7 +244,7 @@ export function Logs({
         </button>
 
         {treeOpen && (
-          <div className="fade-in mt-2 rounded-2xl border border-line bg-surface p-2 shadow-[inset_0_1px_0_0_var(--glass-spec)]">
+          <div className="fade-in mt-2 rounded-md border border-line bg-surface p-2 shadow-[inset_0_1px_0_0_var(--glass-spec)]">
             <LogTree
               filter={filter}
               onPick={(f) => {
@@ -282,7 +282,7 @@ export function Logs({
 
       {/* ---- อธิบายว่าหมวดพาร์ทเนอร์คือใคร ---- */}
       {category === "partner" && partners.length > 0 && (
-        <div className="fade-in space-y-1.5 rounded-xl border border-line bg-surface px-3.5 py-3">
+        <div className="fade-in space-y-1.5 rounded-md border border-line bg-surface px-3.5 py-3">
           <p className="text-xs text-muted">
             บอทจากพาร์ทเนอร์ที่เราให้สิทธิ์เข้ามาจัดการในเซิร์ฟเวอร์นี้
           </p>
@@ -326,7 +326,7 @@ export function Logs({
 
       {/* ---- สรุปคำตัดสิน AI ---- */}
       {vstats && vstats.total > 0 && (
-        <div className="rounded-xl border border-line bg-surface px-3.5 py-2.5 text-xs text-muted">
+        <div className="rounded-md border border-line bg-surface px-3.5 py-2.5 text-xs text-muted">
           mod ตัดสินการตรวจจับของ AI ไปแล้ว{" "}
           <b className="text-text">{vstats.total}</b> รายการ ·{" "}
           <span className="text-alert">ผิดจริง {vstats.toxic}</span> ·{" "}

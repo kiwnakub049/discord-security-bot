@@ -1,16 +1,20 @@
 import { useState } from "react";
 import type { LogEntry, LogLevel, Verdict } from "../lib/types";
-import { fmtDateTime, fmtTime } from "../lib/format";
+import { fmtClock, fmtDateTime, fmtTime } from "../lib/format";
 import { Icon, type IconName } from "./Icon";
 import { Badge, Card } from "./ui";
 import { iconOf, labelOf } from "../lib/categories";
 import { linkifyField } from "../lib/discordLinks";
 import { useLinkTarget } from "../lib/linkTarget";
 
-const LEVEL: Record<LogLevel, { icon: IconName; ring: string; chip: string }> = {
-  info: { icon: "info", ring: "text-info", chip: "bg-info-soft" },
-  warn: { icon: "warn", ring: "text-warn", chip: "bg-warn-soft" },
-  alert: { icon: "alert", ring: "text-alert", chip: "bg-alert-soft" },
+/**
+ * ระดับของ log บอกด้วยเส้นซ้ายสีเดียวกับการ์ดคิว — ปกติเป็นเส้นสีฟอร์ม (ไม่แย่งสายตา)
+ * ชื่อระดับใส่ไว้ให้โปรแกรมอ่านหน้าจอ เพราะสีอย่างเดียวคนตาบอดสีแยกไม่ได้
+ */
+const LEVEL: Record<LogLevel, { rule: string; name: string }> = {
+  info: { rule: "rule-none", name: "ปกติ" },
+  warn: { rule: "rule-warn", name: "เตือน" },
+  alert: { rule: "rule-alert", name: "แจ้งเตือน" },
 };
 
 /**
@@ -53,25 +57,24 @@ export function LogRow({
   return (
     <Card
       // isNew = เพิ่งไหลเข้ามาจากสตรีมสด — ขอบเรืองขึ้นชั่วคราว + แสงวาบพาดหนึ่งครั้ง
-      className={`overflow-hidden ${isNew ? "flash !border-accent" : ""}`}
+      className={`rule-l ${lv.rule} overflow-hidden ${isNew ? "flash" : ""}`}
     >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-start gap-3 p-3.5 text-left"
+        className="flex w-full items-start gap-3 px-3.5 py-3 text-left"
       >
-        <span className={`mt-0.5 shrink-0 rounded-lg p-1.5 ${lv.chip} ${lv.ring}`}>
-          <Icon name={lv.icon} className="size-4" />
+        {/* เวลาเป็นคอลัมน์ซ้าย — log คือลำดับเหตุการณ์ อ่านไล่ลงตามเวลาได้เลย */}
+        <span className="tnum w-11 shrink-0 text-sm text-faint" title={fmtTime(entry.timestamp)}>
+          {fmtClock(entry.timestamp)}
         </span>
+        <span className="sr-only">{lv.name}:</span>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-2">
-            <span className="min-w-0 flex-1 text-sm font-medium leading-snug">
+            <span className="min-w-0 flex-1 text-[15px] font-medium leading-snug">
               {entry.title}
-            </span>
-            <span className="tnum shrink-0 text-[11px] text-faint">
-              {fmtTime(entry.timestamp)}
             </span>
           </div>
 
@@ -110,7 +113,7 @@ export function LogRow({
               </Badge>
             )}
             {entry.fields.length > 0 && (
-              <span className="flex items-center gap-0.5 text-[11px] text-faint">
+              <span className="flex items-center gap-0.5 text-xs text-faint">
                 <Icon
                   name="chevron"
                   className={`size-3 transition-transform ${open ? "rotate-90" : ""}`}
@@ -145,7 +148,7 @@ export function LogRow({
 
           {isAi && onVerdict && (
             <div className="mt-3 border-t border-line pt-3">
-              <p className="mb-2 text-[11px] text-faint">
+              <p className="mb-2 text-xs text-faint">
                 AI ตัดสินถูกไหม — คำตอบจะถูกเก็บเป็นข้อมูลเทรนรอบหน้า
               </p>
               <div className="flex gap-2">
@@ -196,7 +199,7 @@ function VerdictButton({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-medium transition ${
+      className={`flex flex-1 items-center justify-center gap-1.5 rounded-md border py-2 text-xs font-medium transition ${
         active ? on : "border-line text-muted active:bg-raised"
       }`}
     >

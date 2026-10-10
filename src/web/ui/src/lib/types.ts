@@ -191,3 +191,44 @@ export interface ActionResult {
   ok: boolean;
   message: string;
 }
+
+/* ───── คิวรอดำเนินการ (ต้องตรงกับ src/web/routes/queue.ts) ───── */
+
+export type QueueSeverity = "alert" | "warn" | "info";
+
+export interface QueueOutcome {
+  key: string;
+  label: string;
+  tone: "danger" | "accent" | "plain";
+}
+
+export interface QueueItem {
+  id: number;
+  title: string;
+  detail: string | null;
+  subjectId: string | null;
+  subjectName: string | null;
+  createdAt: number;
+}
+
+export interface QueueCategoryMeta {
+  key: string;
+  label: string;
+  severity: QueueSeverity;
+  overdueAfterMin: number;
+  verb: string;
+  unit: string;
+  outcomes: QueueOutcome[];
+}
+
+export interface QueueStack extends QueueCategoryMeta {
+  count: number;
+  oldestAt: number;
+  items: QueueItem[];
+}
+
+export interface QueueSummary {
+  stacks: QueueStack[];
+  idle: { key: string; label: string }[];
+  now: number;
+}

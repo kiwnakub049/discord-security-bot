@@ -66,7 +66,7 @@ function NotifyButton() {
       title={enabled ? "แจ้งเตือน: เปิด (กดเพื่อปิดเสียง/เดสก์ท็อป)" : "แจ้งเตือน: ปิด"}
       aria-label={enabled ? "ปิดแจ้งเตือน" : "เปิดแจ้งเตือน"}
       aria-pressed={enabled}
-      className={`press rounded-xl border border-line bg-surface p-2 ${enabled ? "text-accent" : "text-faint"}`}
+      className={`press rounded-md border border-line bg-surface p-2 ${enabled ? "text-accent" : "text-faint"}`}
     >
       {enabled ? (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -100,7 +100,7 @@ function ThemeButton() {
       onClick={() => setTheme(next)}
       title={`ธีม: ${label} (กดเพื่อเปลี่ยน)`}
       aria-label={`ธีม: ${label}`}
-      className="press rounded-xl border border-line bg-surface p-2 text-muted"
+      className="press rounded-md border border-line bg-surface p-2 text-muted"
     >
       <Icon name={icon} className="size-5" />
     </button>
@@ -113,8 +113,7 @@ function ThemeButton() {
  * มือถือ: หัวเว็บติดบน + แถบแท็บติดล่าง (นิ้วโป้งถึง) เนื้อหาอยู่ตรงกลาง
  * จอใหญ่ (md ขึ้นไป): แถบล่างหายไป กลายเป็นเมนูด้านซ้ายค้างไว้แทน
  *
- * ชั้นล่างสุดคือ .aurora — พื้นไล่สีที่ขยับช้า ๆ ซึ่งเป็นตัวที่ทำให้กระจกทุกชิ้น
- * ข้างบนมีอะไรให้เห็นทะลุ ถ้าเอาออกทั้งเว็บจะกลายเป็นการ์ดโปร่งบนพื้นเรียบ ๆ ทันที
+ * .aurora ตอนนี้เป็นแค่พื้นสีกระดาษทึบ (คงไว้เป็นชั้นล่างสุดเผื่ออยากใส่ลายพื้นทีหลัง)
  */
 export function Shell({
   route,
@@ -150,22 +149,19 @@ export function Shell({
     <div className="min-h-dvh md:flex">
       <div className="aurora" aria-hidden="true" />
 
-      {/* ---- เมนูซ้าย (เฉพาะจอใหญ่) — แถบ aubergine แบบ Slack ---- */}
-      <aside className="side sticky top-0 hidden h-dvh w-64 shrink-0 flex-col rounded-none px-2.5 py-3 md:flex">
-        <div className="mb-3 flex items-center gap-2.5 border-b border-line px-1.5 pb-3">
-          <div
-            className="flex size-7 shrink-0 items-center justify-center rounded-lg"
-            style={{ background: "#2eb67d" }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0b3d2c" strokeWidth="2.4">
+      {/* ---- เมนูซ้าย (เฉพาะจอใหญ่) — กระดาษแผ่นล่าง ---- */}
+      <aside className="side sticky top-0 hidden h-dvh w-60 shrink-0 flex-col px-3 py-4 md:flex">
+        <div className="mb-4 flex items-center gap-2.5 px-1.5">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-accent text-surface">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
               <path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6l7-3z" />
             </svg>
           </div>
           <div className="min-w-0">
             <div className="truncate text-[15px] font-bold text-text leading-tight">Security Bot</div>
-            <div className="flex items-center gap-1.5 text-[11px] text-muted">
-              <span className="size-2 rounded-full" style={{ background: "#2eb67d" }} />
-              ออนไลน์
+            <div className="flex items-center gap-1.5 text-xs text-muted">
+              <span className="size-2 rounded-full bg-ok" />
+              บอทออนไลน์
             </div>
           </div>
         </div>
@@ -175,17 +171,18 @@ export function Shell({
           ความสูงของแต่ละแถวไม่คงที่อีกต่อไป การคำนวณตำแหน่งจาก index จึงเพี้ยน
           (แถบล่างบนมือถือยังใช้ได้เพราะทุกแท็บกว้างเท่ากันเสมอ)
         */}
-        <nav className="flex flex-col gap-1 overflow-y-auto">
+        <nav className="flex flex-col gap-0.5 overflow-y-auto" aria-label="เมนูหลัก">
           {tabs.map((t) => (
             <div key={t.route}>
               <button
                 type="button"
                 onClick={() => go(t.route)}
                 aria-current={route === t.route ? "page" : undefined}
-                className={`press flex h-[42px] w-full items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors ${
+                // เมนูที่เลือก = เส้นฟ้าด้านซ้ายแบบเดียวกับเส้นระดับบนการ์ด ไม่ใช่เม็ดยาสีทึบ
+                className={`press flex h-10 w-full items-center gap-3 rounded-md border-l-[3px] px-3 text-[15px] transition-colors ${
                   route === t.route
-                    ? "border border-accent/30 bg-accent-soft text-accent"
-                    : "text-muted hover:text-text"
+                    ? "border-accent bg-surface font-semibold text-text"
+                    : "border-transparent text-muted hover:bg-raised hover:text-text"
                 }`}
               >
                 <Icon name={t.icon} className="size-5" />
@@ -210,7 +207,7 @@ export function Shell({
               type="submit"
               aria-label="ออกจากระบบ"
               title="ออกจากระบบ"
-              className="press rounded-lg p-2 text-muted hover:text-alert"
+              className="press rounded-md p-2 text-muted hover:bg-raised hover:text-text"
             >
               <Icon name="logout" className="size-4" />
             </button>
@@ -220,10 +217,10 @@ export function Shell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* ---- หัวเว็บ ---- */}
-        <header className="glass sticky top-0 z-30 rounded-none border-x-0 border-t-0 pt-safe">
-          <div className="mx-auto flex h-14 w-full max-w-4xl items-center gap-3 px-4">
+        <header className="sticky top-0 z-30 border-b border-line bg-bg/90 pt-safe backdrop-blur-sm">
+          <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-3 px-4 md:px-8">
             <img src="/icon.svg" alt="" className="size-6 md:hidden" />
-            <h1 className="min-w-0 flex-1 truncate text-lg font-bold">
+            <h1 className="min-w-0 flex-1 truncate text-lg font-semibold">
               {TITLES[route]}
             </h1>
             <LiveDot state={stream} />
@@ -233,12 +230,12 @@ export function Shell({
         </header>
 
         {/* pb-28 บนมือถือ = เผื่อที่ให้แถบแท็บล่าง ไม่ให้ทับเนื้อหาบรรทัดสุดท้าย */}
-        <main className="mx-auto w-full max-w-4xl flex-1 px-4 pb-28 pt-4 md:pb-10">
+        <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-28 pt-5 md:px-8 md:pb-12 md:pt-7">
           {children}
         </main>
 
         {/* ---- แถบแท็บล่าง (เฉพาะมือถือ) ---- */}
-        <nav className="glass fixed inset-x-0 bottom-0 z-30 rounded-none border-x-0 border-b-0 pb-safe md:hidden">
+        <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface pb-safe md:hidden" aria-label="เมนูหลัก">
           <div className="relative flex">
             {/*
               เม็ดยาเลื่อนตามแท็บ — คำนวณจาก index เป็นเปอร์เซ็นต์ของความกว้างตัวเอง
@@ -246,7 +243,7 @@ export function Shell({
             */}
             <span
               aria-hidden="true"
-              className="absolute bottom-1 top-1 rounded-2xl bg-accent-soft transition-transform duration-[350ms] [transition-timing-function:var(--ease-spring)]"
+              className="absolute bottom-1 top-1 rounded-md bg-accent-soft transition-transform duration-[350ms] [transition-timing-function:var(--ease-spring)]"
               style={{
                 width: `${100 / tabs.length}%`,
                 transform: `translateX(${activeIndex * 100}%)`,

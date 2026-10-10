@@ -235,7 +235,7 @@ function BotSettings() {
         แล้วเลื่อนดูหมวดอื่นต่อจะไม่รู้ว่ายังไม่ได้บันทึก
       */}
       {count > 0 && (
-        <div className="glass-strong rise sticky bottom-24 z-20 mt-3 flex items-center gap-3 rounded-2xl !border-accent/40 px-4 py-3 md:bottom-4">
+        <div className="glass-strong rise sticky bottom-24 z-20 mt-3 flex items-center gap-3 rounded-md !border-accent/40 px-4 py-3 md:bottom-4">
           <span className="flex-1 text-sm">แก้ไว้ {count} รายการ</span>
           <Button variant="ghost" onClick={() => setDirty({})} disabled={saving}>
             ยกเลิก
@@ -316,7 +316,7 @@ function Field({
           onChange={(e) =>
             onChange(e.target.value.split("\n").map((s) => s.trim()).filter(Boolean))
           }
-          className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-base outline-none focus:border-accent"
+          className="w-full rounded-md border border-line bg-surface px-3 py-2.5 text-base outline-none focus:border-accent"
         />
       </div>
     );
@@ -339,7 +339,7 @@ function Field({
         onChange={(e) =>
           onChange(isId ? e.target.value.trim() : Number(e.target.value) || 0)
         }
-        className="tnum w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-base outline-none focus:border-accent"
+        className="tnum w-full rounded-md border border-line bg-surface px-3 py-2.5 text-base outline-none focus:border-accent"
       />
     </div>
   );
@@ -552,7 +552,7 @@ function ModAccounts({ me }: { me: string }) {
                 onChange={(e) => setName(e.target.value)}
                 placeholder="ชื่อผู้ใช้ (3–32 ตัว)"
                 autoComplete="off"
-                className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-base outline-none focus:border-accent"
+                className="w-full rounded-md border border-line bg-surface px-3 py-2.5 text-base outline-none focus:border-accent"
               />
               <input
                 value={pass}
@@ -560,7 +560,7 @@ function ModAccounts({ me }: { me: string }) {
                 type="password"
                 placeholder="รหัสผ่าน (อย่างน้อย 8 ตัว)"
                 autoComplete="new-password"
-                className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-base outline-none focus:border-accent"
+                className="w-full rounded-md border border-line bg-surface px-3 py-2.5 text-base outline-none focus:border-accent"
               />
               <div className="flex gap-2">
                 {(["mod", "admin"] as const).map((opt) => (
@@ -568,7 +568,7 @@ function ModAccounts({ me }: { me: string }) {
                     key={opt}
                     type="button"
                     onClick={() => setRole(opt)}
-                    className={`flex-1 rounded-xl border px-3 py-2 text-sm ${
+                    className={`flex-1 rounded-md border px-3 py-2 text-sm ${
                       role === opt
                         ? "border-accent bg-accent/10 text-accent"
                         : "border-line text-faint"

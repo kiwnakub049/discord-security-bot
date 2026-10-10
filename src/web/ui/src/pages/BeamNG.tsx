@@ -82,7 +82,7 @@ export function BeamNG() {
     <div className="space-y-4">
       <StatusCard s={s} onChanged={status.reload} />
 
-      <div className="flex gap-1 rounded-xl bg-raised p-1">
+      <div className="flex gap-1 rounded-md bg-raised p-1">
         {(
           [
             ["control", "คอนโซล", "terminal"],
@@ -227,7 +227,7 @@ function JoinInfo({ s }: { s: Status }) {
                   () => toast("คัดลอกไม่สำเร็จ", "error"),
                 );
               }}
-              className="press flex w-full items-center gap-2 rounded-xl bg-raised px-3 py-2 text-left"
+              className="press flex w-full items-center gap-2 rounded-md bg-raised px-3 py-2 text-left"
             >
               <span className="min-w-0 flex-1">
                 <span className="block text-[11px] text-faint">{a.label}</span>
@@ -244,7 +244,7 @@ function JoinInfo({ s }: { s: Status }) {
 
 function Warn({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mt-3 flex items-start gap-2 rounded-xl bg-warn-soft p-2.5 text-xs text-warn">
+    <div className="mt-3 flex items-start gap-2 rounded-md bg-warn-soft p-2.5 text-xs text-warn">
       <Icon name="warn" className="mt-px size-4 shrink-0" />
       <span>{children}</span>
     </div>
@@ -487,7 +487,7 @@ function ConfigPanel({ running }: { running: boolean }) {
                   max={spec.max}
                   value={Number(v ?? 0)}
                   onChange={(e) => set(key, Number(e.target.value))}
-                  className="w-32 rounded-xl border border-line bg-surface px-3 py-2 text-sm tnum"
+                  className="w-32 rounded-md border border-line bg-surface px-3 py-2 text-sm tnum"
                 />
               )}
 
@@ -498,7 +498,7 @@ function ConfigPanel({ running }: { running: boolean }) {
                     rows={2}
                     value={String(v ?? "")}
                     onChange={(e) => set(key, e.target.value)}
-                    className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm"
+                    className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm"
                   />
                 ) : (
                   <input
@@ -506,7 +506,7 @@ function ConfigPanel({ running }: { running: boolean }) {
                     type="text"
                     value={String(v ?? "")}
                     onChange={(e) => set(key, e.target.value)}
-                    className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm"
+                    className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm"
                   />
                 ))}
             </div>
@@ -562,7 +562,7 @@ function MapPicker({
             onChange(e.target.value);
           }
         }}
-        className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm"
+        className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm"
       >
         <optgroup label="มากับเกม">
           {builtin.map((m) => (
@@ -590,7 +590,7 @@ function MapPicker({
             value={value}
             placeholder="/levels/ชื่อแผนที่/info.json"
             onChange={(e) => onChange(e.target.value)}
-            className="w-full rounded-xl border border-line bg-surface px-3 py-2 font-mono text-sm"
+            className="w-full rounded-md border border-line bg-surface px-3 py-2 font-mono text-sm"
           />
           <p className="mt-1 text-[11px] text-faint">
             ชื่อแผนที่ดูได้จากในไฟล์ม็อด โฟลเดอร์ levels/&lt;ชื่อ&gt;/

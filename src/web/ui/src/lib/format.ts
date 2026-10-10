@@ -5,6 +5,7 @@ const time = new Intl.DateTimeFormat("th-TH", {
   minute: "2-digit",
   second: "2-digit",
 });
+const clock = new Intl.DateTimeFormat("th-TH", { hour: "2-digit", minute: "2-digit" });
 const dateTime = new Intl.DateTimeFormat("th-TH", {
   day: "numeric",
   month: "short",
@@ -17,6 +18,8 @@ const dayShort = new Intl.DateTimeFormat("th-TH", {
 });
 
 export const fmtTime = (ms: number): string => time.format(ms);
+/** ชั่วโมง:นาที — ใช้กับคอลัมน์เวลาในรายการ (วินาทีอยู่ในรายละเอียดตอนกางแถว) */
+export const fmtClock = (ms: number): string => clock.format(ms);
 export const fmtDateTime = (ms: number): string => dateTime.format(ms);
 export const fmtDay = (ms: number): string => dayShort.format(ms);
 

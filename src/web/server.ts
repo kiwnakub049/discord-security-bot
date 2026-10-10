@@ -27,6 +27,7 @@ import { actionRoutes } from "./routes/actions.js";
 import { adminRoutes } from "./routes/admin.js";
 import { sessionRoutes } from "./routes/sessions.js";
 import { aiRoutes } from "./routes/ai.js";
+import { queueRoutes } from "./routes/queue.js";
 import { beammpRoutes } from "./routes/beammp.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -98,6 +99,7 @@ export function startWebServer(client?: Client): Server | undefined {
   // ---------- หลัง login ----------
   app.use(meRoutes(client));
   app.use(overviewRoutes(client));
+  app.use(queueRoutes(client));
   app.use(systemRoutes());
   app.use(logRoutes());
   app.use(memberRoutes(client));

@@ -167,6 +167,22 @@ export function initDb(): void {
     CREATE INDEX IF NOT EXISTS idx_logs_ts    ON logs(timestamp);
     CREATE INDEX IF NOT EXISTS idx_logs_level ON logs(level);
     CREATE INDEX IF NOT EXISTS idx_logs_cat   ON logs(category);
+
+    -- คิวงานที่รอคนตัดสินใจ (หน้าแรกของ dashboard) — หนึ่งแถว = หนึ่งเรื่อง
+    -- โมดูลไหนอยากให้ mod ตัดสินอะไร เรียก enqueue() ใน queueStore แล้วการ์ดโผล่เอง
+    -- resolved_at = NULL คือยังค้างอยู่ · แถวที่ปิดแล้วเก็บไว้เป็นประวัติว่าใครตัดสินอะไร
+    CREATE TABLE IF NOT EXISTS queue_items (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      category    TEXT NOT NULL,          -- key ใน QUEUE_CATEGORIES เช่น 'ban-approval'
+      subject_id  TEXT,                   -- Discord user ID ที่เรื่องนี้เกี่ยวด้วย (ถ้ามี)
+      title       TEXT NOT NULL,
+      detail      TEXT,
+      created_at  INTEGER NOT NULL,
+      resolved_at INTEGER,
+      resolved_by TEXT,
+      outcome     TEXT                    -- key ของปุ่มที่ mod กด เช่น 'approve' / 'dismiss'
+    );
+    CREATE INDEX IF NOT EXISTS idx_queue_open ON queue_items(resolved_at, category, created_at);
   `);
 
   migrateSchema();

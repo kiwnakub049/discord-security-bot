@@ -14,6 +14,9 @@ export default defineConfig({
     emptyOutDir: true, // ล้างไฟล์ hash เก่าทิ้ง ไม่ให้ dist โตขึ้นทุกครั้งที่ build
     // Pi build เองในเครื่อง — sourcemap ทำให้ dist ใหญ่ขึ้นหลายเท่าโดยไม่ได้ใช้
     sourcemap: false,
+    // ห้ามฝังฟอนต์เป็น data: URI — CSP ตั้ง font-src 'self' ไว้ ไฟล์ subset เล็ก ๆ
+    // (ต่ำกว่า 4 KB) ที่ Vite ฝังให้อัตโนมัติจะโดนบล็อก แล้วตัวอักษรบางชุดหายเงียบ ๆ
+    assetsInlineLimit: (file) => (/\.woff2?$/.test(file) ? false : undefined),
   },
   server: {
     // ตอน dev: vite เสิร์ฟหน้าเว็บ แล้วส่งต่อ API ไปให้บอทตัวจริงที่พอร์ต 3000

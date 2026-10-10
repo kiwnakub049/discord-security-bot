@@ -3,10 +3,10 @@ import type { ReactNode } from "react";
 import { Icon, type IconName } from "./Icon";
 
 /**
- * การ์ด — เลือกระดับกระจกได้
+ * แผ่นงาน — พื้น surface ขอบเส้นฟอร์ม มุมโค้งเล็ก
  *
- * ค่าเริ่มต้นคือ "pane" (เบลอ 10px + ข้ามการวาดตอนอยู่นอกจอ) เพราะการ์ดส่วนใหญ่
- * อยู่ในรายการยาว ๆ ใช้ "glass" เฉพาะใบที่มีจำนวนคงที่และอยู่เหนือครึ่งจอ
+ * level ยังรับค่าเดิมได้ (pane/glass/glass-strong) เพื่อไม่ต้องแก้ทุกหน้า
+ * "pane" ข้ามการวาดตอนอยู่นอกจอ — ใช้กับการ์ดในรายการยาว ๆ
  */
 export function Card({
   children,
@@ -17,9 +17,7 @@ export function Card({
   className?: string;
   level?: "pane" | "glass" | "glass-strong";
 }) {
-  return (
-    <div className={`${level} rounded-2xl ${className}`}>{children}</div>
-  );
+  return <div className={`${level} rounded-md ${className}`}>{children}</div>;
 }
 
 export function SectionTitle({
@@ -30,50 +28,55 @@ export function SectionTitle({
   action?: ReactNode;
 }) {
   return (
-    <div className="mb-2 flex items-center justify-between gap-3 px-1">
-      <h2 className="text-sm font-semibold text-muted">{children}</h2>
+    <div className="mb-2.5 flex min-h-9 items-center justify-between gap-3">
+      <h2 className="text-base font-semibold">{children}</h2>
       {action}
     </div>
   );
 }
 
-/** ตัวเลขใหญ่หนึ่งค่าพร้อมป้ายกำกับ — หัวใจของหน้าแรกบนมือถือ */
-export function StatTile({
-  label,
-  value,
-  sub,
-  icon,
-  tone = "plain",
+/**
+ * แถวตัวเลขสรุป — แผ่นเดียว แบ่งช่องด้วยเส้นฟอร์ม
+ *
+ * แทนการ์ดสี่ใบหน้าตาเหมือนกันแบบเดิม: ตัวเลขพวกนี้เป็น "สถานะประกอบ" ไม่ใช่งานที่ต้องทำ
+ * เลยไม่ควรแย่งสายตากับแถบรอดำเนินการที่อยู่ข้างบน
+ * สีสัญญาณขึ้นเฉพาะช่องที่มีเรื่องจริง (tone) ช่องปกติเป็นสีหมึก
+ */
+export function StatStrip({
+  items,
 }: {
-  label: string;
-  value: ReactNode;
-  sub?: ReactNode;
-  icon?: IconName;
-  tone?: "plain" | "info" | "warn" | "alert" | "ok";
+  items: {
+    label: string;
+    value: ReactNode;
+    sub?: ReactNode;
+    tone?: "plain" | "warn" | "alert";
+  }[];
 }) {
-  const toneClass = {
-    plain: "text-text",
-    info: "text-info",
-    warn: "text-warn",
-    alert: "text-alert",
-    ok: "text-ok",
-  }[tone];
-
   return (
-    <Card level="glass" className="glass-lift p-4">
-      <div className="flex items-center gap-1.5 text-muted">
-        {icon && <Icon name={icon} className="size-4" />}
-        <span className="text-xs font-medium">{label}</span>
-      </div>
-      <div className={`tnum mt-1.5 text-3xl font-bold leading-none ${toneClass}`}>
-        {value}
-      </div>
-      {sub && <div className="mt-1.5 truncate text-xs text-faint">{sub}</div>}
-    </Card>
+    <dl className="grid grid-cols-2 overflow-hidden rounded-md border border-line bg-surface md:grid-cols-4">
+      {items.map((it, i) => (
+        <div
+          key={it.label}
+          className={`border-line px-4 py-3.5 ${i % 2 === 1 ? "border-l" : ""} ${
+            i >= 2 ? "border-t md:border-t-0" : ""
+          } ${i === 2 ? "md:border-l" : ""}`}
+        >
+          <dt className="text-sm text-muted">{it.label}</dt>
+          <dd
+            className={`tnum text-2xl font-semibold leading-tight ${
+              it.tone === "alert" ? "text-alert" : it.tone === "warn" ? "text-warn" : ""
+            }`}
+          >
+            {it.value}
+          </dd>
+          {it.sub && <dd className="truncate text-xs text-faint">{it.sub}</dd>}
+        </div>
+      ))}
+    </dl>
   );
 }
 
-/** ปุ่มกรองแบบเม็ดยา — แถวเดียวเลื่อนซ้ายขวาได้บนมือถือ */
+/** ปุ่มกรอง — แถวเดียวเลื่อนซ้ายขวาได้บนมือถือ */
 export function Chip({
   active,
   onClick,
@@ -88,10 +91,10 @@ export function Chip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`press shrink-0 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
+      className={`press shrink-0 rounded-md border px-3 py-1.5 text-sm transition-colors ${
         active
-          ? "border-accent/40 bg-accent-soft text-accent shadow-[inset_0_1px_0_0_var(--glass-spec)]"
-          : "border-line bg-surface text-muted shadow-[inset_0_1px_0_0_var(--glass-spec)]"
+          ? "border-accent bg-accent-soft font-semibold text-accent"
+          : "border-line bg-surface text-muted hover:text-text"
       }`}
     >
       {children}
@@ -148,9 +151,9 @@ export function Button({
   type?: "button" | "submit";
 }) {
   const cls = {
-    plain: "border-line bg-surface text-text",
-    accent: "border-accent/40 bg-accent-soft text-accent",
-    danger: "border-alert/40 bg-alert-soft text-alert",
+    plain: "border-line bg-surface text-text hover:bg-raised",
+    accent: "border-accent bg-accent text-surface",
+    danger: "border-alert/50 bg-surface text-alert hover:bg-alert-soft",
     ghost: "border-transparent text-muted",
   }[variant];
   return (
@@ -158,7 +161,7 @@ export function Button({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`press inline-flex items-center justify-center gap-1.5 rounded-xl border px-3.5 py-2.5 text-sm font-medium shadow-[inset_0_1px_0_0_var(--glass-spec)] transition disabled:opacity-40 ${cls} ${
+      className={`press inline-flex min-h-10 items-center justify-center gap-1.5 rounded-md border px-3.5 py-2 text-sm font-medium transition disabled:opacity-40 ${cls} ${
         full ? "w-full" : ""
       }`}
     >
@@ -192,14 +195,14 @@ export function SearchBox({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         // 16px ขึ้นไปเท่านั้น — Safari บน iOS จะซูมหน้าเข้าเองถ้าตัวอักษรเล็กกว่านี้
-        className="w-full rounded-xl border border-line bg-surface py-2.5 pl-9 pr-9 text-base shadow-[inset_0_1px_0_0_var(--glass-spec)] outline-none transition-colors placeholder:text-faint focus:border-accent"
+        className="w-full rounded-md border border-line bg-surface py-2 pl-9 pr-9 text-base outline-none transition-colors placeholder:text-faint focus:border-accent"
       />
       {value && (
         <button
           type="button"
           onClick={() => onChange("")}
           aria-label="ล้างคำค้น"
-          className="press absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-faint"
+          className="press absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-faint"
         >
           <Icon name="x" className="size-4" />
         </button>
@@ -232,12 +235,7 @@ export function Empty({ icon, children }: { icon: IconName; children: ReactNode 
   );
 }
 
-/**
- * แถบความคืบหน้า — ใช้ทั้งเลเวล XP และการใช้ RAM/ดิสก์
- *
- * ตัวแถบไล่สีจากจางไปเข้มแล้วมีเส้นแสงทับด้านบน ให้ดูเป็นหลอดแก้วมีของเหลวข้างใน
- * ไม่ใช่สี่เหลี่ยมทึบ — เข้าชุดกับกระจกที่เหลือ
- */
+/** แถบความคืบหน้า — ใช้ทั้งเลเวล XP และการใช้ RAM/ดิสก์ (แถบทึบเรียบ ๆ ไม่ไล่สี) */
 export function Meter({
   pct,
   tone = "accent",
@@ -252,14 +250,10 @@ export function Meter({
     ok: "var(--c-ok)",
   }[tone];
   return (
-    <div className="h-2 w-full overflow-hidden rounded-full bg-raised shadow-[inset_0_1px_2px_0_var(--glass-shade)]">
+    <div className="h-1.5 w-full overflow-hidden rounded-sm bg-raised">
       <div
-        className="h-full rounded-full transition-[width] duration-700 [transition-timing-function:var(--ease-spring)]"
-        style={{
-          width: `${Math.max(0, Math.min(100, pct))}%`,
-          background: `linear-gradient(180deg, color-mix(in srgb, ${color} 70%, white), ${color})`,
-          boxShadow: `0 0 10px -2px ${color}`,
-        }}
+        className="h-full rounded-sm transition-[width] duration-500 [transition-timing-function:var(--ease-out-soft)]"
+        style={{ width: `${Math.max(0, Math.min(100, pct))}%`, background: color }}
       />
     </div>
   );

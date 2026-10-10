@@ -1,107 +1,109 @@
 @import "tailwindcss";
 
 /*
- * ═══ ธีมแบบ Slack ═══
+ * ═══ ธีม "สมุดเวรยาม" ═══
  *
- * แบน สะอาด: แถบข้าง aubergine + เนื้อหาพื้นสว่าง การ์ดขาวขอบบาง (ไม่มีกระจก/เบลอแล้ว)
- * ทุกอย่างขับเคลื่อนด้วย CSS variable — เปลี่ยนสีที่นี่ที่เดียวครอบทั้งแอป
+ * ภาษาภาพมาจากสมุดบันทึกเวรกับแบบฟอร์มรายงานเหตุการณ์: พื้นกระดาษฟ้าเทา
+ * ตัวหนังสือสีหมึก เส้นแบ่งแบบเส้นพิมพ์บนฟอร์ม
+ *
+ * กติกาของสี: ปกติหน้าจอมีแค่หมึกกับฟ้าแบบฟอร์ม — แดงกับอำพันโผล่ "เฉพาะ" ตอนมีเรื่องจริง
+ * ถ้าเอาสีสัญญาณไปแต่งปุ่มหรือไอคอนทั่วไป ตอนเกิดเหตุจริงมันจะไม่สะดุดตาอีกต่อไป
  *
  * ลำดับของธีม:
- *   1) :root                → โทนสว่าง (ค่าเริ่มต้น — แบบ Slack light)
- *   2) prefers-color-scheme → ตามเครื่อง (Slack dark) ทำงานก่อน JS = ไม่มีจอกระพริบ
+ *   1) :root                → โทนสว่าง (ค่าเริ่มต้น)
+ *   2) prefers-color-scheme → ตามเครื่อง ทำงานก่อน JS = ไม่มีจอกระพริบ
  *   3) [data-theme]         → ผู้ใช้กดสลับเอง ชนะทั้งสองข้อบน
  *
- * .glass/.glass-strong/.pane = ชื่อคลาสเดิมของคอมโพเนนต์ แต่ตอนนี้เรนเดอร์เป็นการ์ดแบน
- * (คงชื่อไว้เพื่อไม่ต้องแก้ทุกไฟล์) · .side = แถบข้าง aubergine ที่ override token เป็นสีสว่าง
+ * .glass/.glass-strong/.pane = ชื่อคลาสเดิมของคอมโพเนนต์ (คงไว้เพื่อไม่ต้องแก้ทุกไฟล์)
+ * ตอนนี้คือ "แผ่นกระดาษ" บนโต๊ะ: พื้นสว่างกว่าพื้นหลังนิดเดียว ขอบเส้นฟอร์ม ไม่มีเงาฟุ้ง
  */
 
-/* ─────────── โทนสว่าง (Slack light) ─────────── */
+/* ─────────── โทนสว่าง: กระดาษกับหมึก ─────────── */
 :root {
   color-scheme: light;
 
-  --c-bg: #f6f6f6;          /* พื้นหลังแอป (หลังการ์ด) */
-  --c-surface: #ffffff;      /* การ์ด/หัวเว็บ/แถบ */
-  --c-raised: #f1f1f1;       /* พื้น hover / ช่องกรอก */
-  --c-border: #e4e4e6;
+  --c-bg: #eef1f4;           /* กระดาษ — พื้นหลังแอป */
+  --c-surface: #fbfcfd;      /* แผ่นงาน/หัวเว็บ */
+  --c-raised: #e4e9ef;       /* พื้น hover / ช่องกรอก */
+  --c-border: #c9d2dc;       /* เส้นแบบฟอร์ม */
 
-  --c-text: #1d1c1d;         /* ดำเกือบสนิทของ Slack */
-  --c-muted: #616061;
-  --c-faint: #868789;
+  --c-text: #14213d;         /* หมึก */
+  --c-muted: #44526b;
+  --c-faint: #5f6c83;        /* ยังผ่าน 4.5:1 บนกระดาษ — ใช้กับเวลา/ข้อมูลรอง */
 
-  --c-accent: #007a5a;       /* เขียว Slack — ปุ่มหลัก/โฟกัส/active */
-  --c-accent-soft: rgba(0, 122, 90, 0.12);
-  --c-info: #1264a3;         /* ฟ้า Slack — ลิงก์/info */
-  --c-info-soft: rgba(18, 100, 163, 0.12);
-  --c-warn: #b7860b;         /* เหลืองอ่านเป็นตัวอักษรได้ */
-  --c-warn-soft: rgba(236, 178, 46, 0.18);
-  --c-alert: #e01e5a;        /* แดง/ชมพู Slack */
-  --c-alert-soft: rgba(224, 30, 90, 0.11);
-  --c-ok: #007a5a;
-  --c-ok-soft: rgba(43, 172, 118, 0.15);
+  --c-accent: #2f5d8a;       /* ฟ้าแบบฟอร์ม — ปุ่มหลัก/โฟกัส/เมนูที่เลือก */
+  --c-accent-soft: rgba(47, 93, 138, 0.11);
+  --c-info: #2f5d8a;
+  --c-info-soft: rgba(47, 93, 138, 0.11);
+  --c-warn: #9a6700;         /* อำพัน — เข้มพอให้อ่านเป็นตัวอักษรได้ */
+  --c-warn-soft: rgba(201, 138, 0, 0.14);
+  --c-alert: #c8102e;        /* แดงสัญญาณ */
+  --c-alert-soft: rgba(200, 16, 46, 0.09);
+  --c-ok: #2e7d5b;
+  --c-ok-soft: rgba(46, 125, 91, 0.12);
 
-  /* แถบข้าง aubergine (คงที่ทั้งสองโทน — เอกลักษณ์ Slack) */
-  --c-sidebar: #3f0e40;
-  --c-sidebar-active: #1164a3;
+  --c-sidebar: #e6ebf0;      /* เมนูซ้าย = กระดาษแผ่นล่าง เข้มกว่าพื้นนิดเดียว */
+  --c-backdrop: rgba(20, 33, 61, 0.42);
 
-  /* คงชื่อตัวแปรกระจกเดิมไว้ แต่ทำให้ "แบน": ไม่มีแสงขอบบน เงาบางเฉย ๆ */
+  /* คงชื่อตัวแปรกระจกเดิมไว้ให้คลาสที่ยังอ้างถึง — ไม่มีแสงขอบ ไม่มีเงาฟุ้ง */
   --glass-spec: transparent;
-  --glass-shade: rgba(0, 0, 0, 0.10);
-  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --glass-shade: rgba(20, 33, 61, 0.14);
+  --card-shadow: none;
 }
 
-/* ─────────── โทนมืด (Slack dark) ─────────── */
+/* ─────────── โทนมืด: กระดาษกลับสี (เวรกลางคืน) ─────────── */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --c-bg: #1a1d21;
-    --c-surface: #222529;
-    --c-raised: #2c2d30;
-    --c-border: #35373b;
-    --c-text: #d1d2d3;
-    --c-muted: #ababad;
-    --c-faint: #8d8d8e;
-    --c-accent: #2bac76;
-    --c-accent-soft: rgba(43, 172, 118, 0.18);
-    --c-info: #36c5f0;
-    --c-info-soft: rgba(54, 197, 240, 0.16);
-    --c-warn: #ecb22e;
-    --c-warn-soft: rgba(236, 178, 46, 0.16);
-    --c-alert: #ff5c8a;
-    --c-alert-soft: rgba(255, 92, 138, 0.16);
-    --c-ok: #2bac76;
-    --c-ok-soft: rgba(43, 172, 118, 0.16);
-    --c-sidebar: #19171d;
-    --c-sidebar-active: #1164a3;
+    --c-bg: #0f1726;
+    --c-surface: #152036;
+    --c-raised: #1c2a44;
+    --c-border: #283653;
+    --c-text: #dce3ea;
+    --c-muted: #a8b4c6;
+    --c-faint: #8a97ad;
+    --c-accent: #8db3da;
+    --c-accent-soft: rgba(141, 179, 218, 0.14);
+    --c-info: #8db3da;
+    --c-info-soft: rgba(141, 179, 218, 0.14);
+    --c-warn: #e5ad33;
+    --c-warn-soft: rgba(229, 173, 51, 0.14);
+    --c-alert: #ff6b7d;
+    --c-alert-soft: rgba(255, 107, 125, 0.13);
+    --c-ok: #5cc497;
+    --c-ok-soft: rgba(92, 196, 151, 0.13);
+    --c-sidebar: #0b1220;
+    --c-backdrop: rgba(4, 8, 16, 0.6);
     --glass-spec: transparent;
-    --glass-shade: rgba(0, 0, 0, 0.45);
-    --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --glass-shade: rgba(0, 0, 0, 0.5);
+    --card-shadow: none;
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --c-bg: #1a1d21;
-  --c-surface: #222529;
-  --c-raised: #2c2d30;
-  --c-border: #35373b;
-  --c-text: #d1d2d3;
-  --c-muted: #ababad;
-  --c-faint: #8d8d8e;
-  --c-accent: #2bac76;
-  --c-accent-soft: rgba(43, 172, 118, 0.18);
-  --c-info: #36c5f0;
-  --c-info-soft: rgba(54, 197, 240, 0.16);
-  --c-warn: #ecb22e;
-  --c-warn-soft: rgba(236, 178, 46, 0.16);
-  --c-alert: #ff5c8a;
-  --c-alert-soft: rgba(255, 92, 138, 0.16);
-  --c-ok: #2bac76;
-  --c-ok-soft: rgba(43, 172, 118, 0.16);
-  --c-sidebar: #19171d;
-  --c-sidebar-active: #1164a3;
+  --c-bg: #0f1726;
+  --c-surface: #152036;
+  --c-raised: #1c2a44;
+  --c-border: #283653;
+  --c-text: #dce3ea;
+  --c-muted: #a8b4c6;
+  --c-faint: #8a97ad;
+  --c-accent: #8db3da;
+  --c-accent-soft: rgba(141, 179, 218, 0.14);
+  --c-info: #8db3da;
+  --c-info-soft: rgba(141, 179, 218, 0.14);
+  --c-warn: #e5ad33;
+  --c-warn-soft: rgba(229, 173, 51, 0.14);
+  --c-alert: #ff6b7d;
+  --c-alert-soft: rgba(255, 107, 125, 0.13);
+  --c-ok: #5cc497;
+  --c-ok-soft: rgba(92, 196, 151, 0.13);
+  --c-sidebar: #0b1220;
+  --c-backdrop: rgba(4, 8, 16, 0.6);
   --glass-spec: transparent;
-  --glass-shade: rgba(0, 0, 0, 0.45);
-  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --glass-shade: rgba(0, 0, 0, 0.5);
+  --card-shadow: none;
 }
 
 @theme inline {
@@ -123,8 +125,13 @@
   --color-ok: var(--c-ok);
   --color-ok-soft: var(--c-ok-soft);
 
-  --font-sans: "Sarabun", "Noto Sans Thai", "Lato", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  /*
+   * ตระกูลเดียวทั้งเว็บ: Plex Sans Thai Looped — ไทยแบบมีหัว อ่านง่ายที่ 12–13px
+   * และดูเป็นเอกสารทางการ เข้ากับงานบันทึกเหตุ ตัวละตินในชุดคือ Plex เลยเข้ากันเอง
+   * Mono ใช้กับ Discord ID เท่านั้น (เป็นข้อมูลจริงที่ต้องอ่านทีละหลัก ไม่ใช่ของแต่ง)
+   */
+  --font-sans: "IBM Plex Sans Thai Looped", "Noto Sans Thai", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
 
   --ease-spring: cubic-bezier(0.22, 1.2, 0.36, 1);
   --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
@@ -144,8 +151,15 @@
     background: var(--c-bg);
     color: var(--c-text);
     font-family: var(--font-sans);
+    /* สระบน/วรรณยุกต์ของไทยต้องการที่ว่างแนวตั้งมากกว่าละติน */
+    line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     transition: background-color 0.3s var(--ease-out-soft), color 0.3s var(--ease-out-soft);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--c-accent);
+    outline-offset: 2px;
   }
 
   .tnum {
@@ -175,7 +189,7 @@
 }
 
 @layer components {
-  /* พื้นหลังแบน — คงคลาส .aurora ไว้ (Shell ยังอ้างถึง) แต่เป็นสีทึบเฉย ๆ */
+  /* พื้นหลังทึบ — คงคลาสไว้เพราะ Shell ยังวางชั้นนี้ */
   .aurora {
     position: fixed;
     inset: 0;
@@ -184,34 +198,28 @@
     background: var(--c-bg);
   }
 
-  /* การ์ด/แถบ — แบนแบบ Slack: พื้น surface, ขอบบาง, เงาจาง */
-  .glass {
-    background: var(--c-surface);
-    border: 1px solid var(--c-border);
-    box-shadow: var(--card-shadow);
-  }
-  .glass-strong {
-    background: var(--c-surface);
-    border: 1px solid var(--c-border);
-    box-shadow: 0 12px 32px -12px var(--glass-shade);
-  }
+  /* แผ่นงาน — พื้น surface ขอบเส้นฟอร์ม ไม่มีเงา */
+  .glass,
   .pane {
     background: var(--c-surface);
     border: 1px solid var(--c-border);
-    box-shadow: var(--card-shadow);
+  }
+  .pane {
     content-visibility: auto;
     contain-intrinsic-size: auto 88px;
-    transition:
-      background-color 0.2s var(--ease-out-soft),
-      border-color 0.2s var(--ease-out-soft),
-      box-shadow 0.2s var(--ease-out-soft);
+    transition: border-color 0.2s var(--ease-out-soft);
+  }
+  /* แผ่นที่ลอยเหนือหน้า (sheet/toast) — เงาเดียวที่เหลือในระบบ */
+  .glass-strong {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    box-shadow: 0 18px 40px -16px var(--glass-shade);
   }
 
   @media (hover: hover) {
     .pane-lift:hover,
     .glass-lift:hover {
       border-color: var(--c-faint);
-      box-shadow: 0 4px 12px -4px var(--glass-shade);
     }
   }
 
@@ -223,22 +231,23 @@
   }
 
   /*
-   * แถบข้าง aubergine — override token เป็นสีสว่างเฉพาะข้างใน
-   * ลูก ๆ ที่ใช้คลาส token เดิม (text-muted, text-accent, bg-accent-soft, LogTree ฯลฯ)
-   * เลยกลายเป็นสีอ่อนอ่านออกบนพื้นม่วงเข้มโดยอัตโนมัติ ไม่ต้องแก้ทีละอัน
+   * เส้นระดับความรุนแรงด้านซ้าย — สัญลักษณ์เดียวที่ใช้บอก "เรื่องนี้หนักแค่ไหน"
+   * ทั้งในแถบรอดำเนินการ แถบสถานะ และแถวแจ้งเตือน
    */
+  .rule-l {
+    /* !important: ต้องชนะ border-line ของ Tailwind ซึ่งอยู่ชั้น utilities (ทับ components เสมอ) */
+    border-left-width: 3px !important;
+    border-left-color: var(--rule, var(--c-accent)) !important;
+  }
+  .rule-alert { --rule: var(--c-alert); }
+  .rule-warn { --rule: var(--c-warn); }
+  .rule-info { --rule: var(--c-accent); }
+  .rule-none { --rule: var(--c-border); }
+
+  /* เมนูซ้าย — กระดาษแผ่นล่าง ใช้ token เดิมทั้งหมด ไม่ต้อง override สี */
   .side {
     background: var(--c-sidebar);
-    color: #cfc3cf;
-    --c-text: #ffffff;
-    --c-muted: #cfc3cf;
-    --c-faint: #b7a9b7;
-    --c-border: rgba(255, 255, 255, 0.12);
-    --c-surface: transparent;
-    --c-raised: rgba(255, 255, 255, 0.08);
-    --c-accent: #ffffff;
-    --c-accent-soft: var(--c-sidebar-active);
-    --glass-spec: transparent;
+    border-right: 1px solid var(--c-border);
   }
 }
 
@@ -250,33 +259,26 @@
     padding-top: env(safe-area-inset-top, 0px);
   }
 
-  .rise {
-    animation: rise 0.4s var(--ease-out-soft) both;
-  }
-
+  /*
+   * .rise / .stagger เคยทำให้ทุกการ์ดลอยขึ้นทีละใบตอนเปิดหน้า — เอาออกแล้ว
+   * (เป็นการขยับที่ไม่ได้บอกอะไรผู้ใช้) คงชื่อคลาสไว้ให้หน้าที่ยังอ้างถึงไม่พัง
+   */
+  .rise,
   .stagger > * {
-    animation: rise 0.4s var(--ease-out-soft) both;
-    animation-delay: 0.24s;
+    animation: none;
   }
-  .stagger > *:nth-child(1) { animation-delay: 0.02s; }
-  .stagger > *:nth-child(2) { animation-delay: 0.05s; }
-  .stagger > *:nth-child(3) { animation-delay: 0.08s; }
-  .stagger > *:nth-child(4) { animation-delay: 0.11s; }
-  .stagger > *:nth-child(5) { animation-delay: 0.14s; }
-  .stagger > *:nth-child(6) { animation-delay: 0.17s; }
-  .stagger > *:nth-child(7) { animation-delay: 0.2s; }
 
   .sheet-in {
-    animation: sheet-in 0.36s var(--ease-spring) both;
+    animation: sheet-in 0.32s var(--ease-out-soft) both;
   }
   .fade-in {
-    animation: fade-in 0.25s var(--ease-out-soft) both;
+    animation: fade-in 0.2s var(--ease-out-soft) both;
   }
   .toast-in {
-    animation: toast-in 0.36s var(--ease-spring) both;
+    animation: toast-in 0.32s var(--ease-out-soft) both;
   }
 
-  /* แสงวาบตอน log ใหม่ไหลเข้ามา — จางลงให้เข้ากับธีมแบน */
+  /* แถวสว่างวาบตอน log ใหม่ไหลเข้า — การขยับที่ "บอกว่ามีอะไรเปลี่ยน" จริง */
   .flash {
     position: relative;
   }
@@ -290,25 +292,29 @@
     pointer-events: none;
     border-radius: inherit;
   }
+
+  /* รายการที่เพิ่งตัดสินในแผ่นคิว — ยุบหายไปให้เห็นว่ากองลดลงจริง */
+  .leave {
+    animation: leave 0.28s var(--ease-out-soft) both;
+  }
 }
 
-@keyframes rise {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: none; }
-}
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 @keyframes sheet-in {
-  from { opacity: 0; transform: translateY(20px) scale(0.99); }
+  from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: none; }
 }
 @keyframes toast-in {
-  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: none; }
 }
 @keyframes flashfade {
-  0% { opacity: 0.5; }
+  0% { opacity: 0.6; }
   100% { opacity: 0; }
+}
+@keyframes leave {
+  to { opacity: 0; transform: translateX(16px); }
 }
