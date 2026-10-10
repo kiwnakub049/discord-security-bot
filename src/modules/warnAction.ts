@@ -2,6 +2,7 @@ import type { GuildMember } from "discord.js";
 import { config } from "../config.js";
 import { addWarning } from "./warningStore.js";
 import { setMutePunishment } from "./mutePunishmentStore.js";
+import { enqueue } from "../store/queueStore.js";
 
 /**
  * เตือนสมาชิก + ส่ง DM แจ้งส่วนตัว + ลงโทษอัตโนมัติเมื่อถึงเกณฑ์
@@ -31,6 +32,8 @@ export async function warnMember(
   // Discord แปลง <t:วินาที:R> เป็นนับถอยหลังสด ("อีก ~1 ชม.") ในแอปของผู้ใช้เอง
   // ไม่ต้อง edit ข้อความ — คนโดนเปิด DM ดูเวลาที่เหลือได้ตลอด
   const deadlineSec = Math.floor(deadline / 1000);
+  // ขั้นแบนแต่ตั้งให้รอคนยืนยัน — ไม่แบนเอง ส่งเข้าคิวแทน (mod กดแบนจากหน้าแรกของ dashboard)
+  const banPending = esc?.action === "ban" && config.warnings.banRequiresApproval;
   const countdown = deadline
     ? ` — ปลดให้ <t:${deadlineSec}:R>`
     : "";
@@ -42,6 +45,8 @@ export async function warnMember(
     punishText = `ถูกปิดไมค์ (ไมค์แดง) ${hrs} ชม.`;
   } else if (esc?.action === "timeout" && esc.ms) {
     punishText = `ถูกระงับการพูด (timeout) ${hrs} ชม.`;
+  } else if (banPending) {
+    punishText = "ถูกเสนอให้แบน — รอผู้ดูแลพิจารณา";
   } else if (esc?.action === "ban") {
     punishText = "ถูกแบนออกจากเซิร์ฟเวอร์";
   }
@@ -86,6 +91,16 @@ export async function warnMember(
       } else if (esc.action === "timeout" && esc.ms) {
         await member.timeout(esc.ms, `เตือนครบ ${count} ครั้ง`);
         actionMsg = `→ ลงโทษ: timeout ${hrs} ชม.${countdown}`;
+      } else if (banPending) {
+        // เหตุผลของการเตือนครั้งล่าสุดติดไปด้วย — mod จะได้ไม่ต้องไปไล่ดูประวัติก่อนตัดสิน
+        enqueue({
+          category: "ban-approval",
+          subjectId: member.id,
+          title: member.user.tag,
+          detail: `เตือนครบ ${count} ครั้ง — ล่าสุด: ${reason}`,
+        });
+        actionMsg = "→ รอ mod ยืนยันแบน (อยู่ในคิวบน dashboard)";
+        level = "alert";
       } else if (esc.action === "ban") {
         await member.ban({ reason: `เตือนครบ ${count} ครั้ง` });
         actionMsg = "→ ลงโทษ: แบน";

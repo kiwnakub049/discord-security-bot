@@ -80,7 +80,10 @@ export const SECTIONS: { section: string; items: Item[] }[] = [
   },
   {
     section: "Warnings",
-    items: [{ key: "warnings.enabled", label: "เปิดระบบเตือน", type: "bool" }],
+    items: [
+      { key: "warnings.enabled", label: "เปิดระบบเตือน", type: "bool" },
+      { key: "warnings.banRequiresApproval", label: "เตือนครบแล้วรอ mod ยืนยันก่อนแบน", type: "bool" },
+    ],
   },
   {
     section: "Activity / XP",
