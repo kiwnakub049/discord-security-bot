@@ -190,7 +190,8 @@ export function initDb(): void {
       created_at  INTEGER NOT NULL,
       resolved_at INTEGER,
       resolved_by TEXT,
-      outcome     TEXT                    -- key ของปุ่มที่ mod กด เช่น 'approve' / 'dismiss'
+      outcome     TEXT,                   -- key ของปุ่มที่ mod กด เช่น 'approve' / 'dismiss'
+      refs        TEXT                    -- JSON array ของ "channelId/messageId" ที่เรื่องนี้ชี้ถึง (ปุ่มลบข้อความใช้)
     );
     CREATE INDEX IF NOT EXISTS idx_queue_open ON queue_items(resolved_at, category, created_at);
 
@@ -227,6 +228,11 @@ function migrateSchema(): void {
     // DB เดิมมีแต่บัญชีที่ "มีสิทธิ์เต็ม" อยู่แล้ว — ตั้งเป็น admin ทั้งหมด
     // จะได้ไม่ล็อกใครออกจากหน้าจัดการบัญชี/ตั้งค่าตอนอัปเกรด
     db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'");
+  }
+
+  const queueCols = db.prepare("PRAGMA table_info(queue_items)").all() as { name: string }[];
+  if (!queueCols.some((c) => c.name === "refs")) {
+    db.exec("ALTER TABLE queue_items ADD COLUMN refs TEXT");
   }
 }
 

@@ -39,7 +39,7 @@
 ### 2. ตั้งค่า
 ```bash
 cp .env.example .env
-# แก้ .env ใส่ DISCORD_TOKEN, CLIENT_ID, GUILD_ID และ SESSION_SECRET (มีคำอธิบายในไฟล์)
+# แก้ .env ใส่ DISCORD_TOKEN, CLIENT_ID, GUILD_ID, SESSION_SECRET และ ANTHROPIC_API_KEY (มีคำอธิบายในไฟล์)
 ```
 
 ### 3. เชิญบอทเข้าเซิร์ฟเวอร์

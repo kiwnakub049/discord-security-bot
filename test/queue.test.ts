@@ -60,6 +60,18 @@ test("ลำดับกอง: เกินกำหนดก่อน → ร�
   assert.deepEqual(sorted, [oldTicket, ban, sus]);
 });
 
+test("enqueue เก็บ ref ของข้อความ และเรื่องซ้ำต่อท้าย ref เข้าเรื่องเดิม (ไม่ซ้ำ)", () => {
+  const id = store.enqueue({ category: "ai-spam", subjectId: "r1", title: "x", ref: "c1/m1" });
+  store.enqueue({ category: "ai-spam", subjectId: "r1", title: "x", ref: "c1/m2" });
+  store.enqueue({ category: "ai-spam", subjectId: "r1", title: "x", ref: "c1/m2" });
+  store.enqueue({ category: "ai-spam", subjectId: "r1", title: "x" });
+  assert.deepEqual(store.itemRefs(store.getItem(id)!), ["c1/m1", "c1/m2"]);
+  // เรื่องที่ไม่มี ref / ค่าเสีย ต้องได้ array ว่าง ไม่ throw
+  const plain = store.enqueue({ category: "admin-ticket", title: "t" });
+  assert.deepEqual(store.itemRefs(store.getItem(plain)!), []);
+  assert.deepEqual(store.itemRefs({ refs: "not json" }), []);
+});
+
 test("ทุกหมวดมีปุ่มอย่างน้อยหนึ่งปุ่ม และ key ไม่ซ้ำ", () => {
   const keys = cats.QUEUE_CATEGORIES.map((c) => c.key);
   assert.equal(new Set(keys).size, keys.length);

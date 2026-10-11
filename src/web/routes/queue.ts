@@ -7,7 +7,8 @@ import {
   QUEUE_CATEGORIES,
   type QueueCategoryDef,
 } from "../../modules/queueCategories.js";
-import { getItem, listOpen, openSummary, resolve, type QueueRow } from "../../store/queueStore.js";
+import { getItem, itemRefs, listOpen, openSummary, resolve, type QueueRow } from "../../store/queueStore.js";
+import { deleteMessageRefs } from "../../modules/deleteRefs.js";
 import { dmAction } from "../../modules/dmNotice.js";
 import { notifyTicketClosed, replyToTicket, TICKET_CATEGORY } from "../../modules/ticket.js";
 import { listMessages, threadSummary } from "../../store/ticketStore.js";
@@ -158,8 +159,27 @@ export function queueRoutes(client?: Client): Router {
       return;
     }
 
-    // ทำผลข้างเคียงจริงก่อน แล้วค่อยปิดเรื่อง — ถ้าแบนไม่สำเร็จ เรื่องต้องยังค้างให้กดใหม่ได้
-    if (outcome.effect === "ban") {
+    // ทำผลข้างเคียงจริงก่อน แล้วค่อยปิดเรื่อง — ถ้าลบ/แบนไม่สำเร็จ เรื่องต้องยังค้างให้กดใหม่ได้
+    const wantsDelete = outcome.effect === "delete" || outcome.effect === "deleteAndBan";
+    const wantsBan = outcome.effect === "ban" || outcome.effect === "deleteAndBan";
+    let deleteNote = "";
+    if (wantsDelete) {
+      if (!client) {
+        res.status(400).json({ ok: false, message: "ลบไม่ได้: บอทไม่ได้เชื่อมต่อ Discord" });
+        return;
+      }
+      // กดซ้ำหลังลบไปบางส่วนก็ไม่พัง — ข้อความที่ลบแล้วจะนับเป็น "หายไปก่อนแล้ว"
+      const d = await deleteMessageRefs(client, itemRefs(item));
+      if (d.failed > 0) {
+        res.status(500).json({
+          ok: false,
+          message: `ลบไม่ได้ ${d.failed} ข้อความ (เช็คสิทธิ์ Manage Messages ของบอท)`,
+        });
+        return;
+      }
+      deleteNote = ` (ลบ ${d.deleted} ข้อความ${d.gone ? ` · หายไปก่อนแล้ว ${d.gone}` : ""})`;
+    }
+    if (wantsBan) {
       const guild = getGuild();
       if (!guild || !item.subject_id) {
         res.status(400).json({ ok: false, message: "แบนไม่ได้: ไม่พบเซิร์ฟเวอร์หรือไม่รู้ว่าเป็นใคร" });
@@ -184,7 +204,7 @@ export function queueRoutes(client?: Client): Router {
       res.status(409).json({ ok: false, message: "เรื่องนี้ถูกตัดสินไปแล้ว" });
       return;
     }
-    res.json({ ok: true, message: `${outcome.doneText}: ${item.title}` });
+    res.json({ ok: true, message: `${outcome.doneText}${deleteNote}: ${item.title}` });
 
     if (client && item.category === TICKET_CATEGORY) {
       await notifyTicketClosed(client, item, getGuild()?.name);
@@ -193,14 +213,15 @@ export function queueRoutes(client?: Client): Router {
     if (client) {
       await logEvent(
         client,
-        outcome.effect === "ban" ? "alert" : "info",
+        wantsBan ? "alert" : "info",
         "audit",
         // ใช้ event เดิมของต้นไม้ log — การแบนจากคิวควรไปอยู่กองเดียวกับการแบนทั่วไป
-        outcome.effect === "ban" ? "audit_ban" : "audit_member",
+        wantsBan ? "audit_ban" : "audit_member",
         `${def.label}: ${outcome.label} (จาก dashboard)`,
         [
           { name: "เรื่อง", value: item.title },
           ...(item.subject_id ? [{ name: "เป้าหมาย", value: item.subject_id }] : []),
+          ...(deleteNote ? [{ name: "ลบข้อความ", value: deleteNote.trim().slice(1, -1) }] : []),
           { name: "โดย (dashboard)", value: actor },
         ],
       );

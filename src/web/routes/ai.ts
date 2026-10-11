@@ -1,5 +1,5 @@
 /**
- * คำตัดสินของ mod ต่อสิ่งที่ AI จับได้ = label สำหรับเทรนโมเดลรอบหน้า
+ * คำตัดสินของ mod ต่อสิ่งที่ AI จับได้ = eval set ไว้วัดความแม่นของ prompt/threshold
  * (ผูกกับ log ที่ event = security_ai เท่านั้น กันคนยิง id มั่วมาปนข้อมูลเทรน)
  */
 import { Router, type Request, type Response } from "express";
@@ -71,8 +71,11 @@ export function aiRoutes(): Router {
       log_id: logId,
       verdict,
       score,
-      // alert = ลบอัตโนมัติ (โซน auto), warn = แค่ขึ้นให้ดู (โซน review)
-      zone: entry.level === "alert" ? "auto" : "review",
+      // spam มี field "ประเภท" -> spam_<type> แยกจาก toxic
+      // toxic: alert = ลบอัตโนมัติ (โซน auto), warn = แค่ขึ้นให้ดู (โซน review)
+      zone: fieldOf(entry, "ประเภท")
+        ? `spam_${fieldOf(entry, "ประเภท")}`
+        : entry.level === "alert" ? "auto" : "review",
       text,
       user_id: userIdFrom(fieldOf(entry, "User")),
       decided_by: String(res.locals.username),
@@ -80,9 +83,10 @@ export function aiRoutes(): Router {
     res.json({ ok: true, verdict, stats: verdictStats() });
   });
 
-  /** ชุดเทรนพร้อมใช้ — บรรทัดละ 1 ตัวอย่าง {text, label} ตรงกับที่ train_thai_toxic.py กิน */
+  /** eval set พร้อมใช้ — บรรทัดละ 1 ตัวอย่าง {text, label} */
   r.get("/api/ai/export.jsonl", (_req: Request, res: Response) => {
-    const rows = getAllVerdicts();
+    // ข้อความที่ลงท้าย "…" = ถูกตัดตอนขึ้น log (ของเก่าก่อนขยาย excerpt) — ไม่ครบ ไม่เอามาวัดผล
+    const rows = getAllVerdicts().filter((row) => !row.text.endsWith("…"));
     res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
     res.setHeader("Content-Disposition", 'attachment; filename="ai-labels.jsonl"');
     res.send(

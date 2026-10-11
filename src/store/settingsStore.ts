@@ -54,10 +54,14 @@ export const SECTIONS: { section: string; items: Item[] }[] = [
     section: "AI Mod (toxic classifier)",
     items: [
       { key: "aiMod.enabled", label: "เปิดใช้งาน", type: "bool" },
-      { key: "aiMod.timeoutMs", label: "timeout เรียก service (ms)", type: "int" },
+      { key: "aiMod.reviewScore", label: "คะแนนเริ่มโซน review (0–1)", type: "float" },
+      { key: "aiMod.autoScore", label: "คะแนนเริ่มโซน auto — ลบ+เตือน (0–1)", type: "float" },
+      { key: "aiMod.timeoutMs", label: "timeout เรียก API (ms)", type: "int" },
       { key: "aiMod.deleteOnAuto", label: "ลบข้อความโซน auto ทันที", type: "bool" },
       { key: "aiMod.reviewDeleteScore", label: "คะแนนที่ลบเลย (0–1, 0=ปิด)", type: "float" },
       { key: "aiMod.minLength", label: "ความยาวขั้นต่ำที่ส่งตรวจ (ตัวอักษร)", type: "int" },
+      { key: "aiMod.spamEnabled", label: "จับ spam (scam/โฆษณา/เลี่ยงฟิลเตอร์) ส่งเข้าคิว", type: "bool" },
+      { key: "aiMod.spamReviewScore", label: "คะแนน spam ที่ส่งเข้าคิว (0–1)", type: "float" },
     ],
   },
   {

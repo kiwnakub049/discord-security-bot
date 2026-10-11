@@ -18,22 +18,42 @@ export interface QueueRow {
   resolved_at: number | null;
   resolved_by: string | null;
   outcome: string | null;
+  /** JSON array ของ "channelId/messageId" — อ่านผ่าน itemRefs() */
+  refs: string | null;
 }
+
+/** ข้อความที่ผูกกับเรื่องหนึ่งได้มากสุด — spam รัว ๆ ไม่ควรทำให้แถวโตไม่จบ */
+const MAX_REFS = 50;
 
 const findOpen = db.prepare(
   `SELECT * FROM queue_items
     WHERE resolved_at IS NULL AND category = ? AND subject_id = ?`,
 );
 const insert = db.prepare(
-  `INSERT INTO queue_items (category, subject_id, title, detail, created_at)
-   VALUES (@category, @subject_id, @title, @detail, @created_at)`,
+  `INSERT INTO queue_items (category, subject_id, title, detail, created_at, refs)
+   VALUES (@category, @subject_id, @title, @detail, @created_at, @refs)`,
 );
+const setRefs = db.prepare("UPDATE queue_items SET refs = ? WHERE id = ?");
+
+/** ข้อความ ("channelId/messageId") ที่เรื่องนี้ชี้ถึง */
+export function itemRefs(row: Pick<QueueRow, "refs">): string[] {
+  if (!row.refs) return [];
+  try {
+    const v = JSON.parse(row.refs) as unknown;
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
 
 /**
  * ส่งเรื่องเข้าคิว — คืน id ของแถว
  *
  * ถ้ามีเรื่องที่ยังค้างอยู่ในหมวดเดียวกันของคนเดียวกันแล้ว จะไม่สร้างซ้ำ
  * (anti-raid อาจจับบัญชีเดิมได้หลายรอบ ไม่ควรกลายเป็นการ์ดซ้อนกันห้าใบของคนคนเดียว)
+ *
+ * ref = ข้อความที่เรื่องนี้ชี้ถึง ("channelId/messageId") — ถ้าเรื่องเดิมค้างอยู่ จะต่อท้ายเข้าเรื่องเดิม
+ * (AI จับ spam คนเดิม 5 ข้อความ = การ์ดใบเดียวที่กดลบได้ทั้ง 5)
  */
 export function enqueue(item: {
   category: string;
@@ -41,11 +61,18 @@ export function enqueue(item: {
   title: string;
   detail?: string | null;
   at?: number;
+  ref?: string;
 }): number {
   const subject = item.subjectId ?? null;
   if (subject) {
     const open = findOpen.get(item.category, subject) as QueueRow | undefined;
-    if (open) return open.id;
+    if (open) {
+      const refs = itemRefs(open);
+      if (item.ref && !refs.includes(item.ref) && refs.length < MAX_REFS) {
+        setRefs.run(JSON.stringify([...refs, item.ref]), open.id);
+      }
+      return open.id;
+    }
   }
   const info = insert.run({
     category: item.category,
@@ -53,6 +80,7 @@ export function enqueue(item: {
     title: item.title,
     detail: item.detail ?? null,
     created_at: item.at ?? Date.now(),
+    refs: item.ref ? JSON.stringify([item.ref]) : null,
   });
   return Number(info.lastInsertRowid);
 }

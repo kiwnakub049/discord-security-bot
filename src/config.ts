@@ -58,9 +58,9 @@ export const config = {
    */
   aiMod: {
     enabled: true,
-    // ทุกข้อความที่ผ่าน autoMod/antiSpam ถูกส่งตรวจ — เซิร์ฟคนเยอะเปลี่ยนเป็น
-    // "claude-haiku-5-5" ถูกกว่าราว 40 เท่า
-    model: "claude-opus-5-5",
+    // ทุกข้อความที่ผ่าน autoMod/antiSpam ถูกส่งตรวจ — ใช้ Haiku เพราะถูกกว่า Opus ราว 40 เท่า
+    // (ถ้าความแม่นไม่พอค่อยขยับเป็น "claude-sonnet-5-5" หรือ "claude-opus-5-5")
+    model: "claude-haiku-5-5",
     // งาน classify สั้น ๆ ไม่ต้องคิดลึก — low = เร็วและถูกสุด
     effort: "low" as "low" | "medium" | "high",
     // คะแนน (0–1) จาก AI → โซน: >= autoScore = auto, >= reviewScore = review, ต่ำกว่า = ignore
@@ -77,6 +77,10 @@ export const config = {
     reviewDeleteScore: 0.75,
     // ข้อความสั้นกว่านี้ (ตัวอักษร) ไม่ส่งตรวจ
     minLength: 2,
+    // spam เชิงเนื้อหา (scam / โฆษณา / เลี่ยงฟิลเตอร์) — ไม่ลบเอง แค่ส่งการ์ดเข้าคิวให้ mod
+    spamEnabled: true,
+    // คะแนน spam (0–1) ตั้งแต่ค่านี้ขึ้นการ์ด — ตั้งสูงไว้กันคิวท่วม
+    spamReviewScore: 0.7,
   },
 
   /**

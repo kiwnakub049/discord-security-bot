@@ -17,8 +17,11 @@ export interface QueueOutcome {
   tone: "danger" | "accent" | "plain";
   /** ข้อความตอบกลับหลังทำสำเร็จ (ขึ้นใน toast) */
   doneText: string;
-  /** ผลข้างเคียงที่เซิร์ฟเวอร์ต้องทำจริงก่อนปิดเรื่อง */
-  effect?: "ban";
+  /**
+   * ผลข้างเคียงที่เซิร์ฟเวอร์ต้องทำจริงก่อนปิดเรื่อง
+   * delete = ลบข้อความที่เรื่องนี้ชี้ถึง (queue_items.refs) · deleteAndBan = ลบแล้วแบน
+   */
+  effect?: "ban" | "delete" | "deleteAndBan";
 }
 
 export interface QueueCategoryDef {
@@ -56,6 +59,20 @@ export const QUEUE_CATEGORIES: QueueCategoryDef[] = [
     unit: "บัญชี",
     outcomes: [
       { key: "ban", label: "แบน", tone: "danger", doneText: "แบนแล้ว", effect: "ban" },
+      { key: "clear", label: "ปกติ ปล่อยผ่าน", tone: "plain", doneText: "ปล่อยผ่านแล้ว" },
+    ],
+  },
+  {
+    // AI mod จับ spam เชิงเนื้อหา — บอทไม่ลบเอง ให้ mod ดูแล้วตัดสิน
+    key: "ai-spam",
+    label: "AI สงสัย spam",
+    severity: "warn",
+    overdueAfterMin: 30,
+    verb: "ตรวจข้อความ",
+    unit: "ข้อความ",
+    outcomes: [
+      { key: "delete-ban", label: "ลบ + แบน", tone: "danger", doneText: "ลบข้อความและแบนแล้ว", effect: "deleteAndBan" },
+      { key: "delete", label: "ลบข้อความ", tone: "accent", doneText: "ลบข้อความแล้ว", effect: "delete" },
       { key: "clear", label: "ปกติ ปล่อยผ่าน", tone: "plain", doneText: "ปล่อยผ่านแล้ว" },
     ],
   },

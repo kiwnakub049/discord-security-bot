@@ -41,7 +41,7 @@ const node = (category: LogCategory, leaves: TreeLeaf[]): TreeNode => ({
 
 export const LOG_TREE: TreeNode[] = [
   node("security", [
-    { id: "ai", label: "AI จับข้อความ toxic", icon: "message", events: ["security_ai"] },
+    { id: "ai", label: "AI จับข้อความ toxic / spam", icon: "message", events: ["security_ai"] },
     { id: "warn", label: "เตือนสมาชิก", icon: "warn", events: ["security_warn"] },
   ]),
   node("member", [
