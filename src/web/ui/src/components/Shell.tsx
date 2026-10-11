@@ -3,6 +3,8 @@ import { Icon, type IconName } from "./Icon";
 import type { StreamState } from "../hooks/useStream";
 import { type Route } from "../hooks/useRoute";
 import { useTheme } from "../hooks/useTheme";
+import { LogTree } from "./LogTree";
+import type { TreePick } from "../lib/logTree";
 import {
   requestNotifyPermission,
   setNotifyEnabled,
@@ -126,6 +128,8 @@ export function Shell({
   userId,
   isOwner,
   isAdmin,
+  logFilter,
+  onPickLogFilter,
   children,
 }: {
   route: Route;
@@ -137,6 +141,8 @@ export function Shell({
   /** เจ้าของเครื่องเท่านั้นที่เห็นแท็บบางอัน (ด่านจริงอยู่ฝั่งเซิร์ฟเวอร์) */
   isOwner: boolean;
   isAdmin: boolean;
+  logFilter: TreePick;
+  onPickLogFilter: (f: TreePick) => void;
   children: ReactNode;
 }) {
   /*
@@ -195,6 +201,12 @@ export function Shell({
                 {t.label}
               </button>
 
+              {/* ต้นไม้หมวดหมู่ กางอยู่ใต้ Logs เมื่ออยู่หน้านั้น */}
+              {t.route === "/logs" && route === "/logs" && (
+                <div className="fade-in mt-1 border-l border-line pl-2">
+                  <LogTree filter={logFilter} onPick={onPickLogFilter} compact />
+                </div>
+              )}
             </div>
           ))}
         </nav>

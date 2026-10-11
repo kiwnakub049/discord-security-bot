@@ -10,20 +10,21 @@ import type {
 import { Button, Empty, SearchBox, Spinner } from "../components/ui";
 import { LogRow } from "../components/LogRow";
 import {
-  CategoryTabs,
   LEVEL_OPTIONS,
   LogFilterPanel,
+  LogTree,
   WINDOW_OPTIONS,
 } from "../components/LogTree";
+import { iconOf, labelOf } from "../lib/categories";
 import {
   EMPTY_FILTER,
   activeCount,
   filterParams,
-  leavesOf,
+  findLeaf,
   matchesFilter,
-  toggleLeaf,
   toggleLevel,
   type LogFilter,
+  type TreePick,
 } from "../lib/logTree";
 import { Icon } from "../components/Icon";
 import { useToast } from "../components/Toast";
@@ -34,15 +35,21 @@ export function Logs({
   latest,
   filter,
   onFilterChange,
+  onPickTree,
   guildId,
 }: {
   latest: LogEntry | null;
   filter: LogFilter;
   onFilterChange: (f: LogFilter) => void;
+  /** เลือกหมวด/กิ่งจากต้นไม้ (ตัวเดียวกับเมนูซ้าย) */
+  onPickTree: (p: TreePick) => void;
   guildId: string | null;
 }) {
   const toast = useToast();
   // จอใหญ่กางแผงตัวกรองไว้ตั้งแต่แรก มือถือหุบไว้ก่อน (กางค้างจะกินเกือบทั้งจอ)
+  const category = filter.category;
+  const leaf = findLeaf(filter.leaf);
+  const [treeOpen, setTreeOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(
     () => typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches,
   );
@@ -196,8 +203,10 @@ export function Logs({
     }
   }
 
+  /** ชื่อของสิ่งที่กำลังดูอยู่ — โชว์บนหัวปุ่มกางต้นไม้ */
+  const pickedLabel = leaf ? leaf.label : category ? labelOf(category) : "ทุกหมวด";
   const count = activeCount(filter);
-  /** รายการที่ติ๊กอยู่ เป็นป้ายกด × ได้ — เรียงตามแผง: ระดับ → เวลา → หัวข้อย่อย */
+  /** รายการที่ติ๊กอยู่ เป็นป้ายกด × ได้ — เรียงตามแผง: ระดับ → เวลา */
   const picked: { key: string; label: string; remove: () => void }[] = [
     ...LEVEL_OPTIONS.filter((l) => filter.levels.includes(l.v)).map((l) => ({
       key: `lv-${l.v}`,
@@ -209,20 +218,57 @@ export function Logs({
       label: w.label,
       remove: () => onFilterChange({ ...filter, window: "" }),
     })),
-    ...leavesOf(filter.category)
-      .filter((l) => filter.leaves.includes(l.id))
-      .map((l) => ({
-        key: `leaf-${l.id}`,
-        label: l.label,
-        remove: () => onFilterChange(toggleLeaf(filter, l.id)),
-      })),
   ];
 
   return (
     <div className="space-y-4">
-      {/* ---- หมวด (แยกจากตัวกรอง) + ค้นหา + ตัวกรองแบบติ๊ก ---- */}
+      {/*
+        ---- ต้นไม้หมวดหมู่ (เฉพาะมือถือ) ----
+        จอใหญ่มีต้นไม้อยู่ในเมนูซ้ายแล้ว ตรงนี้เลยซ่อนที่ md ขึ้นไป
+        ย่อไว้ก่อนเพราะกางค้างไว้จะกินครึ่งจอ เหลือที่ให้รายการจริงน้อยเกินไป
+      */}
+      <div className="md:hidden">
+        <button
+          type="button"
+          onClick={() => setTreeOpen((v) => !v)}
+          aria-expanded={treeOpen}
+          className="press flex w-full items-center gap-2.5 rounded-md border border-line bg-surface px-3.5 py-3 text-sm shadow-[inset_0_1px_0_0_var(--glass-spec)]"
+        >
+          <Icon
+            name={leaf?.icon ?? (category ? iconOf(category) : "list")}
+            className="size-[18px] shrink-0 text-accent"
+          />
+          <span className="min-w-0 flex-1 truncate text-left font-medium">
+            {pickedLabel}
+          </span>
+          {category && (
+            <span className="shrink-0 text-xs text-faint">{labelOf(category)}</span>
+          )}
+          <Icon
+            name="chevron"
+            className={`size-4 shrink-0 text-faint transition-transform duration-200 ${
+              treeOpen ? "rotate-90" : ""
+            }`}
+          />
+        </button>
+
+        {treeOpen && (
+          <div className="fade-in mt-2 rounded-md border border-line bg-surface p-2 shadow-[inset_0_1px_0_0_var(--glass-spec)]">
+            <LogTree
+              filter={filter}
+              onPick={(p) => {
+                onPickTree(p);
+                // เลือกกิ่งแล้วหุบเอง — บนมือถือถ้าค้างไว้ต้องเลื่อนผ่านต้นไม้ทุกครั้ง
+                if (p.leaf) setTreeOpen(false);
+              }}
+              compact
+            />
+          </div>
+        )}
+      </div>
+
+      {/* ---- ค้นหา + ตัวกรองแบบติ๊ก (ระดับ/ช่วงเวลา) ---- */}
       <div className="space-y-2.5">
-        <CategoryTabs filter={filter} onChange={onFilterChange} />
         <div className="flex gap-2">
           <div className="min-w-0 flex-1">
             <SearchBox
@@ -254,12 +300,6 @@ export function Logs({
         {panelOpen && (
           <div className="fade-in rounded-md border border-line bg-surface p-3 shadow-[inset_0_1px_0_0_var(--glass-spec)]">
             <LogFilterPanel filter={filter} onChange={onFilterChange} />
-            {/* มือถือ: แผงยาวเกือบเต็มจอ ติ๊กเสร็จแล้วหุบลงไปดูรายการได้ทันที */}
-            <div className="mt-3 md:hidden">
-              <Button full onClick={() => setPanelOpen(false)}>
-                ดูผลลัพธ์
-              </Button>
-            </div>
           </div>
         )}
 
@@ -280,7 +320,7 @@ export function Logs({
             ))}
             <button
               type="button"
-              onClick={() => onFilterChange({ ...EMPTY_FILTER, category: filter.category })}
+              onClick={() => onFilterChange({ ...filter, levels: EMPTY_FILTER.levels, window: EMPTY_FILTER.window })}
               className="press px-1.5 text-xs font-medium text-muted underline-offset-2 hover:underline"
             >
               ล้างทั้งหมด

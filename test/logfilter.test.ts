@@ -1,6 +1,6 @@
 /**
- * ตัวกรองแบบติ๊กของหน้า Logs
- * - ฝั่งหน้าเว็บ: เลือกหมวด + ติ๊กหัวข้อย่อย/ระดับ แล้วได้ค่าตัวกรองและ query ถูก
+ * ตัวกรองของหน้า Logs (ต้นไม้หมวด + ติ๊กระดับ)
+ * - ฝั่งหน้าเว็บ: เลือกหมวด/กิ่งจากต้นไม้ + ติ๊กระดับ แล้วได้ค่าตัวกรองและ query ถูก
  * - ฝั่ง server: หลายหมวด/หลายระดับ และ "หมวด หรือ event" กรองใน SQL ถูก
  */
 import { test, before } from "node:test";
@@ -12,11 +12,8 @@ import {
   EMPTY_FILTER,
   activeCount,
   filterParams,
-  leavesOf,
   matchesFilter,
   parseFilter,
-  pickCategory,
-  toggleLeaf,
   toggleLevel,
 } from "../src/web/ui/src/lib/logTree.js";
 
@@ -33,21 +30,11 @@ before(async () => {
   store = await import("../src/store/logStore.js");
 });
 
-test("เปลี่ยนหมวด → หัวข้อย่อยของหมวดเก่าถูกล้าง ระดับ/เวลาคงไว้", () => {
-  let f = pickCategory(EMPTY_FILTER, "voice");
-  f = toggleLeaf(toggleLevel(f, "alert"), "mic");
-  f = { ...f, window: "7d" };
-  const g = pickCategory(f, "audit");
-  assert.deepEqual(g, { category: "audit", leaves: [], levels: ["alert"], window: "7d" });
-  assert.deepEqual(leavesOf("").length, 0, "ทุกหมวด = ไม่มีหัวข้อย่อยให้ติ๊ก");
-  assert.deepEqual(leavesOf("system").length, 0);
-});
+test("query: เลือกแค่หมวด → ส่งหมวด · เลือกกิ่ง → ส่งแค่ event ของกิ่ง", () => {
+  const cat = { ...EMPTY_FILTER, category: "member" as const };
+  assert.equal(new URLSearchParams(filterParams(cat)).get("category"), "member");
 
-test("query: ไม่ติ๊กหัวข้อย่อย → ส่งหมวด · ติ๊ก → ส่งแค่ event", () => {
-  let f = pickCategory(EMPTY_FILTER, "member");
-  assert.equal(new URLSearchParams(filterParams(f)).get("category"), "member");
-
-  f = toggleLeaf(f, "join-leave");
+  let f = { ...cat, leaf: "join-leave" };
   f = toggleLevel(toggleLevel(f, "alert"), "warn");
   f = { ...f, window: "24h" };
   const q = new URLSearchParams(filterParams(f, "abc"));
@@ -56,32 +43,38 @@ test("query: ไม่ติ๊กหัวข้อย่อย → ส่ง�
   assert.equal(q.get("level"), "alert,warn");
   assert.equal(q.get("window"), "24h");
   assert.equal(q.get("search"), "abc");
-  assert.equal(activeCount(f), 4, "หมวดไม่นับในตัวกรอง");
+  assert.equal(activeCount(f), 3, "หมวด/กิ่งไม่นับ — อยู่ในต้นไม้");
   assert.equal(filterParams(EMPTY_FILTER), "");
+});
+
+test("ติ๊กระดับซ้ำ = เอาออก", () => {
+  const f = toggleLevel(EMPTY_FILTER, "warn");
+  assert.deepEqual(f.levels, ["warn"]);
+  assert.deepEqual(toggleLevel(f, "warn").levels, []);
 });
 
 test("log สดผ่านตัวกรองแบบเดียวกับ server", () => {
   const e = (category: string, event: string, level: string) =>
     ({ category, event, level }) as Parameters<typeof matchesFilter>[0];
-  const voice = pickCategory(EMPTY_FILTER, "voice");
+  const voice = { ...EMPTY_FILTER, category: "voice" as const };
   assert.ok(matchesFilter(e("voice", "voice_join", "info"), voice));
   assert.ok(!matchesFilter(e("audit", "audit_ban", "info"), voice));
 
-  const mic = toggleLevel(toggleLeaf(voice, "mic"), "warn");
+  const mic = toggleLevel({ ...voice, leaf: "mic" }, "warn");
   assert.ok(matchesFilter(e("voice", "voice_mute_on", "warn"), mic));
-  assert.ok(!matchesFilter(e("voice", "voice_join", "warn"), mic), "หัวข้อย่อยอื่นไม่ได้ติ๊ก");
+  assert.ok(!matchesFilter(e("voice", "voice_join", "warn"), mic), "กิ่งอื่น");
   assert.ok(!matchesFilter(e("voice", "voice_mute_on", "info"), mic), "ระดับไม่ตรง");
   assert.ok(matchesFilter(e("system", "x", "info"), EMPTY_FILTER));
 });
 
-test("parseFilter: ค่าเสีย/ของเวอร์ชันเก่า/หัวข้อย่อยต่างหมวด ทิ้งไป", () => {
+test("parseFilter: ค่าเสีย/กิ่งต่างหมวด/กิ่งที่ไม่มีแล้ว ทิ้งไป", () => {
   assert.deepEqual(parseFilter(null), EMPTY_FILTER);
-  assert.deepEqual(parseFilter({ categories: ["voice"], leaves: ["mic"] }), EMPTY_FILTER);
   assert.deepEqual(
-    parseFilter({ category: "voice", leaves: ["mic", "warn", "gone"], levels: ["warn", 1], window: "9y" }),
-    { category: "voice", leaves: ["mic"], levels: ["warn"], window: "" },
+    parseFilter({ category: "voice", leaf: "mic", levels: ["warn", 1], window: "9y" }),
+    { category: "voice", leaf: "mic", levels: ["warn"], window: "" },
   );
-  assert.deepEqual(parseFilter({ category: "zzz" }).category, "");
+  assert.equal(parseFilter({ category: "voice", leaf: "warn" }).leaf, "", "warn เป็นกิ่งของหมวดอื่น");
+  assert.equal(parseFilter({ category: "zzz" }).category, "");
 });
 
 test("getLogs: หลายระดับ + (หมวด หรือ event)", async () => {
