@@ -15,17 +15,21 @@ const TABS: { route: Route; label: string; icon: IconName }[] = [
   { route: "/", label: "ภาพรวม", icon: "home" },
   { route: "/logs", label: "Logs", icon: "list" },
   { route: "/members", label: "สมาชิก", icon: "users" },
+  { route: "/assistant", label: "ผู้ช่วย AI", icon: "bot" },
   { route: "/beamng", label: "BeamNG", icon: "car" },
   { route: "/settings", label: "ตั้งค่า", icon: "settings" },
 ];
 
 /** แท็บที่มีให้เฉพาะเจ้าของเครื่อง — คนอื่นไม่เห็นแม้แต่ชื่อ */
 const OWNER_ONLY = new Set<Route>(["/beamng"]);
+/** แท็บเฉพาะ admin (ด่านจริงคือ requireAdmin ฝั่งเซิร์ฟเวอร์) */
+const ADMIN_ONLY = new Set<Route>(["/assistant"]);
 
 const TITLES: Record<Route, string> = {
   "/": "ภาพรวม",
   "/logs": "Logs",
   "/members": "สมาชิก",
+  "/assistant": "ผู้ช่วย AI",
   "/beamng": "เซิร์ฟเวอร์ BeamNG",
   "/settings": "ตั้งค่า",
 };
@@ -121,6 +125,7 @@ export function Shell({
   stream,
   username,
   isOwner,
+  isAdmin,
   logFilter,
   onPickLogFilter,
   children,
@@ -131,6 +136,7 @@ export function Shell({
   username: string;
   /** เจ้าของเครื่องเท่านั้นที่เห็นแท็บบางอัน (ด่านจริงอยู่ฝั่งเซิร์ฟเวอร์) */
   isOwner: boolean;
+  isAdmin: boolean;
   logFilter: LogFilter;
   onPickLogFilter: (f: LogFilter) => void;
   children: ReactNode;
@@ -139,7 +145,9 @@ export function Shell({
    * จำนวนแท็บไม่คงที่อีกต่อไป — เม็ดยาบนแถบล่างจึงต้องคิดจากแท็บ "ที่เห็นจริง"
    * ไม่ใช่จาก ROUTES ทั้งหมด ไม่งั้นตำแหน่งจะเลื่อนผิดไปหนึ่งช่องสำหรับคนที่ไม่ใช่เจ้าของ
    */
-  const tabs = TABS.filter((t) => isOwner || !OWNER_ONLY.has(t.route));
+  const tabs = TABS.filter(
+    (t) => (isOwner || !OWNER_ONLY.has(t.route)) && (isAdmin || !ADMIN_ONLY.has(t.route)),
+  );
   const activeIndex = Math.max(
     0,
     tabs.findIndex((t) => t.route === route),

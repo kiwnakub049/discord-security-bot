@@ -12,6 +12,7 @@ import { Logs } from "./pages/Logs";
 import { Members } from "./pages/Members";
 import { Settings } from "./pages/Settings";
 import { BeamNG } from "./pages/BeamNG";
+import { Assistant } from "./pages/Assistant";
 
 export function App() {
   const [route, go] = useRoute();
@@ -60,6 +61,7 @@ export function App() {
         stream={stream}
         username={username}
         isOwner={isOwner}
+        isAdmin={isAdmin}
         logFilter={logFilter}
         onPickLogFilter={pickLogFilter}
       >
@@ -73,6 +75,7 @@ export function App() {
           />
         )}
         {route === "/members" && <Members />}
+        {route === "/assistant" && isAdmin && <Assistant />}
         {/* กันคนพิมพ์ /beamng เองตอนไม่ใช่เจ้าของ — API ก็ตอบ 404 อยู่แล้วอีกชั้น */}
         {route === "/beamng" && isOwner && <BeamNG />}
         {route === "/settings" && (

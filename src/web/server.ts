@@ -27,6 +27,7 @@ import { actionRoutes } from "./routes/actions.js";
 import { adminRoutes } from "./routes/admin.js";
 import { sessionRoutes } from "./routes/sessions.js";
 import { aiRoutes } from "./routes/ai.js";
+import { chatRoutes } from "./routes/chat.js";
 import { queueRoutes } from "./routes/queue.js";
 import { beammpRoutes } from "./routes/beammp.js";
 
@@ -107,6 +108,7 @@ export function startWebServer(client?: Client): Server | undefined {
   app.use(adminRoutes(client));
   app.use(sessionRoutes(client));
   app.use(aiRoutes());
+  app.use(chatRoutes(client)); // เฉพาะ admin (requireAdmin อยู่ในนั้น)
   app.use(beammpRoutes(client)); // เห็นเฉพาะเจ้าของเครื่อง (requireOwner อยู่ในนั้น)
 
   // API ที่ไม่มีจริง ต้องได้ 404 เป็น JSON — ไม่ใช่ index.html ของหน้าเว็บ

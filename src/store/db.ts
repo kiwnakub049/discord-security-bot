@@ -209,6 +209,38 @@ export function initDb(): void {
       created_at  INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_ticket_msgs ON ticket_messages(queue_id, created_at);
+
+    -- หน้าแชทกับ Claude (เฉพาะ admin) — 1 thread = 1 บทสนทนา ของบัญชี dashboard คนเดียว
+    CREATE TABLE IF NOT EXISTS chat_threads (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner       TEXT NOT NULL,          -- ชื่อบัญชี dashboard
+      title       TEXT NOT NULL,
+      created_at  INTEGER NOT NULL,
+      updated_at  INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_chat_threads_owner ON chat_threads(owner, updated_at);
+
+    -- ข้อความของ thread ตามที่ส่ง/รับจาก API จริง (content = JSON ของ content blocks)
+    -- ต้องเก็บครบทุก block (thinking/tool_use/tool_result) และห้ามแก้ย้อนหลัง
+    -- เพราะทุกตาถัดไปต้องส่งประวัติเดิมกลับไปแบบ append-only
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      thread_id   INTEGER NOT NULL,
+      role        TEXT NOT NULL,          -- 'user' | 'assistant'
+      content     TEXT NOT NULL,
+      created_at  INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_chat_msgs ON chat_messages(thread_id, id);
+
+    -- action ที่ Claude เสนอ (tool propose_action) แล้ว admin กดทำ/ไม่ทำ
+    CREATE TABLE IF NOT EXISTS chat_actions (
+      tool_use_id TEXT PRIMARY KEY,
+      thread_id   INTEGER NOT NULL,
+      status      TEXT NOT NULL,          -- 'done' | 'dismissed'
+      result      TEXT,
+      decided_by  TEXT NOT NULL,
+      decided_at  INTEGER NOT NULL
+    );
   `);
 
   migrateSchema();

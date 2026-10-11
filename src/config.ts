@@ -84,6 +84,16 @@ export const config = {
   },
 
   /**
+   * ผู้ช่วย AI หน้าแชท dashboard (เฉพาะ admin) — ใช้ ANTHROPIC_API_KEY เดียวกับ aiMod
+   * Claude อ่านข้อมูลเซิร์ฟได้ และ "เสนอ" การลงโทษให้ admin กดยืนยัน — ลงมือเองไม่ได้
+   */
+  assistant: {
+    model: "claude-opus-5-5",
+    // งานค้นข้อมูลหลายขั้น + สรุป — medium พอดี ถ้าตอบตื้นไปค่อยขยับเป็น high
+    effort: "medium" as "low" | "medium" | "high",
+  },
+
+  /**
    * Audit logging: บันทึกเหตุการณ์ในเซิร์ฟเวอร์ (ขึ้นทั้งหน้าเว็บ + ห้อง log)
    */
   logging: {

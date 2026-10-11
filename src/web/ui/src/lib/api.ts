@@ -19,9 +19,9 @@ export class ApiError extends Error {
 // เพื่อให้หน้าเว็บโชว์ปุ่มลองใหม่/ข้อความ แทนที่จะหมุน spinner ไปเรื่อย ๆ
 const REQUEST_TIMEOUT_MS = 20_000;
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
   const ctrl = new AbortController();
-  const timer = window.setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+  const timer = window.setTimeout(() => ctrl.abort(), timeoutMs);
   let res: Response;
   try {
     res = await fetch(path, {
@@ -64,11 +64,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   get: <T>(path: string): Promise<T> => request<T>(path),
-  post: <T>(path: string, body?: unknown): Promise<T> =>
-    request<T>(path, {
-      method: "POST",
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    }),
+  /** timeoutMs: งานที่รู้ว่านาน (เช่นแชทกับ Claude ที่วนค้นข้อมูลหลายรอบ) ขยายเวลารอได้ */
+  post: <T>(path: string, body?: unknown, timeoutMs?: number): Promise<T> =>
+    request<T>(
+      path,
+      {
+        method: "POST",
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      },
+      timeoutMs,
+    ),
   put: <T>(path: string, body?: unknown): Promise<T> =>
     request<T>(path, {
       method: "PUT",

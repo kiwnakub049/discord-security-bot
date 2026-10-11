@@ -50,6 +50,12 @@ other than improving detection accuracy for this community.
   about the member (no user ID, username, or history) is sent with it. Anthropic
   processes it under its commercial API terms. There is no analytics provider and
   no advertising.
+- When a server **admin** uses the dashboard's AI assistant chat, the records the
+  assistant looks up to answer (event logs, member names and IDs, warning
+  history, activity counters) are also sent to the Anthropic API. The assistant
+  cannot take moderation actions itself; it can only suggest them for an admin
+  to confirm. Chat history is stored on the bot's machine until the admin
+  deletes it.
 - Data is **never sold, shared, or published.**
 - Direct messages are not read or stored.
 
