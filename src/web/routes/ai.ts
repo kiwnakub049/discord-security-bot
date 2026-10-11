@@ -5,7 +5,6 @@
 import { Router, type Request, type Response } from "express";
 import { getLogById, type LogEntry } from "../../store/logStore.js";
 import { testClassify } from "../../modules/aiMod.js";
-import { requireAdmin } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rateLimit.js";
 import {
   clearVerdict,
@@ -33,12 +32,11 @@ export function aiRoutes(): Router {
   const r = Router();
 
   /**
-   * ทดสอบ Claude — admin เท่านั้น เพราะทุกครั้งเสียค่า API จริง
-   * จำกัด 20 ครั้ง / 10 นาที กันกดรัวจนบิลบวม
+   * ทดสอบ Claude — mod ขึ้นไปใช้ได้ (ทุกคนที่เข้า dashboard ได้)
+   * ทุกครั้งเสียค่า API จริง เลยจำกัด 20 ครั้ง / 10 นาที กันกดรัวจนบิลบวม
    */
   r.post(
     "/api/ai/test",
-    requireAdmin,
     rateLimit("ai-test", 20, 10 * 60_000),
     async (req: Request, res: Response) => {
       const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";

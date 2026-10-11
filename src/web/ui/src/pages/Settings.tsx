@@ -29,7 +29,7 @@ export function Settings({
     <div className="space-y-6">
       {/* ตั้งค่าบอท + รายชื่อคนที่เข้าได้ = admin เท่านั้น (backend ก็บังคับซ้ำอีกชั้น) */}
       {isAdmin && <BotSettings />}
-      {isAdmin && <ClaudeTest />}
+      <ClaudeTest />
       <SkinPicker />
       <LinkTargetPicker />
       <OledPicker />
@@ -515,7 +515,7 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
 
 /**
  * พิมพ์ข้อความแล้วให้ Claude ตัดสินจริง — ดูว่าบอทจะทำอะไรถ้ามีคนพิมพ์แบบนี้ในเซิร์ฟ
- * ไม่ลบ/ไม่เตือน/ไม่บันทึกอะไร · admin เท่านั้น เพราะเสียค่า API ทุกครั้ง
+ * ไม่ลบ/ไม่เตือน/ไม่บันทึกอะไร · mod ใช้ได้ด้วย (จำกัดจำนวนครั้งฝั่ง server เพราะเสียค่า API)
  */
 function ClaudeTest() {
   const [text, setText] = useState("");
