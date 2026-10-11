@@ -29,6 +29,7 @@ export function Settings({
     <div className="space-y-6">
       {/* ตั้งค่าบอท + รายชื่อคนที่เข้าได้ = admin เท่านั้น (backend ก็บังคับซ้ำอีกชั้น) */}
       {isAdmin && <BotSettings />}
+      {isAdmin && <ClaudeTest />}
       <SkinPicker />
       <LinkTargetPicker />
       <OledPicker />
@@ -464,6 +465,139 @@ function ServerLock() {
             ปลดล็อก
           </Button>
         </div>
+      </Card>
+    </section>
+  );
+}
+
+/* ---------------- ทดสอบ Claude ---------------- */
+
+interface ClaudeTestResult {
+  ok: boolean;
+  model: string;
+  ms?: number;
+  enabled?: boolean;
+  error?: string;
+  result?: {
+    score: number;
+    zone: string;
+    reason?: string;
+    spamScore?: number;
+    spamType?: "scam" | "advert" | "evasion" | "none";
+  } | null;
+  action?: "ignore" | "review" | "review-delete" | "auto";
+  spamCard?: boolean;
+}
+
+const ACTION_TEXT: Record<NonNullable<ClaudeTestResult["action"]>, { text: string; tone: string }> = {
+  ignore: { text: "ปล่อยผ่าน ไม่ทำอะไร", tone: "text-ok" },
+  review: { text: "ขึ้น Logs ให้ mod ตรวจ (ข้อความยังอยู่)", tone: "text-warn" },
+  "review-delete": { text: "ลบข้อความ แต่ไม่เตือน", tone: "text-warn" },
+  auto: { text: "ลบข้อความ + เตือนสมาชิกอัตโนมัติ", tone: "text-alert" },
+};
+
+const SPAM_TEXT = { scam: "หลอกลวง/scam", advert: "โฆษณา/ขายของ", evasion: "เลี่ยงฟิลเตอร์", none: "ไม่ใช่ spam" };
+
+function ScoreBar({ label, value }: { label: string; value: number }) {
+  const tone = value >= 0.9 ? "bg-alert" : value >= 0.5 ? "bg-warn" : "bg-ok";
+  return (
+    <div className="space-y-1">
+      <div className="flex justify-between text-xs">
+        <span className="text-muted">{label}</span>
+        <span className="tnum font-semibold">{value.toFixed(2)}</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-raised">
+        <div className={`h-full rounded-full ${tone}`} style={{ width: `${Math.round(value * 100)}%` }} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * พิมพ์ข้อความแล้วให้ Claude ตัดสินจริง — ดูว่าบอทจะทำอะไรถ้ามีคนพิมพ์แบบนี้ในเซิร์ฟ
+ * ไม่ลบ/ไม่เตือน/ไม่บันทึกอะไร · admin เท่านั้น เพราะเสียค่า API ทุกครั้ง
+ */
+function ClaudeTest() {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [out, setOut] = useState<ClaudeTestResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run() {
+    if (!text.trim() || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setOut(await api.post<ClaudeTestResult>("/api/ai/test", { text }));
+    } catch (err) {
+      setOut(null);
+      setError(err instanceof Error ? err.message : "ทดสอบไม่สำเร็จ");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const r = out?.ok ? out.result : null;
+  return (
+    <section>
+      <SectionTitle>ทดสอบ Claude</SectionTitle>
+      <Card className="space-y-3 p-4">
+        <p className="text-xs text-muted">
+          ลองพิมพ์ข้อความ แล้วดูว่า Claude ให้คะแนนเท่าไร และบอทจะทำอะไรถ้ามีคนพิมพ์แบบนี้ในเซิร์ฟ
+          — แค่ทดสอบ ไม่ลบ ไม่เตือน ไม่ขึ้น log
+        </p>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) void run();
+          }}
+          maxLength={1000}
+          rows={3}
+          placeholder="เช่น แจก Nitro ฟรี ทักแชทมารับ"
+          className="w-full resize-y rounded-md border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
+        />
+        <Button variant="accent" full disabled={busy || !text.trim()} onClick={() => void run()}>
+          {busy ? <Spinner className="size-4" /> : <Icon name="bot" className="size-4" />}
+          {busy ? "Claude กำลังตัดสิน…" : "ส่งให้ Claude ตัดสิน"}
+        </Button>
+
+        {error && <p className="text-sm text-alert">{error}</p>}
+
+        {out && !out.ok && (
+          <p className="text-sm text-alert">
+            เรียก Claude ไม่ได้: {out.error} — ตอนนี้ข้อความจริงในเซิร์ฟจะถูกปล่อยผ่านหมด
+          </p>
+        )}
+
+        {out?.ok && (
+          <div className="fade-in space-y-3 rounded-md border border-line bg-raised/40 p-3">
+            {r ? (
+              <>
+                <ScoreBar label="toxic" value={r.score} />
+                <ScoreBar label={`spam · ${SPAM_TEXT[r.spamType ?? "none"]}`} value={r.spamScore ?? 0} />
+                {r.reason && <p className="text-sm">“{r.reason}”</p>}
+              </>
+            ) : (
+              <p className="text-sm text-muted">Claude ไม่ยอมตัดสินข้อความนี้ — ของจริงจะปล่อยผ่าน</p>
+            )}
+            <div className="space-y-0.5 border-t border-line pt-2 text-sm">
+              <div>
+                บอทจะ:{" "}
+                <b className={ACTION_TEXT[out.action ?? "ignore"].tone}>
+                  {ACTION_TEXT[out.action ?? "ignore"].text}
+                </b>
+              </div>
+              {out.spamCard && <div className="text-warn">+ ส่งการ์ด spam เข้าคิวให้ mod</div>}
+              {out.enabled === false && (
+                <div className="text-alert">แต่ตอนนี้ปิด AI mod อยู่ ของจริงจะไม่ทำอะไร</div>
+              )}
+              <div className="tnum text-xs text-faint">
+                {out.model} · {((out.ms ?? 0) / 1000).toFixed(1)} วิ
+              </div>
+            </div>
+          </div>
+        )}
       </Card>
     </section>
   );

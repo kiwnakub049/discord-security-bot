@@ -4,6 +4,9 @@
  */
 import { Router, type Request, type Response } from "express";
 import { getLogById, type LogEntry } from "../../store/logStore.js";
+import { testClassify } from "../../modules/aiMod.js";
+import { requireAdmin } from "../middleware/auth.js";
+import { rateLimit } from "../middleware/rateLimit.js";
 import {
   clearVerdict,
   getAllVerdicts,
@@ -23,8 +26,29 @@ function userIdFrom(value: string): string {
   return /\((\d+)\)\s*$/.exec(value)?.[1] ?? "";
 }
 
+/** ข้อความทดสอบยาวสุด — ข้อความจริงใน Discord ยาวได้ 2000 แต่แค่ทดสอบไม่ต้องยาวขนาดนั้น */
+const TEST_MAX = 1000;
+
 export function aiRoutes(): Router {
   const r = Router();
+
+  /**
+   * ทดสอบ Claude — admin เท่านั้น เพราะทุกครั้งเสียค่า API จริง
+   * จำกัด 20 ครั้ง / 10 นาที กันกดรัวจนบิลบวม
+   */
+  r.post(
+    "/api/ai/test",
+    requireAdmin,
+    rateLimit("ai-test", 20, 10 * 60_000),
+    async (req: Request, res: Response) => {
+      const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+      if (!text || text.length > TEST_MAX) {
+        res.status(400).json({ ok: false, error: `ใส่ข้อความ 1–${TEST_MAX} ตัวอักษร` });
+        return;
+      }
+      res.json(await testClassify(text));
+    },
+  );
 
   r.get("/api/ai/verdicts", (_req: Request, res: Response) => {
     res.json({ map: getVerdictMap(), stats: verdictStats() });

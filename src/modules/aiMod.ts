@@ -161,6 +161,54 @@ function errorName(err: unknown): string {
   return "error";
 }
 
+/**
+ * ทดสอบ Claude จากหน้า dashboard — ส่งข้อความตัวอย่างไปตัดสินจริง แล้วบอกว่า "ถ้าเป็นข้อความจริง
+ * บอทจะทำอะไร" โดยไม่ลบ ไม่เตือน ไม่บันทึก log ไม่เข้าคิว (ไม่มีข้อความ Discord จริงให้แตะอยู่แล้ว)
+ * ใช้ classifier ตัวเดียวกับของจริง เทสจึงใส่ของปลอมแทนได้
+ */
+export type ClaudeTestAction = "ignore" | "review" | "review-delete" | "auto";
+export type ClaudeTest =
+  | {
+      ok: true;
+      model: string;
+      ms: number;
+      enabled: boolean;
+      /** null = Claude ปฏิเสธตัดสิน → ของจริงปล่อยข้อความผ่าน */
+      result: ClassifyResult | null;
+      action: ClaudeTestAction;
+      spamCard: boolean;
+    }
+  | { ok: false; model: string; error: string };
+
+export async function testClassify(text: string): Promise<ClaudeTest> {
+  const model = config.aiMod.model;
+  const started = Date.now();
+  let result: ClassifyResult | null;
+  try {
+    result = await classify(text);
+  } catch (err) {
+    // error ที่ไม่ใช่ของ API (เช่น ยังไม่ตั้ง key) — ข้อความของมันบอกสาเหตุตรงกว่าคำว่า "error"
+    const name = errorName(err);
+    return { ok: false, model, error: name === "error" && err instanceof Error ? err.message : name };
+  }
+  const ms = Date.now() - started;
+  const del = config.aiMod.reviewDeleteScore;
+  const action: ClaudeTestAction = !result
+    ? "ignore"
+    : result.zone === "review" && del > 0 && result.score >= del
+      ? "review-delete"
+      : result.zone;
+  const spamCard =
+    !!result &&
+    action !== "auto" &&
+    action !== "review-delete" &&
+    config.aiMod.spamEnabled &&
+    !!result.spamType &&
+    result.spamType !== "none" &&
+    (result.spamScore ?? 0) >= config.aiMod.spamReviewScore;
+  return { ok: true, model, ms, enabled: config.aiMod.enabled, result, action, spamCard };
+}
+
 function excerpt(text: string, max = 1000): string {
   return text.length <= max ? text : text.slice(0, max) + "…";
 }
