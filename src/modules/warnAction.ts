@@ -21,7 +21,14 @@ export async function warnMember(
 }> {
   const { count } = addWarning(member.id, moderatorId, moderatorTag, reason);
 
-  const esc = config.warnings.escalation.find((e) => e.count === count);
+  // ขั้นสูงสุดที่ถึงแล้ว (ไม่ใช่แค่ตรงเลขพอดี) — ไม่งั้นเตือนครั้งที่ 4, 6, 8+ จะไม่มีโทษเลย
+  // ทั้งที่คนนั้นเคยโดนขั้นก่อนหน้าไปแล้ว: ครั้งที่ 4 = ไมค์แดงซ้ำ, 6 = timeout ซ้ำ, 8+ = แบน
+  const esc = config.warnings.escalation
+    .filter((e) => e.count <= count)
+    .reduce<(typeof config.warnings.escalation)[number] | undefined>(
+      (best, e) => (!best || e.count > best.count ? e : best),
+      undefined,
+    );
   const hrs = esc?.ms ? Math.round(esc.ms / 3_600_000) : 0;
 
   // เวลาสิ้นสุดโทษ (mute/timeout) — ใช้ทั้งใน DM, การบันทึกโทษ และ log ให้ตรงกันเป๊ะ
