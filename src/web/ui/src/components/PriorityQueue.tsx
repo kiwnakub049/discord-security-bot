@@ -5,6 +5,7 @@ import { fmtDuration, fmtNum } from "../lib/format";
 import type { QueueCategoryMeta, QueueItem, QueueStack, QueueSummary } from "../lib/types";
 import { Icon } from "./Icon";
 import { Sheet } from "./Sheet";
+import { TicketThread } from "./TicketThread";
 import { Spinner } from "./ui";
 import { useToast } from "./Toast";
 
@@ -204,6 +205,8 @@ function QueueSheet({
   const [leaving, setLeaving] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState<number | null>(null);
   const [armed, setArmed] = useState<string | null>(null);
+  // ticket ที่เปิดบทสนทนาอยู่ (ทีละเรื่อง — แผ่นยาวเกินไปถ้าเปิดพร้อมกันหลายเรื่อง)
+  const [chatOpen, setChatOpen] = useState<number | null>(null);
   const armTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
@@ -212,6 +215,7 @@ function QueueSheet({
     setItems(null);
     setError(null);
     setLeaving(new Set());
+    setChatOpen(null);
     api
       .get<{ items: QueueItem[] }>(`/api/queue/${category.key}`)
       .then((r) => alive && setItems(r.items))
@@ -309,9 +313,41 @@ function QueueSheet({
                 {item.subjectName && item.subjectName !== item.title && (
                   <p className="text-sm">{item.title}</p>
                 )}
-                {item.detail && <p className="text-sm text-muted">{item.detail}</p>}
+                {/* ticket: รายละเอียด = ข้อความแรกของบทสนทนา เปิดแชทอยู่ก็ไม่ต้องโชว์ซ้ำ */}
+                {item.detail && chatOpen !== item.id && (
+                  <p className="text-sm text-muted">{item.detail}</p>
+                )}
                 {item.subjectId && (
                   <p className="font-mono text-xs text-faint">{item.subjectId}</p>
+                )}
+
+                {category.key === "admin-ticket" && (
+                  <>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        aria-expanded={chatOpen === item.id}
+                        onClick={() => setChatOpen((c) => (c === item.id ? null : item.id))}
+                        className="press inline-flex min-h-9 items-center gap-1.5 rounded-md border border-line px-3 text-sm font-medium"
+                      >
+                        <Icon name="message" className="size-4" />
+                        {chatOpen === item.id ? "ซ่อนบทสนทนา" : "เปิดบทสนทนา"}
+                        {item.thread && (
+                          <span className="text-muted">({fmtNum(item.thread.count)})</span>
+                        )}
+                      </button>
+                      {/* ตำรวจพูดล่าสุด = รอแอดมินตอบ — เด่นกว่าเรื่องที่แอดมินตอบไปแล้ว */}
+                      {item.thread?.lastFrom === "police" && item.thread.count > 1 && (
+                        <span className="rounded-md bg-info-soft px-2 py-0.5 text-xs font-medium text-info">
+                          ตำรวจตอบมา {waitText(item.thread.lastAt, now)}ที่แล้ว
+                        </span>
+                      )}
+                      {item.thread?.lastFrom === "admin" && (
+                        <span className="text-xs text-faint">รอตำรวจตอบ</span>
+                      )}
+                    </div>
+                    {chatOpen === item.id && <TicketThread id={item.id} onSent={onChanged} />}
+                  </>
                 )}
 
                 <div className="mt-3 flex flex-wrap gap-2">

@@ -209,6 +209,25 @@ export interface QueueItem {
   subjectId: string | null;
   subjectName: string | null;
   createdAt: number;
+  /** เฉพาะหมวด ticket: สรุปบทสนทนา (null = ยังไม่มีข้อความ / ไม่ใช่ ticket) */
+  thread: { count: number; lastFrom: "police" | "admin"; lastAt: number } | null;
+}
+
+/** ข้อความในบทสนทนาของ ticket (ต้องตรงกับ /api/tickets/:id/messages) */
+export interface TicketMessage {
+  id: number;
+  from: "police" | "admin";
+  name: string;
+  body: string;
+  attachments: string[];
+  /** ฝั่งแอดมิน: DM ถึงตำรวจไหม · ฝั่งตำรวจ = null */
+  delivered: boolean | null;
+  at: number;
+}
+
+export interface TicketThreadData {
+  open: boolean;
+  messages: TicketMessage[];
 }
 
 export interface QueueCategoryMeta {
