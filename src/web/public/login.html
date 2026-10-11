@@ -3,10 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" href="/server-icon" />
+    <link rel="apple-touch-icon" href="/server-icon" />
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#eef1f4" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0f1726" />
-    <title>เข้าสู่ระบบ — Security Bot</title>
+    <title>เข้าสู่ระบบ — Undawn Dashboard</title>
     <!--
       หน้านี้จงใจไม่ใช้ React/Vite เหมือนหน้าอื่น
       เพราะต้องเข้าถึงได้ "ก่อน" login — มีแค่ปุ่มเดียวที่เป็นลิงก์ธรรมดาไป /auth/discord
@@ -121,8 +122,10 @@
       }
 
       .logo {
-        width: 48px;
-        height: 48px;
+        width: 56px;
+        height: 56px;
+        border-radius: 14px; /* รูปเซิร์ฟเป็นสี่เหลี่ยมเต็ม — มนมุมให้เข้ากับการ์ด */
+        object-fit: cover;
         margin-bottom: 16px;
       }
 
@@ -228,8 +231,8 @@
     <div class="aurora" aria-hidden="true"></div>
 
     <main class="card">
-      <img class="logo" src="/icon.svg" alt="" />
-      <h1>Security Bot</h1>
+      <img class="logo" src="/server-icon" alt="" />
+      <h1>Undawn Dashboard</h1>
       <p class="sub">เข้าสู่ระบบเพื่อดูแลเซิร์ฟเวอร์</p>
 
       <!--ERROR-->

@@ -116,6 +116,12 @@ async function login(code: string, opts: { badState?: boolean } = {}) {
 
 let cookie = "";
 
+test("/server-icon เปิดได้ก่อน login · ไม่มีบอท → ใช้ icon.svg เดิม", async () => {
+  const r = await fetch(`${BASE}/server-icon`, { redirect: "manual" });
+  assert.equal(r.status, 302);
+  assert.equal(r.headers.get("location"), "/icon.svg");
+});
+
 test("GET /api/logs โดยไม่ login → 401", async () => {
   const r = await fetch(`${BASE}/api/logs`, { redirect: "manual" });
   assert.equal(r.status, 401);

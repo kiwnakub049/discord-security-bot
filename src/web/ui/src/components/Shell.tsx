@@ -164,13 +164,10 @@ export function Shell({
       {/* ---- เมนูซ้าย (เฉพาะจอใหญ่) — กระดาษแผ่นล่าง ---- */}
       <aside className="side sticky top-0 hidden h-dvh w-60 shrink-0 flex-col px-3 py-4 md:flex">
         <div className="mb-4 flex items-center gap-2.5 px-1.5">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-accent text-surface">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
-              <path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6l7-3z" />
-            </svg>
-          </div>
+          {/* รูปเซิร์ฟ Discord — ไม่มีรูปเซิร์ฟ server ส่ง icon.svg มาแทน */}
+          <img src="/server-icon" alt="" className="size-8 shrink-0 rounded-md object-cover" />
           <div className="min-w-0">
-            <div className="truncate text-[15px] font-bold text-text leading-tight">Security Bot</div>
+            <div className="truncate text-[15px] font-bold text-text leading-tight">Undawn Dashboard</div>
             <div className="flex items-center gap-1.5 text-xs text-muted">
               <span className="size-2 rounded-full bg-ok" />
               บอทออนไลน์
@@ -231,7 +228,7 @@ export function Shell({
         {/* ---- หัวเว็บ ---- */}
         <header className="sticky top-0 z-30 border-b border-line bg-bg/90 pt-safe backdrop-blur-sm">
           <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-3 px-4 md:px-8">
-            <img src="/icon.svg" alt="" className="size-6 md:hidden" />
+            <img src="/server-icon" alt="" className="size-6 rounded-md object-cover md:hidden" />
             <h1 className="min-w-0 flex-1 truncate text-lg font-semibold">
               {TITLES[route]}
             </h1>

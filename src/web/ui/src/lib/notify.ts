@@ -50,7 +50,7 @@ export function notifyDesktop(title: string, body: string): void {
   try {
     if (typeof Notification !== "undefined" && Notification.permission === "granted") {
       // tag เดียวกัน = การแจ้งเตือนใหม่ทับอันเก่า ไม่ถล่มหน้าจอ
-      new Notification(title, { body, tag: "sec-bot", icon: "/icon.svg" });
+      new Notification(title, { body, tag: "sec-bot", icon: "/server-icon" });
     }
   } catch {
     /* ข้าม */

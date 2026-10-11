@@ -17,7 +17,7 @@ import { config } from "../config.js";
 import { csrfGuard, securityHeaders } from "./middleware/security.js";
 import { rateLimit } from "./middleware/rateLimit.js";
 import { requireAuth } from "./middleware/auth.js";
-import { discordAccess, noAccess, type AccessResolver } from "../auth/access.js";
+import { discordAccess, guildOf, noAccess, type AccessResolver } from "../auth/access.js";
 import { notifySecurity } from "../modules/securityAlerts.js";
 import { meRoutes, publicAuthRoutes } from "./routes/auth.js";
 import { overviewRoutes } from "./routes/overview.js";
@@ -102,6 +102,16 @@ export function startWebServer(
   // ---------- ก่อน login ----------
   app.get("/icon.svg", (_req: Request, res: Response) => {
     res.sendFile(join(publicDir, "icon.svg"));
+  });
+  /**
+   * ไอคอนเว็บ = รูปของเซิร์ฟ Discord (ก่อน login ด้วย เพราะหน้า login/favicon ใช้)
+   * เซิร์ฟไม่มีรูป / บอทยังไม่ต่อ Discord → ใช้ icon.svg เดิม
+   * รูปเซิร์ฟเป็นของสาธารณะอยู่แล้ว เปิดให้ดูก่อน login ไม่ได้รั่วอะไร
+   */
+  app.get("/server-icon", (_req: Request, res: Response) => {
+    const url = client ? guildOf(client)?.iconURL({ extension: "png", size: 256 }) : null;
+    res.set("Cache-Control", "public, max-age=3600");
+    res.redirect(302, url ?? "/icon.svg");
   });
   app.use(publicAuthRoutes(client, access, opts.fetchImpl));
 
