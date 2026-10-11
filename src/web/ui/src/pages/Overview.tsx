@@ -4,6 +4,7 @@ import type { History, Stats, SystemInfo } from "../lib/types";
 import { fmtAgo, fmtClock, fmtDay, fmtNum } from "../lib/format";
 import { Card, Chip, Empty, SectionTitle, Spinner, StatStrip } from "../components/ui";
 import { PriorityQueue } from "../components/PriorityQueue";
+import { MuteList } from "../components/MuteList";
 import { Icon } from "../components/Icon";
 import { HistoryChart } from "../components/HistoryChart";
 import { SystemCard } from "../components/SystemCard";
@@ -50,6 +51,9 @@ export function Overview({ go }: { go: (r: Route) => void }) {
 
       {/* ---- งานที่รอคนตัดสิน — สิ่งแรกที่ต้องเห็น ---- */}
       <PriorityQueue />
+
+      {/* ---- ไมค์แดงจากระบบเตือน — ใต้คิวเลย เพราะปุ่มปลดมักต้องกดด่วน (โชว์เฉพาะตอนมีคนโดนอยู่) ---- */}
+      <MuteList />
 
       {/* ---- ตัวเลขประกอบของวันนี้ ---- */}
       {s && (

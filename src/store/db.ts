@@ -107,6 +107,16 @@ export function initDb(): void {
     );
     CREATE INDEX IF NOT EXISTS idx_mute_until ON mute_punishments(until);
 
+    -- ไมค์แดงที่ "ควรปลดแล้วแต่ยังปลดไม่ได้" เพราะตอนนั้นคนนั้นไม่อยู่ในห้องเสียง
+    -- (Discord ปลด server mute ได้เฉพาะคนที่อยู่ในห้อง แต่ mute ติดตัวไปห้องถัดไป)
+    -- บอทปลดให้ทันทีที่เขากลับเข้าห้อง แล้วลบแถวทิ้ง
+    CREATE TABLE IF NOT EXISTS mute_release_pending (
+      user_id    TEXT PRIMARY KEY,
+      guild_id   TEXT NOT NULL,
+      reason     TEXT NOT NULL DEFAULT '',
+      created_at INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS voice_locks (
       channel_id TEXT PRIMARY KEY,
       locked_by  TEXT NOT NULL,

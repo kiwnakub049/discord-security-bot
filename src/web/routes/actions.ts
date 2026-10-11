@@ -5,6 +5,9 @@ import { clearWarnings } from "../../modules/warningStore.js";
 import { setGuildLock } from "../../modules/lockdown.js";
 import { warnMember } from "../../modules/warnAction.js";
 import { dmAction } from "../../modules/dmNotice.js";
+import { releaseMuteNow, type ReleaseResult } from "../../modules/muteEnforce.js";
+import { listActiveMutes, listReleasePending } from "../../modules/mutePunishmentStore.js";
+import { resolveNames } from "../userNames.js";
 import type { LogCategory, LogLevel } from "../../store/logStore.js";
 import { logEvent } from "../../utils/logger.js";
 
@@ -117,6 +120,65 @@ export function actionRoutes(client?: Client): Router {
         { name: "เป้าหมาย", value: userId },
         { name: "โดย (dashboard)", value: actor },
         { name: "ลบ", value: `${n} ครั้ง` },
+      ]);
+    }
+  });
+
+  /* ─── ไมค์แดงจากระบบเตือน: รายชื่อที่โดนอยู่ + ปุ่มปลดทันที ─── */
+
+  r.get("/api/mutes", async (_req: Request, res: Response) => {
+    const guild = getGuild();
+    const active = listActiveMutes();
+    // ค้างปลด = ครบเวลาแล้วแต่ยังแดงติดตัว (อยู่นอกห้อง) — โชว์ด้วย mod จะได้รู้ว่ายังไม่ได้ปลดจริง
+    const pending = listReleasePending().filter((p) => !active.some((a) => a.userId === p.userId));
+    const ids = [...active.map((a) => a.userId), ...pending.map((p) => p.userId)];
+    const names = await resolveNames(client, ids);
+    const inVoice = (id: string) => Boolean(guild?.voiceStates.cache.get(id)?.channelId);
+    res.json({
+      mutes: [
+        ...active.map((a) => ({
+          userId: a.userId,
+          name: names[a.userId] ?? a.userId,
+          until: a.until,
+          reason: a.reason,
+          inVoice: inVoice(a.userId),
+          pending: false,
+        })),
+        ...pending.map((p) => ({
+          userId: p.userId,
+          name: names[p.userId] ?? p.userId,
+          until: null,
+          reason: p.reason,
+          inVoice: inVoice(p.userId),
+          pending: true,
+        })),
+      ],
+    });
+  });
+
+  const RELEASE_TEXT: Record<ReleaseResult, { ok: boolean; message: string }> = {
+    unmuted: { ok: true, message: "ปลดไมค์แดงแล้ว" },
+    pending: { ok: true, message: "ยกเลิกโทษแล้ว — ตอนนี้อยู่นอกห้องเสียง บอทจะปลดไมค์ให้ทันทีที่เข้าห้อง" },
+    "not-muted": { ok: true, message: "ไม่ได้โดนไมค์แดงอยู่" },
+    "not-found": { ok: false, message: "ไม่พบสมาชิกในเซิร์ฟเวอร์" },
+    failed: { ok: false, message: "ปลดไม่สำเร็จ (เช็คสิทธิ์ Mute Members ของบอท)" },
+  };
+
+  r.post("/api/action/unmute", async (req: Request, res: Response) => {
+    const guild = getGuild();
+    const userId = String(req.body?.userId ?? "");
+    const actor = String(res.locals.username);
+    if (!guild || !/^\d+$/.test(userId)) {
+      res.status(400).json({ ok: false, message: "ข้อมูลไม่ครบ" });
+      return;
+    }
+    const result = await releaseMuteNow(guild, userId);
+    res.json(RELEASE_TEXT[result]);
+    if (client && (result === "unmuted" || result === "pending")) {
+      await logEvent(client, "info", "security", "security_mute_end", "ปลดไมค์แดงก่อนเวลา (จาก dashboard)", [
+        { name: "เป้าหมาย", value: userId },
+        { name: "โดย (dashboard)", value: actor },
+        { name: "ผล", value: RELEASE_TEXT[result].message },
       ]);
     }
   });

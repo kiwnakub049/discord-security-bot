@@ -213,6 +213,17 @@ export interface QueueItem {
   thread: { count: number; lastFrom: "police" | "admin"; lastAt: number } | null;
 }
 
+/** คนที่โดนไมค์แดงจากระบบเตือน (ต้องตรงกับ /api/mutes) */
+export interface MuteEntry {
+  userId: string;
+  name: string;
+  /** ปลดเองเมื่อไร · null = ครบเวลาแล้วแต่ยังค้างปลด (อยู่นอกห้อง) */
+  until: number | null;
+  reason: string;
+  inVoice: boolean;
+  pending: boolean;
+}
+
 /** ข้อความในบทสนทนาของ ticket (ต้องตรงกับ /api/tickets/:id/messages) */
 export interface TicketMessage {
   id: number;
