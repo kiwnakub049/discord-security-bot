@@ -9,12 +9,15 @@ import {
 } from "../../modules/queueCategories.js";
 import { getItem, listOpen, openSummary, resolve, type QueueRow } from "../../store/queueStore.js";
 import { dmAction } from "../../modules/dmNotice.js";
-import { notifyTicketClosed, TICKET_CATEGORY } from "../../modules/ticket.js";
+import { notifyTicketClosed, replyToTicket, TICKET_CATEGORY } from "../../modules/ticket.js";
+import { listMessages, threadSummary } from "../../store/ticketStore.js";
 import { logEvent } from "../../utils/logger.js";
 import { resolveNames } from "../userNames.js";
 
 /** รายการบนสุดของกองที่ส่งไปพร้อมสรุป — พอให้เห็นหน้าการ์ดใบบนกับขอบใบถัดไป */
 const PREVIEW = 3;
+/** ข้อความแอดมินยาวสุด — DM ของ Discord รับได้ 2000 ตัว เผื่อหัวข้อความที่บอทเติมให้ */
+const REPLY_MAX = 1500;
 
 export function queueRoutes(client?: Client): Router {
   const r = Router();
@@ -28,6 +31,8 @@ export function queueRoutes(client?: Client): Router {
   async function present(rows: QueueRow[]) {
     const ids = [...new Set(rows.map((x) => x.subject_id).filter((x): x is string => !!x))];
     const names = await resolveNames(client, ids);
+    // เฉพาะ ticket: สรุปบทสนทนา ให้การ์ดบอกได้ว่าตำรวจตอบมาแล้วรอแอดมินอยู่
+    const threads = threadSummary(rows.filter((x) => x.category === TICKET_CATEGORY).map((x) => x.id));
     return rows.map((x) => ({
       id: x.id,
       title: x.title,
@@ -35,6 +40,7 @@ export function queueRoutes(client?: Client): Router {
       subjectId: x.subject_id,
       subjectName: x.subject_id ? (names[x.subject_id] ?? null) : null,
       createdAt: x.created_at,
+      thread: threads.get(x.id) ?? null,
     }));
   }
 
@@ -77,6 +83,61 @@ export function queueRoutes(client?: Client): Router {
       return;
     }
     res.json({ category: meta(def), items: await present(listOpen(def.key)) });
+  });
+
+  /** เรื่อง ticket จาก id ใน URL — ไม่ใช่ ticket หรือไม่มีจริง = undefined */
+  const ticketOf = (raw: unknown) => {
+    const id = Number(raw);
+    const item = Number.isInteger(id) ? getItem(id) : undefined;
+    return item?.category === TICKET_CATEGORY ? item : undefined;
+  };
+
+  r.get("/api/tickets/:id/messages", (req: Request, res: Response) => {
+    const item = ticketOf(req.params.id);
+    if (!item) {
+      res.status(404).json({ ok: false, message: "ไม่พบ ticket นี้" });
+      return;
+    }
+    res.json({
+      open: item.resolved_at == null,
+      messages: listMessages(item.id).map((m) => ({
+        id: m.id,
+        from: m.author_kind,
+        name: m.author_name,
+        body: m.body,
+        attachments: m.attachments ? m.attachments.split("\n") : [],
+        delivered: m.delivered == null ? null : m.delivered === 1,
+        at: m.created_at,
+      })),
+    });
+  });
+
+  r.post("/api/tickets/:id/reply", async (req: Request, res: Response) => {
+    const item = ticketOf(req.params.id);
+    const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
+    if (!item) {
+      res.status(404).json({ ok: false, message: "ไม่พบ ticket นี้" });
+      return;
+    }
+    // ปิดแล้วห้ามตอบ — DM ของตำรวจหลังปิดจะไม่ถูกเก็บเข้าเรื่องนี้แล้ว คุยต่อไปก็ไม่เห็นคำตอบ
+    if (item.resolved_at) {
+      res.status(409).json({ ok: false, message: "ticket นี้ถูกปิดไปแล้ว" });
+      return;
+    }
+    if (!body || body.length > REPLY_MAX) {
+      res.status(400).json({ ok: false, message: `ข้อความต้องยาว 1–${REPLY_MAX} ตัวอักษร` });
+      return;
+    }
+    if (!client) {
+      res.status(503).json({ ok: false, message: "บอทไม่ได้ต่อ Discord อยู่ ส่ง DM ไม่ได้" });
+      return;
+    }
+    const { delivered } = await replyToTicket(client, item, String(res.locals.username), body);
+    res.json({
+      ok: true,
+      delivered,
+      message: delivered ? "ส่งถึงตำรวจทาง DM แล้ว" : "บันทึกแล้ว แต่ DM ไม่ถึง (ตำรวจอาจปิด DM)",
+    });
   });
 
   r.post("/api/queue/:id/resolve", async (req: Request, res: Response) => {

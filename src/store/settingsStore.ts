@@ -79,6 +79,10 @@ export const SECTIONS: { section: string; items: Item[] }[] = [
     ],
   },
   {
+    section: "Ticket",
+    items: [{ key: "ticket.policeRoleId", label: "ยศตำรวจที่เปิด ticket ได้ (role ID)", type: "id" }],
+  },
+  {
     section: "Warnings",
     items: [
       { key: "warnings.enabled", label: "เปิดระบบเตือน", type: "bool" },

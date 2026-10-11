@@ -183,6 +183,21 @@ export function initDb(): void {
       outcome     TEXT                    -- key ของปุ่มที่ mod กด เช่น 'approve' / 'dismiss'
     );
     CREATE INDEX IF NOT EXISTS idx_queue_open ON queue_items(resolved_at, category, created_at);
+
+    -- บทสนทนาของ ticket (ตำรวจคุยกับแอดมิน) — หนึ่งแถว = หนึ่งข้อความ ผูกกับเรื่องใน queue_items
+    -- ฝั่งตำรวจมาจาก DM ที่ตอบบอท ฝั่งแอดมินพิมพ์จาก dashboard แล้วบอท DM ต่อให้
+    CREATE TABLE IF NOT EXISTS ticket_messages (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      queue_id    INTEGER NOT NULL,       -- queue_items.id
+      author_kind TEXT NOT NULL,          -- 'police' | 'admin'
+      author_id   TEXT,                   -- Discord user ID (ฝั่งตำรวจ) หรือชื่อบัญชี dashboard (ฝั่งแอดมิน)
+      author_name TEXT NOT NULL,
+      body        TEXT NOT NULL,
+      attachments TEXT,                   -- ลิงก์ไฟล์แนบ คั่นด้วยขึ้นบรรทัดใหม่
+      delivered   INTEGER,                -- ฝั่งแอดมิน: 1 = DM ถึงตำรวจ, 0 = DM ไม่ได้ · ฝั่งตำรวจ = NULL
+      created_at  INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_ticket_msgs ON ticket_messages(queue_id, created_at);
   `);
 
   migrateSchema();

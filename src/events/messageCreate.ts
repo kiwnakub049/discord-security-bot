@@ -5,6 +5,7 @@ import { handleSpamCheck } from "../modules/antiSpam.js";
 import { handleAutoMod } from "../modules/autoMod.js";
 import { recordMessage } from "../store/activityStore.js";
 import { handleDmReply } from "../modules/dmRelay.js";
+import { handleTicketDm } from "../modules/ticket.js";
 import { logEvent } from "../utils/logger.js";
 
 export const name = Events.MessageCreate;
@@ -12,8 +13,10 @@ export const name = Events.MessageCreate;
 export async function execute(message: Message): Promise<void> {
   if (message.author.bot) return; // ข้ามข้อความจากบอท (รวม DM ที่บอทส่งเอง)
 
-  // DM จากคน (ไม่มี guild) = คำตอบกลับหลังถูกเตือน → relay ให้ mod เห็น แล้วจบ
+  // DM จากคน (ไม่มี guild): ticket ที่ค้างอยู่มาก่อน (ตำรวจคุยกับแอดมิน)
+  // ไม่ใช่เรื่อง ticket = คำตอบกลับหลังถูกเตือน → relay ให้ mod เห็น แล้วจบ
   if (!message.guild) {
+    if (await handleTicketDm(message)) return;
     await handleDmReply(message);
     return;
   }
