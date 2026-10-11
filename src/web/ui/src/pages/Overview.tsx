@@ -11,10 +11,17 @@ import { SystemCard } from "../components/SystemCard";
 import type { Route } from "../hooks/useRoute";
 import { Avatar } from "../components/Avatar";
 
-export function Overview({ go }: { go: (r: Route) => void }) {
+export function Overview({
+  go,
+  seesSystem,
+}: {
+  go: (r: Route) => void;
+  /** false = admin ที่ไม่ใช่เจ้าของ → ไม่โชว์สถานะเครื่อง (server ตอบ 403 อยู่แล้ว) */
+  seesSystem: boolean;
+}) {
   const [days, setDays] = useState(7);
   const stats = useFetch<Stats>("/api/stats", 15_000);
-  const sys = useFetch<SystemInfo>("/api/system", 10_000);
+  const sys = useFetch<SystemInfo>(seesSystem ? "/api/system" : null, 10_000);
   const history = useFetch<History>(`/api/logs/history?days=${days}`, 60_000);
 
   if (stats.loading && !stats.data) {
@@ -177,17 +184,19 @@ export function Overview({ go }: { go: (r: Route) => void }) {
         </section>
       )}
 
-      {/* ---- สถานะเครื่อง ---- */}
-      <section>
-        <SectionTitle>สถานะเครื่อง</SectionTitle>
-        {sys.data ? (
-          <SystemCard sys={sys.data} />
-        ) : (
-          <Card className="flex justify-center p-6 text-muted">
-            <Spinner />
-          </Card>
-        )}
-      </section>
+      {/* ---- สถานะเครื่อง (admin ที่ไม่ใช่เจ้าของไม่เห็น) ---- */}
+      {seesSystem && (
+        <section>
+          <SectionTitle>สถานะเครื่อง</SectionTitle>
+          {sys.data ? (
+            <SystemCard sys={sys.data} />
+          ) : (
+            <Card className="flex justify-center p-6 text-muted">
+              <Spinner />
+            </Card>
+          )}
+        </section>
+      )}
     </div>
   );
 }

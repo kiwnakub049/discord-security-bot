@@ -11,14 +11,18 @@ import {
 } from "../../utils/oledConfig.js";
 import { guildOf, roleOf } from "../../auth/access.js";
 import { config } from "../../config.js";
-import { requireAdmin } from "../middleware/auth.js";
+import { requireAdmin, requireSystemView } from "../middleware/auth.js";
 import { logEvent } from "../../utils/logger.js";
 
 export function adminRoutes(client?: Client): Router {
   const r = Router();
 
+  // ตั้งค่าบอท / OLED / รายชื่อคนเข้าได้ — admin คนอื่นไม่เห็น (ดู seesSystem)
+  // ตั้งค่าบอทกับรายชื่อยังต้องเป็น admin ด้วย → เหลือแค่เจ้าของที่แก้ได้
+  r.use(["/api/settings", "/api/oled", "/api/access"], requireSystemView);
+
   // ---------- ตั้งค่าบอท ----------
-  r.get("/api/settings", (_req: Request, res: Response) => {
+  r.get("/api/settings", requireAdmin, (_req: Request, res: Response) => {
     res.json(getSettings());
   });
 

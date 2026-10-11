@@ -20,22 +20,25 @@ export function Settings({
   username,
   userId,
   isAdmin,
+  seesSystem,
 }: {
   username: string;
   userId: string;
   isAdmin: boolean;
+  /** false = admin ที่ไม่ใช่เจ้าของ → ซ่อนตั้งค่าบอท/จอ OLED/รายชื่อคนเข้าได้ */
+  seesSystem: boolean;
 }) {
   return (
     <div className="space-y-6">
       {/* ตั้งค่าบอท + รายชื่อคนที่เข้าได้ = admin เท่านั้น (backend ก็บังคับซ้ำอีกชั้น) */}
-      {isAdmin && <BotSettings />}
+      {isAdmin && seesSystem && <BotSettings />}
       <ClaudeTest />
       <SkinPicker />
       <LinkTargetPicker />
-      <OledPicker />
+      {seesSystem && <OledPicker />}
       <ServerLock />
       <Devices />
-      {isAdmin && <AccessPeople me={username} />}
+      {isAdmin && seesSystem && <AccessPeople me={username} />}
       <SignOut username={username} userId={userId} />
     </div>
   );

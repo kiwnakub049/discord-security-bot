@@ -128,6 +128,26 @@ export function isOwner(userId: unknown): boolean {
   return owner.length > 0 && userId === owner;
 }
 
+/**
+ * ส่วนตั้งค่าระบบ + สถานะเครื่อง Pi: mod เห็นปกติ, admin คนอื่นไม่เห็น, เจ้าของเห็นทุกอย่าง
+ * (Flick ไม่อยากให้ admin ของเซิร์ฟมาแตะการตั้งค่า — admin ยังใช้เครื่องมือดูแลสมาชิกได้ตามเดิม)
+ */
+export function seesSystem(role: unknown, userId: unknown): boolean {
+  return role !== "admin" || isOwner(userId);
+}
+
+export function requireSystemView(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  if (!seesSystem(res.locals.role, res.locals.userId)) {
+    res.status(403).json({ error: "forbidden", message: "ส่วนนี้ไม่เปิดให้ admin" });
+    return;
+  }
+  next();
+}
+
 export function requireOwner(
   _req: Request,
   res: Response,

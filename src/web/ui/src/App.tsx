@@ -32,12 +32,15 @@ export function App() {
     role: "admin" | "mod";
     guildId: string | null;
     isOwner: boolean;
+    seesSystem: boolean;
     userId: string;
   }>("/api/me");
   const username = me.data?.username ?? "";
   const userId = me.data?.userId ?? "";
   const isAdmin = me.data?.role === "admin";
   const isOwner = me.data?.isOwner === true;
+  // admin ที่ไม่ใช่เจ้าของไม่เห็นตั้งค่าระบบ/สถานะ Pi — ค่าเริ่ม false จนกว่า /api/me จะตอบ
+  const seesSystem = me.data?.seesSystem === true;
   const guildId = me.data?.guildId ?? null;
 
   /**
@@ -84,7 +87,7 @@ export function App() {
         logFilter={logFilter}
         onPickLogFilter={pickLogFilter}
       >
-        {route === "/" && <Overview go={go} />}
+        {route === "/" && <Overview go={go} seesSystem={seesSystem} />}
         {route === "/logs" && (
           <Logs
             latest={latest}
@@ -99,7 +102,12 @@ export function App() {
         {/* กันคนพิมพ์ /beamng เองตอนไม่ใช่เจ้าของ — API ก็ตอบ 404 อยู่แล้วอีกชั้น */}
         {route === "/beamng" && isOwner && <BeamNG />}
         {route === "/settings" && (
-          <Settings username={username} userId={userId} isAdmin={isAdmin} />
+          <Settings
+            username={username}
+            userId={userId}
+            isAdmin={isAdmin}
+            seesSystem={seesSystem}
+          />
         )}
       </Shell>
     </ToastProvider>

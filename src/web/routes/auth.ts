@@ -9,7 +9,7 @@ import type { AccessResolver } from "../../auth/access.js";
 import { authorizeUrl, identify, newState, oauthConfig } from "../../auth/discordOAuth.js";
 import { logEvent } from "../../utils/logger.js";
 import { notifySecurity } from "../../modules/securityAlerts.js";
-import { isOwner } from "../middleware/auth.js";
+import { isOwner, seesSystem } from "../middleware/auth.js";
 import { cookieOptions, COOKIE_NAME, metaOf, parseCookies } from "../middleware/auth.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -151,6 +151,8 @@ export function meRoutes(client?: Client): Router {
       // เมนูบางอย่างมีให้เจ้าของเครื่องคนเดียว — ฝั่งเว็บใช้ค่านี้ตัดสินใจว่าจะโชว์ไหม
       // (ด่านจริงอยู่ที่ requireOwner ฝั่งเซิร์ฟเวอร์ ค่านี้แค่ทำให้เมนูไม่โผล่มาเปล่า ๆ)
       isOwner: isOwner(res.locals.userId),
+      // admin ที่ไม่ใช่เจ้าของไม่เห็นตั้งค่าระบบ/สถานะ Pi (ด่านจริงคือ requireSystemView)
+      seesSystem: seesSystem(res.locals.role, res.locals.userId),
     });
   });
   return r;

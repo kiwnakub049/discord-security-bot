@@ -28,12 +28,15 @@ process.env.DASHBOARD_URL = `${BASE}/`;
 const ADMIN_ID = "111111111111111111";
 const MOD_ID = "222222222222222222";
 const STRANGER_ID = "333333333333333333";
+/** admin ของเซิร์ฟที่ไม่ใช่เจ้าของ — ไม่เห็นตั้งค่าระบบ/สถานะ Pi */
+const ADMIN2_ID = "444444444444444444";
 process.env.DASHBOARD_OWNER = ADMIN_ID;
 
 /** ยศปัจจุบันของแต่ละคน — ลบออกจาก map = จำลองถอดยศ */
 const grants = new Map<string, Access>([
   [ADMIN_ID, { role: "admin", name: "admin_user" }],
   [MOD_ID, { role: "mod", name: "mod_user" }],
+  [ADMIN2_ID, { role: "admin", name: "admin2_user" }],
 ]);
 
 /** code ที่ Discord จะส่งกลับมา → คนที่ login (code อื่น = แลกไม่ผ่าน) */
@@ -41,6 +44,7 @@ const CODES: Record<string, string> = {
   "code-admin": ADMIN_ID,
   "code-mod": MOD_ID,
   "code-stranger": STRANGER_ID,
+  "code-admin2": ADMIN2_ID,
 };
 const tokenCalls: URLSearchParams[] = [];
 
@@ -278,6 +282,50 @@ for (const [method, path, body] of [
     assert.equal(r.status, 403);
   });
 }
+
+// ---- ตั้งค่าระบบ + สถานะ Pi: mod เห็น, admin คนอื่นไม่เห็น, เจ้าของเห็น ----
+test("seesSystem: mod เห็นสถานะเครื่อง/OLED", async () => {
+  const me = await (await fetch(`${BASE}/api/me`, { headers: { Cookie: modCookie } })).json();
+  assert.equal(me.seesSystem, true);
+  for (const path of ["/api/system", "/api/oled"]) {
+    const r = await fetch(`${BASE}${path}`, { headers: { Cookie: modCookie } });
+    assert.equal(r.status, 200, path);
+  }
+});
+
+test("seesSystem: admin ที่ไม่ใช่เจ้าของ → 403 ทั้งสถานะเครื่อง/ตั้งค่า/OLED/รายชื่อ", async () => {
+  const r = await login("code-admin2");
+  const c = cookieNamed(r, "__Host-sid") ?? "";
+  const me = await (await fetch(`${BASE}/api/me`, { headers: { Cookie: c } })).json();
+  assert.equal(me.role, "admin");
+  assert.equal(me.seesSystem, false);
+  for (const [method, path, body] of [
+    ["GET", "/api/system", undefined],
+    ["GET", "/api/settings", undefined],
+    ["POST", "/api/settings", { "antiSpam.maxMessages": 99 }],
+    ["GET", "/api/oled", undefined],
+    ["POST", "/api/oled", { page: "load" }],
+    ["GET", "/api/access", undefined],
+  ] as const) {
+    const res = await fetch(`${BASE}${path}`, {
+      method,
+      headers: { Cookie: c, "Content-Type": "application/json", Origin: BASE },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    assert.equal(res.status, 403, `${method} ${path}`);
+  }
+  // เครื่องมือดูแลสมาชิกยังใช้ได้ปกติ
+  assert.equal((await fetch(`${BASE}/api/logs`, { headers: { Cookie: c } })).status, 200);
+});
+
+test("seesSystem: เจ้าของ (admin) เห็นทุกอย่าง", async () => {
+  const me = await (await fetch(`${BASE}/api/me`, { headers: { Cookie: cookie } })).json();
+  assert.equal(me.seesSystem, true);
+  for (const path of ["/api/system", "/api/settings", "/api/oled", "/api/access"]) {
+    const r = await fetch(`${BASE}${path}`, { headers: { Cookie: cookie } });
+    assert.equal(r.status, 200, path);
+  }
+});
 
 test("ระบบบัญชีรหัสผ่านเดิมไม่มีแล้ว", async () => {
   const login = await fetch(`${BASE}/login`, {
