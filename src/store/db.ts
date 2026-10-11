@@ -202,6 +202,36 @@ export function initDb(): void {
     );
     CREATE INDEX IF NOT EXISTS idx_ticket_msgs ON ticket_messages(queue_id, created_at);
 
+    -- แชททีม (admin/mod คุยกันบน dashboard) — room = 'general' หรือ 'dm:<idน้อย>:<idมาก>'
+    -- เก็บ 90 วัน (ดู teamChatStore.pruneTeamChat) ไฟล์แนบอยู่ใน data/team-files/
+    CREATE TABLE IF NOT EXISTS team_messages (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      room        TEXT NOT NULL,
+      author_id   TEXT NOT NULL,          -- Discord user ID
+      author_name TEXT NOT NULL,
+      body        TEXT NOT NULL,
+      mentions    TEXT NOT NULL DEFAULT '[]', -- JSON: Discord user ID ที่ถูกแท็ก
+      created_at  INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_team_msgs ON team_messages(room, id);
+    CREATE TABLE IF NOT EXISTS team_files (
+      id          TEXT PRIMARY KEY,       -- สุ่ม (ใช้เป็นชื่อไฟล์บนดิสก์ด้วย)
+      message_id  INTEGER,                -- NULL = อัปแล้วแต่ยังไม่ได้ส่ง (ลบทิ้งถ้าค้างเกิน 1 วัน)
+      uploader_id TEXT NOT NULL,
+      name        TEXT NOT NULL,
+      mime        TEXT NOT NULL,
+      size        INTEGER NOT NULL,
+      created_at  INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_team_files_msg ON team_files(message_id);
+    -- อ่านถึงข้อความไหนแล้ว (นับข้อความใหม่/ถูกแท็กที่ยังไม่อ่าน)
+    CREATE TABLE IF NOT EXISTS team_reads (
+      user_id     TEXT NOT NULL,
+      room        TEXT NOT NULL,
+      last_id     INTEGER NOT NULL,
+      PRIMARY KEY (user_id, room)
+    );
+
     -- หน้าแชทกับ Claude (เฉพาะ admin) — 1 thread = 1 บทสนทนา ของบัญชี dashboard คนเดียว
     CREATE TABLE IF NOT EXISTS chat_threads (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,

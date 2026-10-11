@@ -152,6 +152,22 @@ export async function uploadMod(
   }
 }
 
+/**
+ * อัปไฟล์แนบของแชททีม — ส่งรวดเดียว (ไฟล์ไม่เกิน 100 MB ต่ำกว่าเพดานของ Cloudflare)
+ * ได้ id กลับไปแนบตอนส่งข้อความ
+ */
+export async function uploadTeamFile(
+  file: File,
+  onProgress?: (fraction: number) => void,
+): Promise<{ id: string; size: number }> {
+  const q = new URLSearchParams({ name: file.name, type: file.type || "application/octet-stream" });
+  const r = (await putBlob(`/api/team/files?${q}`, file, (loaded) =>
+    onProgress?.(file.size ? Math.min(1, loaded / file.size) : 1),
+  )) as { ok?: boolean; id?: string; size?: number; error?: string };
+  if (!r.ok || !r.id) throw new ApiError(r.error ?? "อัปโหลดไม่สำเร็จ", 400);
+  return { id: r.id, size: r.size ?? file.size };
+}
+
 /** ต่อ query string โดยข้ามค่าที่ว่าง — ให้ URL สั้นและ cache ตรงกันเวลาเงื่อนไขเหมือนกัน */
 export function qs(params: Record<string, string | number | undefined>): string {
   const p = new URLSearchParams();

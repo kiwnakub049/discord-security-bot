@@ -16,6 +16,7 @@ const TABS: { route: Route; label: string; icon: IconName }[] = [
   { route: "/", label: "ภาพรวม", icon: "home" },
   { route: "/logs", label: "Logs", icon: "list" },
   { route: "/members", label: "สมาชิก", icon: "users" },
+  { route: "/team", label: "แชททีม", icon: "message" },
   { route: "/assistant", label: "ผู้ช่วย AI", icon: "bot" },
   { route: "/beamng", label: "BeamNG", icon: "car" },
   { route: "/settings", label: "ตั้งค่า", icon: "settings" },
@@ -30,10 +31,25 @@ const TITLES: Record<Route, string> = {
   "/": "ภาพรวม",
   "/logs": "Logs",
   "/members": "สมาชิก",
+  "/team": "แชททีม",
   "/assistant": "ผู้ช่วย AI",
   "/beamng": "เซิร์ฟเวอร์ BeamNG",
   "/settings": "ตั้งค่า",
 };
+
+function TeamBadge({ badge }: { badge: { unread: number; mentioned: boolean } | null }) {
+  if (!badge || badge.unread === 0) return null;
+  return (
+    <span
+      className={`tnum rounded-full px-1.5 text-[10px] font-semibold leading-4 text-surface ${
+        badge.mentioned ? "bg-alert" : "bg-accent"
+      }`}
+    >
+      {badge.mentioned ? "@" : ""}
+      {badge.unread > 99 ? "99+" : badge.unread}
+    </span>
+  );
+}
 
 function LiveDot({ state }: { state: StreamState }) {
   const tone =
@@ -130,6 +146,7 @@ export function Shell({
   isAdmin,
   logFilter,
   onPickLogFilter,
+  teamBadge,
   children,
 }: {
   route: Route;
@@ -143,6 +160,8 @@ export function Shell({
   isAdmin: boolean;
   logFilter: TreePick;
   onPickLogFilter: (f: TreePick) => void;
+  /** แชททีม: ข้อความที่ยังไม่อ่าน + มีคนแท็กเราไหม (แดง = โดนแท็ก) */
+  teamBadge: { unread: number; mentioned: boolean } | null;
   children: ReactNode;
 }) {
   /*
@@ -195,7 +214,8 @@ export function Shell({
                 }`}
               >
                 <Icon name={t.icon} className="size-5" />
-                {t.label}
+                <span className="flex-1 text-left">{t.label}</span>
+                {t.route === "/team" && <TeamBadge badge={teamBadge} />}
               </button>
 
               {/* ต้นไม้หมวดหมู่ กางอยู่ใต้ Logs เมื่ออยู่หน้านั้น */}
@@ -272,7 +292,14 @@ export function Shell({
                     active ? "text-accent" : "text-faint"
                   }`}
                 >
-                  <Icon name={tab.icon} className="size-[22px]" />
+                  <span className="relative">
+                    <Icon name={tab.icon} className="size-[22px]" />
+                    {r === "/team" && (
+                      <span className="absolute -right-2.5 -top-1.5">
+                        <TeamBadge badge={teamBadge} />
+                      </span>
+                    )}
+                  </span>
                   {tab.label}
                 </button>
               );

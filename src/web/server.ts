@@ -28,6 +28,7 @@ import { actionRoutes } from "./routes/actions.js";
 import { adminRoutes } from "./routes/admin.js";
 import { sessionRoutes } from "./routes/sessions.js";
 import { aiRoutes } from "./routes/ai.js";
+import { teamRoutes } from "./routes/team.js";
 import { chatRoutes } from "./routes/chat.js";
 import { queueRoutes } from "./routes/queue.js";
 import { beammpRoutes } from "./routes/beammp.js";
@@ -129,6 +130,7 @@ export function startWebServer(
   app.use(adminRoutes(client));
   app.use(sessionRoutes(client));
   app.use(aiRoutes());
+  app.use(teamRoutes(client, access)); // แชททีม admin/mod
   app.use(chatRoutes(client)); // เฉพาะ admin (requireAdmin อยู่ในนั้น)
   app.use(beammpRoutes(client)); // เห็นเฉพาะเจ้าของเครื่อง (requireOwner อยู่ในนั้น)
 

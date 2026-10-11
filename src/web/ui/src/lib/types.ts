@@ -264,3 +264,39 @@ export interface QueueSummary {
   idle: { key: string; label: string }[];
   now: number;
 }
+
+/* ---------------- แชททีม ---------------- */
+
+export interface TeamPerson {
+  id: string;
+  name: string;
+  username: string;
+  role: "admin" | "mod";
+}
+
+export interface TeamFile {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+}
+
+export interface TeamMessage {
+  id: number;
+  room: string;
+  authorId: string;
+  authorName: string;
+  body: string;
+  mentions: string[];
+  createdAt: number;
+  files: TeamFile[];
+}
+
+export interface TeamRoomSummary {
+  room: string;
+  unread: number;
+  mentioned: boolean;
+  lastId: number;
+  lastAt: number | null;
+  lastText: string | null;
+}

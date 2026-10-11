@@ -13,6 +13,7 @@ import { Members } from "./pages/Members";
 import { Settings } from "./pages/Settings";
 import { BeamNG } from "./pages/BeamNG";
 import { Assistant } from "./pages/Assistant";
+import { Team } from "./pages/Team";
 
 /** ตัวกรองหน้า Logs ที่จำไว้ในเบราว์เซอร์ — v4 = ต้นไม้หมวด + ติ๊กระดับ */
 const FILTER_KEY = "logs.filter.v4";
@@ -42,6 +43,8 @@ export function App() {
   // admin ที่ไม่ใช่เจ้าของไม่เห็นตั้งค่าระบบ/สถานะ Pi — ค่าเริ่ม false จนกว่า /api/me จะตอบ
   const seesSystem = me.data?.seesSystem === true;
   const guildId = me.data?.guildId ?? null;
+  // จุดแจ้งเตือนของแชททีมบนเมนู — ดึงทุก 15 วิ (useFetch หยุดเองตอนสลับแท็บ)
+  const teamUnread = useFetch<{ unread: number; mentioned: boolean }>("/api/team/unread", 15_000);
 
   /**
    * ตัวกรองของหน้า Logs อยู่ที่นี่ ไม่ใช่ในหน้า Logs
@@ -86,6 +89,7 @@ export function App() {
         isAdmin={isAdmin}
         logFilter={logFilter}
         onPickLogFilter={pickLogFilter}
+        teamBadge={teamUnread.data}
       >
         {route === "/" && <Overview go={go} seesSystem={seesSystem} />}
         {route === "/logs" && (
@@ -98,6 +102,7 @@ export function App() {
           />
         )}
         {route === "/members" && <Members />}
+        {route === "/team" && <Team userId={userId} />}
         {route === "/assistant" && isAdmin && <Assistant />}
         {/* กันคนพิมพ์ /beamng เองตอนไม่ใช่เจ้าของ — API ก็ตอบ 404 อยู่แล้วอีกชั้น */}
         {route === "/beamng" && isOwner && <BeamNG />}
