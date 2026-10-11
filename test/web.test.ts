@@ -322,3 +322,15 @@ test("ยังไม่ได้ตั้งค่า OAuth → /auth/discord �
     process.env.DISCORD_CLIENT_SECRET = saved;
   }
 });
+
+test("/api/avatar/:id ต้อง login · ไม่ได้ต่อ Discord → 404 (หน้าเว็บแสดงอักษรแทน)", async () => {
+  const anon = await fetch(`${BASE}/api/avatar/${ADMIN_ID}`, { redirect: "manual" });
+  assert.equal(anon.status, 401);
+  const r = await fetch(`${BASE}/api/avatar/${ADMIN_ID}`, { headers: { Cookie: cookie }, redirect: "manual" });
+  assert.equal(r.status, 404);
+});
+
+test("CSP อนุญาตรูปจาก CDN ของ Discord เท่านั้น (รูปโปรไฟล์)", async () => {
+  const csp = (await fetch(`${BASE}/login`)).headers.get("content-security-policy") ?? "";
+  assert.match(csp, /img-src 'self' data: https:\/\/cdn\.discordapp\.com(;|$)/);
+});

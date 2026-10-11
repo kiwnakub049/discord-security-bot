@@ -104,6 +104,7 @@ export function queueRoutes(client?: Client): Router {
       messages: listMessages(item.id).map((m) => ({
         id: m.id,
         from: m.author_kind,
+        userId: m.author_id,
         name: m.author_name,
         body: m.body,
         attachments: m.attachments ? m.attachments.split("\n") : [],
@@ -133,7 +134,12 @@ export function queueRoutes(client?: Client): Router {
       res.status(503).json({ ok: false, message: "บอทไม่ได้ต่อ Discord อยู่ ส่ง DM ไม่ได้" });
       return;
     }
-    const { delivered } = await replyToTicket(client, item, String(res.locals.username), body);
+    const { delivered } = await replyToTicket(
+      client,
+      item,
+      { id: String(res.locals.userId), name: String(res.locals.username) },
+      body,
+    );
     res.json({
       ok: true,
       delivered,

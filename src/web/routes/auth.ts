@@ -145,6 +145,7 @@ export function meRoutes(client?: Client): Router {
       process.env.GUILD_ID ?? client?.guilds.cache.first()?.id ?? null;
     res.json({
       username: res.locals.username,
+      userId: res.locals.userId, // หน้าเว็บใช้แสดงรูปโปรไฟล์ของตัวเอง
       role: res.locals.role ?? "mod",
       guildId,
       // เมนูบางอย่างมีให้เจ้าของเครื่องคนเดียว — ฝั่งเว็บใช้ค่านี้ตัดสินใจว่าจะโชว์ไหม

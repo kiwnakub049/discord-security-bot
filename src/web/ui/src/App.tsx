@@ -29,8 +29,10 @@ export function App() {
     role: "admin" | "mod";
     guildId: string | null;
     isOwner: boolean;
+    userId: string;
   }>("/api/me");
   const username = me.data?.username ?? "";
+  const userId = me.data?.userId ?? "";
   const isAdmin = me.data?.role === "admin";
   const isOwner = me.data?.isOwner === true;
   const guildId = me.data?.guildId ?? null;
@@ -60,6 +62,7 @@ export function App() {
         go={go as (r: Route) => void}
         stream={stream}
         username={username}
+        userId={userId}
         isOwner={isOwner}
         isAdmin={isAdmin}
         logFilter={logFilter}
@@ -79,7 +82,7 @@ export function App() {
         {/* กันคนพิมพ์ /beamng เองตอนไม่ใช่เจ้าของ — API ก็ตอบ 404 อยู่แล้วอีกชั้น */}
         {route === "/beamng" && isOwner && <BeamNG />}
         {route === "/settings" && (
-          <Settings username={username} isAdmin={isAdmin} />
+          <Settings username={username} userId={userId} isAdmin={isAdmin} />
         )}
       </Shell>
     </ToastProvider>

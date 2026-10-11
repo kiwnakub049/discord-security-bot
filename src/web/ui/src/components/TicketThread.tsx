@@ -5,6 +5,7 @@ import { fmtDateTime } from "../lib/format";
 import type { TicketThreadData } from "../lib/types";
 import { Spinner } from "./ui";
 import { useToast } from "./Toast";
+import { Avatar } from "./Avatar";
 
 /** ข้อความแอดมินยาวสุด — ต้องตรงกับ REPLY_MAX ใน src/web/routes/queue.ts */
 const REPLY_MAX = 1500;
@@ -63,7 +64,8 @@ export function TicketThread({ id, onSent }: { id: number; onSent: () => void })
           const mine = m.from === "admin";
           return (
             <li key={m.id} className={`flex flex-col ${mine ? "items-end" : "items-start"}`}>
-              <span className="mb-0.5 text-xs text-faint">
+              <span className={`mb-0.5 flex items-center gap-1.5 text-xs text-faint ${mine ? "flex-row-reverse" : ""}`}>
+                <Avatar id={m.userId} name={m.name} size="xs" />
                 {mine ? `แอดมิน ${m.name}` : `ตำรวจ ${m.name}`} · {fmtDateTime(m.at)}
               </span>
               <p

@@ -6,6 +6,7 @@ import type { ActionResult, MuteEntry } from "../lib/types";
 import { Icon } from "./Icon";
 import { Button, Card, SectionTitle } from "./ui";
 import { useToast } from "./Toast";
+import { Avatar } from "./Avatar";
 
 /**
  * ไมค์แดงจากระบบเตือน — ใครโดนอยู่ เหลืออีกนานแค่ไหน และปุ่มปลดทันที
@@ -40,7 +41,13 @@ export function MuteList() {
       <Card className="divide-y divide-line">
         {mutes.map((m) => (
           <div key={m.userId} className="flex items-center gap-3 px-4 py-3">
-            <Icon name="mic-off" className="size-5 shrink-0 text-alert" />
+            {/* รูปคน + ไอคอนไมค์แดงเกาะมุม — เห็นทั้งว่าใครและว่าโดนอะไร */}
+            <span className="relative shrink-0">
+              <Avatar id={m.userId} name={m.name} size="md" />
+              <span className="absolute -bottom-1 -right-1 rounded-full bg-surface p-0.5">
+                <Icon name="mic-off" className="size-3.5 text-alert" />
+              </span>
+            </span>
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-medium">{m.name}</div>
               <div className="text-xs text-muted">

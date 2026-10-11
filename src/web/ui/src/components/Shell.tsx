@@ -10,6 +10,7 @@ import {
   setNotifyEnabled,
   useNotifyEnabled,
 } from "../lib/notify";
+import { Avatar } from "./Avatar";
 
 const TABS: { route: Route; label: string; icon: IconName }[] = [
   { route: "/", label: "ภาพรวม", icon: "home" },
@@ -124,6 +125,7 @@ export function Shell({
   go,
   stream,
   username,
+  userId,
   isOwner,
   isAdmin,
   logFilter,
@@ -134,6 +136,8 @@ export function Shell({
   go: (r: Route) => void;
   stream: StreamState;
   username: string;
+  /** Discord user ID ของคนที่ login — ใช้แสดงรูปโปรไฟล์ */
+  userId: string;
   /** เจ้าของเครื่องเท่านั้นที่เห็นแท็บบางอัน (ด่านจริงอยู่ฝั่งเซิร์ฟเวอร์) */
   isOwner: boolean;
   isAdmin: boolean;
@@ -208,7 +212,7 @@ export function Shell({
         </nav>
 
         <div className="mt-auto flex items-center gap-2 border-t border-line px-2 pt-3 text-sm">
-          <Icon name="user" className="size-5 text-faint" />
+          <Avatar id={userId} name={username} size="sm" />
           <span className="min-w-0 flex-1 truncate text-muted">{username}</span>
           <form method="post" action="/logout">
             <button

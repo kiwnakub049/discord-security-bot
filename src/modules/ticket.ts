@@ -104,9 +104,10 @@ export async function handleTicketDm(message: Message): Promise<boolean> {
 export async function replyToTicket(
   client: Client,
   item: Pick<QueueRow, "id" | "subject_id" | "title">,
-  adminName: string,
+  admin: { id: string; name: string },
   body: string,
 ): Promise<{ delivered: boolean }> {
+  const adminName = admin.name;
   let delivered = false;
   if (item.subject_id) {
     try {
@@ -124,7 +125,7 @@ export async function replyToTicket(
   addMessage({
     queueId: item.id,
     authorKind: "admin",
-    authorId: adminName,
+    authorId: admin.id,
     authorName: adminName,
     body,
     delivered,

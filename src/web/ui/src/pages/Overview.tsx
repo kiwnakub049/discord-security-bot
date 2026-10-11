@@ -9,6 +9,7 @@ import { Icon } from "../components/Icon";
 import { HistoryChart } from "../components/HistoryChart";
 import { SystemCard } from "../components/SystemCard";
 import type { Route } from "../hooks/useRoute";
+import { Avatar } from "../components/Avatar";
 
 export function Overview({ go }: { go: (r: Route) => void }) {
   const [days, setDays] = useState(7);
@@ -161,7 +162,7 @@ export function Overview({ go }: { go: (r: Route) => void }) {
           <Card className="divide-y divide-line">
             {s.voice.users.map((v) => (
               <div key={v.userId} className="flex items-center gap-3 px-4 py-3">
-                <Icon name="user" className="size-5 shrink-0 text-faint" />
+                <Avatar id={v.userId} name={v.username} size="md" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">{v.username}</div>
                   <div className="truncate text-xs text-muted">{v.channel}</div>

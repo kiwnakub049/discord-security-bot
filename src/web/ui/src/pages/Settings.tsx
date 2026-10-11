@@ -14,12 +14,15 @@ import { Icon } from "../components/Icon";
 import { useToast } from "../components/Toast";
 import { setLinkTarget, useLinkTarget } from "../lib/linkTarget";
 import { setSkin, useSkin } from "../lib/skin";
+import { Avatar } from "../components/Avatar";
 
 export function Settings({
   username,
+  userId,
   isAdmin,
 }: {
   username: string;
+  userId: string;
   isAdmin: boolean;
 }) {
   return (
@@ -32,7 +35,7 @@ export function Settings({
       <ServerLock />
       <Devices />
       {isAdmin && <AccessPeople me={username} />}
-      <SignOut username={username} />
+      <SignOut username={username} userId={userId} />
     </div>
   );
 }
@@ -508,7 +511,7 @@ function AccessPeople({ me }: { me: string }) {
             ) : (
               data.people.map((p) => (
                 <div key={p.id} className="flex items-center gap-3 px-4 py-3">
-                  <Icon name="user" className="size-5 shrink-0 text-faint" />
+                  <Avatar id={p.id} name={p.name} size="md" />
                   <span className="min-w-0 flex-1 truncate text-sm font-medium">
                     {p.name}
                     {p.name === me && <span className="ml-1.5 text-xs text-faint">(คุณ)</span>}
@@ -526,11 +529,11 @@ function AccessPeople({ me }: { me: string }) {
 
 /* ---------------- ออกจากระบบ ---------------- */
 
-function SignOut({ username }: { username: string }) {
+function SignOut({ username, userId }: { username: string; userId: string }) {
   return (
     <section>
       <Card className="flex items-center gap-3 p-4">
-        <Icon name="user" className="size-5 shrink-0 text-faint" />
+        <Avatar id={userId} name={username} size="md" />
         <span className="min-w-0 flex-1 truncate text-sm">
           เข้าใช้งานในชื่อ <b>{username}</b>
         </span>

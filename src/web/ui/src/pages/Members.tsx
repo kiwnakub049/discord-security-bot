@@ -16,6 +16,7 @@ import {
 } from "../components/ui";
 import { Icon } from "../components/Icon";
 import { MemberSheet, VoiceBadges } from "../components/MemberSheet";
+import { Avatar } from "../components/Avatar";
 
 const FILTERS = [
   { v: "", label: "ทั้งหมด" },
@@ -139,14 +140,13 @@ function MemberList() {
                 onClick={() => setSelected(m)}
                 className="press flex w-full items-center gap-3 p-3.5 text-left"
               >
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-line bg-raised text-xs font-bold text-muted shadow-[inset_0_1px_0_0_var(--glass-spec)]">
-                  #{m.member_number}
-                </span>
+                <Avatar id={m.id} name={m.username} size="lg" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="min-w-0 truncate text-sm font-medium">
                       {m.username}
                     </span>
+                    <span className="tnum shrink-0 text-xs text-faint">#{m.member_number}</span>
                     {m.warnings > 0 && (
                       <Badge tone="warn">เตือน {m.warnings}</Badge>
                     )}
@@ -224,6 +224,7 @@ function Leaderboard() {
               >
                 {medal[i] ?? i + 1}
               </span>
+              <Avatar id={e.userId} name={e.username} size="md" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="min-w-0 truncate text-sm font-medium">

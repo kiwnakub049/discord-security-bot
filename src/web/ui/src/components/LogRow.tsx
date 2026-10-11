@@ -6,6 +6,7 @@ import { Badge, Card } from "./ui";
 import { iconOf, labelOf } from "../lib/categories";
 import { linkifyField } from "../lib/discordLinks";
 import { useLinkTarget } from "../lib/linkTarget";
+import { Avatar, idFromLabel } from "./Avatar";
 
 /**
  * ระดับของ log บอกด้วยเส้นซ้ายสีเดียวกับการ์ดคิว — ปกติเป็นเส้นสีฟอร์ม (ไม่แย่งสายตา)
@@ -54,6 +55,15 @@ export function LogRow({
           ?.value.replace(/\s*\(\d+\)\s*$/, "") ?? null)
       : null;
 
+  /*
+   * คนหลักของเหตุการณ์ — log เขียนไว้ในช่องแบบ "ชื่อ (id)" (User / เป้าหมาย / ผู้ทำ)
+   * ใช้โชว์รูปโปรไฟล์หน้าหัวข้อ ให้กวาดตาดูแล้วรู้ว่าเรื่องของใครโดยไม่ต้องกดขยาย
+   */
+  const subject = entry.fields
+    .filter((f) => ["User", "เป้าหมาย", "สมาชิก", "ผู้ทำ"].includes(f.name))
+    .map((f) => ({ id: idFromLabel(f.value), name: f.value.replace(/\s*\(\d+\)\s*$/, "") }))
+    .find((x) => x.id);
+
   return (
     <Card
       // isNew = เพิ่งไหลเข้ามาจากสตรีมสด — ขอบเรืองขึ้นชั่วคราว + แสงวาบพาดหนึ่งครั้ง
@@ -73,6 +83,7 @@ export function LogRow({
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-2">
+            {subject && <Avatar id={subject.id} name={subject.name} size="xs" className="mt-0.5" />}
             <span className="min-w-0 flex-1 text-[15px] font-medium leading-snug">
               {entry.title}
             </span>

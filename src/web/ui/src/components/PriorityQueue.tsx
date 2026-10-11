@@ -8,6 +8,7 @@ import { Sheet } from "./Sheet";
 import { TicketThread } from "./TicketThread";
 import { Spinner } from "./ui";
 import { useToast } from "./Toast";
+import { Avatar } from "./Avatar";
 
 /**
  * แถบ "รอดำเนินการ" — สิ่งแรกที่เห็นบนหน้าแรก
@@ -164,7 +165,12 @@ function Deck({ stack, now, onOpen }: { stack: QueueStack; now: number; onOpen: 
 
         {top && (
           <div className="mt-3 border-t border-line pt-3">
-            <p className="truncate font-medium">{top.subjectName ?? top.title}</p>
+            <p className="flex min-w-0 items-center gap-2 font-medium">
+              {top.subjectId && (
+                <Avatar id={top.subjectId} name={top.subjectName ?? top.title} size="xs" />
+              )}
+              <span className="truncate">{top.subjectName ?? top.title}</span>
+            </p>
             {top.detail && <p className="line-clamp-2 text-sm text-muted">{top.detail}</p>}
           </div>
         )}
@@ -303,7 +309,12 @@ function QueueSheet({
                 }
               >
                 <div className="flex items-baseline justify-between gap-3">
-                  <p className="min-w-0 truncate font-semibold">{item.subjectName ?? item.title}</p>
+                  <p className="flex min-w-0 items-center gap-2 font-semibold">
+                    {item.subjectId && (
+                      <Avatar id={item.subjectId} name={item.subjectName ?? item.title} size="sm" />
+                    )}
+                    <span className="truncate">{item.subjectName ?? item.title}</span>
+                  </p>
                   <span
                     className={`shrink-0 text-xs ${overdue ? "font-medium text-alert" : "text-faint"}`}
                   >

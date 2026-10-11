@@ -228,6 +228,8 @@ export interface MuteEntry {
 export interface TicketMessage {
   id: number;
   from: "police" | "admin";
+  /** Discord user ID ของคนพูด (ใช้แสดงรูปโปรไฟล์) */
+  userId: string | null;
   name: string;
   body: string;
   attachments: string[];

@@ -199,12 +199,12 @@ test("replyToTicket: DM ได้ → delivered · DM ไม่ได้ → ย
   const item = store.getItem(id)!;
 
   const sent: string[] = [];
-  const ok = await ticket.replyToTicket(dmClient(sent), item, "flick", "ขอหลักฐานเพิ่ม\nบรรทัดสอง");
+  const ok = await ticket.replyToTicket(dmClient(sent), item, { id: "777", name: "flick" }, "ขอหลักฐานเพิ่ม\nบรรทัดสอง");
   assert.equal(ok.delivered, true);
   assert.match(sent[0] ?? "", /flick/);
   assert.match(sent[0] ?? "", /> ขอหลักฐานเพิ่ม\n> บรรทัดสอง/);
 
-  const bad = await ticket.replyToTicket(dmClient([], true), item, "flick", "ฮัลโหล");
+  const bad = await ticket.replyToTicket(dmClient([], true), item, { id: "777", name: "flick" }, "ฮัลโหล");
   assert.equal(bad.delivered, false);
 
   const admin = msgs.listMessages(id).filter((m) => m.author_kind === "admin");
