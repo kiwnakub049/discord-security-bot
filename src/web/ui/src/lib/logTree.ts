@@ -41,7 +41,8 @@ const node = (category: LogCategory, leaves: TreeLeaf[]): TreeNode => ({
 
 export const LOG_TREE: TreeNode[] = [
   node("security", [
-    { id: "ai", label: "AI จับข้อความ toxic / spam", icon: "message", events: ["security_ai"] },
+    // ตรวจข้อความด้วย Claude แล้ว — ชื่อ event ยังเป็น security_ai เดิม log เก่าจะได้ขึ้นกิ่งเดียวกัน
+    { id: "ai", label: "Logs Claude", icon: "message", events: ["security_ai"] },
     { id: "warn", label: "เตือนสมาชิก", icon: "warn", events: ["security_warn"] },
   ]),
   node("member", [
