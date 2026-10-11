@@ -1,9 +1,9 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRoute, type Route } from "./hooks/useRoute";
 import { useStream } from "./hooks/useStream";
 import { useFetch } from "./hooks/useFetch";
 import type { LogEntry } from "./lib/types";
-import { EMPTY_FILTER, type LogFilter } from "./lib/logTree";
+import { EMPTY_FILTER, parseFilter, type LogFilter } from "./lib/logTree";
 import { Shell } from "./components/Shell";
 import { ToastProvider } from "./components/Toast";
 import { StreamNotifier } from "./components/StreamNotifier";
@@ -13,6 +13,9 @@ import { Members } from "./pages/Members";
 import { Settings } from "./pages/Settings";
 import { BeamNG } from "./pages/BeamNG";
 import { Assistant } from "./pages/Assistant";
+
+/** v2 = ตัวกรองแบบติ๊กหลายช่อง (ของเดิมเลือกได้ทีละกิ่ง ไม่ได้จำ) */
+const FILTER_KEY = "logs.filter.v2";
 
 export function App() {
   const [route, go] = useRoute();
@@ -38,20 +41,23 @@ export function App() {
   const guildId = me.data?.guildId ?? null;
 
   /**
-   * ตัวกรองของหน้า Logs อยู่ที่นี่ ไม่ใช่ในหน้า Logs
-   * เพราะต้นไม้หมวดหมู่บนจอใหญ่อยู่ในเมนูซ้าย (ส่วนของ Shell) ส่วนรายการอยู่ในหน้า
-   * ทั้งสองที่ต้องอ่าน-เขียนค่าเดียวกัน
+   * ตัวกรองของหน้า Logs อยู่ที่นี่ ไม่ใช่ในหน้า Logs — สลับไปหน้าอื่นแล้วกลับมาจะได้ไม่หาย
+   * และจำไว้ในเบราว์เซอร์ด้วย ปิดเว็บเปิดใหม่ก็ยังติ๊กไว้เหมือนเดิม
    */
-  const [logFilter, setLogFilter] = useState<LogFilter>(EMPTY_FILTER);
-
-  // กดกิ่งจากเมนูซ้ายตอนอยู่หน้าอื่น = พาไปหน้า Logs ให้เลย
-  const pickLogFilter = useCallback(
-    (f: LogFilter) => {
-      setLogFilter(f);
-      if (window.location.pathname !== "/logs") go("/logs");
-    },
-    [go],
-  );
+  const [logFilter, setLogFilter] = useState<LogFilter>(() => {
+    try {
+      return parseFilter(JSON.parse(localStorage.getItem(FILTER_KEY) ?? "null"));
+    } catch {
+      return EMPTY_FILTER;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(FILTER_KEY, JSON.stringify(logFilter));
+    } catch {
+      /* โหมดส่วนตัว/ปิด storage — แค่ไม่จำ */
+    }
+  }, [logFilter]);
 
   return (
     <ToastProvider>
@@ -65,15 +71,13 @@ export function App() {
         userId={userId}
         isOwner={isOwner}
         isAdmin={isAdmin}
-        logFilter={logFilter}
-        onPickLogFilter={pickLogFilter}
       >
         {route === "/" && <Overview go={go} />}
         {route === "/logs" && (
           <Logs
             latest={latest}
             filter={logFilter}
-            onPickFilter={setLogFilter}
+            onFilterChange={setLogFilter}
             guildId={guildId}
           />
         )}

@@ -1,55 +1,47 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, qs } from "../lib/api";
+import { api } from "../lib/api";
 import type {
   LogEntry,
-  LogLevel,
   LogPage,
   PartnerBot,
   Verdict,
   VerdictStats,
 } from "../lib/types";
-import { Button, Chip, ChipRow, Empty, SearchBox, Spinner } from "../components/ui";
+import { Button, Empty, SearchBox, Spinner } from "../components/ui";
 import { LogRow } from "../components/LogRow";
-import { LogTree } from "../components/LogTree";
-import { iconOf, labelOf } from "../lib/categories";
-import { findLeaf, type LogFilter } from "../lib/logTree";
+import { LEVEL_OPTIONS, LogFilterPanel, WINDOW_OPTIONS } from "../components/LogTree";
+import { labelOf } from "../lib/categories";
+import {
+  EMPTY_FILTER,
+  activeCount,
+  filterParams,
+  LOG_TREE,
+  matchesFilter,
+  toggleCategory,
+  toggleLevel,
+  type LogFilter,
+} from "../lib/logTree";
 import { Icon } from "../components/Icon";
 import { useToast } from "../components/Toast";
-
-const LEVELS: { v: LogLevel | ""; label: string }[] = [
-  { v: "", label: "ทุกระดับ" },
-  { v: "alert", label: "แจ้งเตือน" },
-  { v: "warn", label: "เตือน" },
-  { v: "info", label: "ปกติ" },
-];
-
-/** ต้องตรงกับ WINDOWS ใน src/web/routes/logs.ts */
-const WINDOWS = [
-  { v: "", label: "ทุกเวลา" },
-  { v: "1h", label: "1 ชม." },
-  { v: "24h", label: "24 ชม." },
-  { v: "7d", label: "7 วัน" },
-] as const;
 
 const PAGE = 40;
 
 export function Logs({
   latest,
   filter,
-  onPickFilter,
+  onFilterChange,
   guildId,
 }: {
   latest: LogEntry | null;
   filter: LogFilter;
-  onPickFilter: (f: LogFilter) => void;
+  onFilterChange: (f: LogFilter) => void;
   guildId: string | null;
 }) {
   const toast = useToast();
-  const category = filter.category;
-  const leaf = findLeaf(filter.leaf);
-  const [level, setLevel] = useState<LogLevel | "">("");
-  const [treeOpen, setTreeOpen] = useState(false);
-  const [window_, setWindow] = useState("");
+  // จอใหญ่กางแผงตัวกรองไว้ตั้งแต่แรก มือถือหุบไว้ก่อน (กางค้างจะกินเกือบทั้งจอ)
+  const [panelOpen, setPanelOpen] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches,
+  );
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
 
@@ -72,10 +64,8 @@ export function Logs({
     return () => window.clearTimeout(t);
   }, [search]);
 
-  // กิ่งระบุ event ได้หลายตัว เลยต่อเป็น ?event=a,b เอง แทนที่จะยัดผ่าน qs()
-  const query =
-    qs({ category, level, search: debounced, window: window_, limit: PAGE }) +
-    (leaf ? `&event=${leaf.events.join(",")}` : "");
+  const params = filterParams(filter, debounced);
+  const query = `?${params ? `${params}&` : ""}limit=${PAGE}`;
 
   const loadFirst = useCallback(async () => {
     setLoading(true);
@@ -122,9 +112,7 @@ export function Logs({
     seen.current = latest.id;
     // ต้องผ่านตัวกรองที่เปิดอยู่ก่อนถึงจะแทรก ไม่งั้นรายการที่โผล่มาจะขัดกับ
     // สิ่งที่ผู้ใช้เลือกดู (เช่นกรอง "แจ้งเตือน" อยู่ แต่มี info เด้งขึ้นหัวรายการ)
-    if (category && latest.category !== category) return;
-    if (leaf && !leaf.events.includes(latest.event)) return;
-    if (level && latest.level !== level) return;
+    if (!matchesFilter(latest, filter)) return;
     if (debounced) {
       const hay = `${latest.title} ${latest.description ?? ""} ${latest.fields
         .map((f) => f.value)
@@ -142,7 +130,7 @@ export function Logs({
         }),
       4000,
     );
-  }, [latest, category, leaf, level, debounced]);
+  }, [latest, filter, debounced]);
 
   async function loadMore() {
     if (!cursor || loadingMore) return;
@@ -204,84 +192,114 @@ export function Logs({
     }
   }
 
-  /** ชื่อของสิ่งที่กำลังดูอยู่ — โชว์บนหัวปุ่มกางต้นไม้ */
-  const pickedLabel = leaf
-    ? leaf.label
-    : category
-      ? labelOf(category)
-      : "ทุกหมวด";
+  const count = activeCount(filter);
+  /** รายการที่ติ๊กอยู่ เป็นป้ายกด × ได้ — เรียงตามแผง: ระดับ → เวลา → หมวด/กิ่ง */
+  const picked: { key: string; label: string; remove: () => void }[] = [
+    ...LEVEL_OPTIONS.filter((l) => filter.levels.includes(l.v)).map((l) => ({
+      key: `lv-${l.v}`,
+      label: l.label,
+      remove: () => onFilterChange(toggleLevel(filter, l.v)),
+    })),
+    ...WINDOW_OPTIONS.filter((w) => w.v && w.v === filter.window).map((w) => ({
+      key: "window",
+      label: w.label,
+      remove: () => onFilterChange({ ...filter, window: "" }),
+    })),
+    ...LOG_TREE.flatMap((n) =>
+      filter.categories.includes(n.category)
+        ? [
+            {
+              key: `cat-${n.category}`,
+              label: labelOf(n.category),
+              remove: () => onFilterChange(toggleCategory(filter, n.category)),
+            },
+          ]
+        : n.leaves
+            .filter((l) => filter.leaves.includes(l.id))
+            .map((l) => ({
+              key: `leaf-${l.id}`,
+              label: l.label,
+              remove: () =>
+                onFilterChange({
+                  ...filter,
+                  leaves: filter.leaves.filter((id) => id !== l.id),
+                }),
+            })),
+    ),
+  ];
 
   return (
     <div className="space-y-4">
-      {/*
-        ---- ต้นไม้หมวดหมู่ (เฉพาะมือถือ) ----
-        จอใหญ่มีต้นไม้อยู่ในเมนูซ้ายแล้ว ตรงนี้เลยซ่อนที่ md ขึ้นไป
-        ย่อไว้ก่อนเพราะกางค้างไว้จะกินครึ่งจอ เหลือที่ให้รายการจริงน้อยเกินไป
-      */}
-      <div className="md:hidden">
-        <button
-          type="button"
-          onClick={() => setTreeOpen((v) => !v)}
-          aria-expanded={treeOpen}
-          className="press flex w-full items-center gap-2.5 rounded-md border border-line bg-surface px-3.5 py-3 text-sm shadow-[inset_0_1px_0_0_var(--glass-spec)]"
-        >
-          <Icon
-            name={leaf?.icon ?? (category ? iconOf(category) : "list")}
-            className="size-[18px] shrink-0 text-accent"
-          />
-          <span className="min-w-0 flex-1 truncate text-left font-medium">
-            {pickedLabel}
-          </span>
-          {category && (
-            <span className="shrink-0 text-xs text-faint">{labelOf(category)}</span>
-          )}
-          <Icon
-            name="chevron"
-            className={`size-4 shrink-0 text-faint transition-transform duration-200 ${
-              treeOpen ? "rotate-90" : ""
-            }`}
-          />
-        </button>
-
-        {treeOpen && (
-          <div className="fade-in mt-2 rounded-md border border-line bg-surface p-2 shadow-[inset_0_1px_0_0_var(--glass-spec)]">
-            <LogTree
-              filter={filter}
-              onPick={(f) => {
-                onPickFilter(f);
-                // เลือกกิ่งแล้วหุบเอง — บนมือถือถ้าค้างไว้ต้องเลื่อนผ่านต้นไม้ทุกครั้ง
-                if (f.leaf) setTreeOpen(false);
-              }}
-              compact
+      {/* ---- ค้นหา + ตัวกรองแบบติ๊ก ---- */}
+      <div className="space-y-2.5">
+        <div className="flex gap-2">
+          <div className="min-w-0 flex-1">
+            <SearchBox
+              value={search}
+              onChange={setSearch}
+              placeholder="ค้นหาหัวข้อ / รายละเอียด / ชื่อผู้ใช้…"
             />
+          </div>
+          <button
+            type="button"
+            onClick={() => setPanelOpen((v) => !v)}
+            aria-expanded={panelOpen}
+            className={`press flex shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm transition-colors ${
+              panelOpen || count > 0
+                ? "border-accent bg-accent-soft font-semibold text-accent"
+                : "border-line bg-surface text-muted hover:text-text"
+            }`}
+          >
+            <Icon name="list" className="size-4" />
+            ตัวกรอง
+            {count > 0 && (
+              <span className="tnum rounded-full bg-accent px-1.5 text-xs leading-5 text-surface">
+                {count}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {panelOpen && (
+          <div className="fade-in rounded-md border border-line bg-surface p-3 shadow-[inset_0_1px_0_0_var(--glass-spec)]">
+            <LogFilterPanel filter={filter} onChange={onFilterChange} />
+            {/* มือถือ: แผงยาวเกือบเต็มจอ ติ๊กเสร็จแล้วหุบลงไปดูรายการได้ทันที */}
+            <div className="mt-3 md:hidden">
+              <Button full onClick={() => setPanelOpen(false)}>
+                ดูผลลัพธ์
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* ที่ติ๊กไว้ — กด × เอาออกทีละอันได้โดยไม่ต้องกางแผง */}
+        {count > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {picked.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                onClick={p.remove}
+                aria-label={`เอาตัวกรอง ${p.label} ออก`}
+                className="press flex items-center gap-1 rounded-full border border-accent/40 bg-accent-soft py-0.5 pl-2.5 pr-1.5 text-xs text-accent"
+              >
+                {p.label}
+                <Icon name="x" className="size-3" />
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => onFilterChange(EMPTY_FILTER)}
+              className="press px-1.5 text-xs font-medium text-muted underline-offset-2 hover:underline"
+            >
+              ล้างทั้งหมด
+            </button>
           </div>
         )}
       </div>
 
-      {/* ---- ตัวกรอง ---- */}
-      <div className="space-y-2.5">
-        <SearchBox
-          value={search}
-          onChange={setSearch}
-          placeholder="ค้นหาหัวข้อ / รายละเอียด / ชื่อผู้ใช้…"
-        />
-        <ChipRow>
-          {LEVELS.map((l) => (
-            <Chip key={l.v} active={level === l.v} onClick={() => setLevel(l.v)}>
-              {l.label}
-            </Chip>
-          ))}
-          <span className="w-px shrink-0 self-stretch bg-line" />
-          {WINDOWS.map((w) => (
-            <Chip key={w.v} active={window_ === w.v} onClick={() => setWindow(w.v)}>
-              {w.label}
-            </Chip>
-          ))}
-        </ChipRow>
-      </div>
-
       {/* ---- อธิบายว่าหมวดพาร์ทเนอร์คือใคร ---- */}
-      {category === "partner" && partners.length > 0 && (
+      {filter.categories.includes("partner") && partners.length > 0 && (
         <div className="fade-in space-y-1.5 rounded-md border border-line bg-surface px-3.5 py-3">
           <p className="text-xs text-muted">
             บอทจากพาร์ทเนอร์ที่เราให้สิทธิ์เข้ามาจัดการในเซิร์ฟเวอร์นี้
@@ -306,7 +324,7 @@ export function Logs({
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
         {/* ส่งออกตามตัวกรองที่เลือกอยู่ ไม่ใช่แค่แถวที่เลื่อนมาถึง */}
         <a
-          href={`/api/logs/export.csv${qs({ category, level, search: debounced, window: window_ })}${leaf ? `&event=${leaf.events.join(",")}` : ""}`}
+          href={`/api/logs/export.csv${params ? `?${params}` : ""}`}
           className="flex items-center gap-1 font-medium text-accent"
         >
           <Icon name="download" className="size-3.5" />

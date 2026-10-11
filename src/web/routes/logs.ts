@@ -18,9 +18,13 @@ const LEVELS = new Set(["info", "warn", "alert"]);
 // สร้างจาก LOG_CATEGORIES เพื่อไม่ให้ลืมอัปเดตตอนเพิ่มหมวดใหม่
 const CATEGORIES = new Set<string>(LOG_CATEGORIES);
 
-/** อ่าน query ที่ต้องเป็นค่าจากชุดที่กำหนดเท่านั้น — ค่าอื่น = ไม่กรอง */
-function oneOf<T extends string>(v: unknown, allowed: Set<string>): T | undefined {
-  return typeof v === "string" && allowed.has(v) ? (v as T) : undefined;
+/**
+ * อ่าน query ที่ต้องเป็นค่าจากชุดที่กำหนดเท่านั้น — รับหลายค่าได้ทั้ง ?a=x,y และ ?a=x&a=y
+ * ค่าที่ไม่รู้จักทิ้งไป ไม่เหลือเลย = ไม่กรอง
+ */
+function manyOf<T extends string>(v: unknown, allowed: Set<string>): T[] {
+  const raw = Array.isArray(v) ? v.map(String) : typeof v === "string" ? v.split(",") : [];
+  return [...new Set(raw.map((x) => x.trim()).filter((x) => allowed.has(x)))] as T[];
 }
 
 /** ช่วงเวลาย้อนหลังที่หน้าเว็บเลือกได้ — คุมเป็นชุดตายตัว ไม่รับ ms ดิบจาก client */
@@ -40,8 +44,8 @@ const EVENT_RE = /^[a-z][a-z0-9_]{0,39}$/;
 
 /** แปลง query ของ request เป็นเงื่อนไขที่ getLogs() รับ (ใช้ร่วมกันทั้งดูและ export) */
 function filtersFrom(query: Request["query"]) {
-  const level = oneOf<LogLevel>(query.level, LEVELS);
-  const category = oneOf<LogCategory>(query.category, CATEGORIES);
+  const levels = manyOf<LogLevel>(query.level, LEVELS);
+  const categories = manyOf<LogCategory>(query.category, CATEGORIES);
   const search =
     typeof query.search === "string" && query.search.trim()
       ? query.search.trim().slice(0, 200)
@@ -58,8 +62,8 @@ function filtersFrom(query: Request["query"]) {
     .slice(0, 20);
 
   return {
-    ...(level ? { level } : {}),
-    ...(category ? { category } : {}),
+    ...(levels.length ? { levels } : {}),
+    ...(categories.length ? { categories } : {}),
     ...(search ? { search } : {}),
     ...(events.length ? { events } : {}),
     ...(window ? { since: Date.now() - window } : {}),
