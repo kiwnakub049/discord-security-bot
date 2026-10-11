@@ -80,7 +80,7 @@ TOXIC.forEach((t, i) => {
     "security_ai",
     t.auto
       ? "AI ตรวจพบข้อความ toxic — จัดการอัตโนมัติ"
-      : "AI สงสัยว่าเป็นข้อความ toxic — รอ mod ตรวจ",
+      : "Claude สงสัยว่าไม่สุภาพ — ลง log ไว้ (ไม่ได้ลบ)",
     [
       { name: "User", value: who(i) },
       { name: "ห้อง", value: pick(CHANNELS, i) },

@@ -29,11 +29,11 @@ const fake = (score: number, spamScore = 0, spamType: "scam" | "none" = "none") 
     spamType,
   }));
 
-test("คะแนนแต่ละช่วง → บอกการกระทำถูก", async () => {
+test("คะแนนแต่ละช่วง → บอกการกระทำถูก (ค่าเริ่มต้น: ไม่ลบโซน review)", async () => {
   const cases: [number, string][] = [
     [0.1, "ignore"],
     [0.6, "review"],
-    [0.8, "review-delete"], // >= reviewDeleteScore (0.75)
+    [0.8, "review"],
     [0.95, "auto"],
   ];
   for (const [score, action] of cases) {
@@ -42,6 +42,18 @@ test("คะแนนแต่ละช่วง → บอกการกระ
     assert.ok(r.ok);
     assert.equal(r.action, action, `คะแนน ${score}`);
     assert.equal(r.result?.reason, "ทดสอบ");
+  }
+});
+
+test("เปิด reviewDeleteScore → โซน review ที่ถึงเกณฑ์บอกว่าจะลบ", async () => {
+  const orig = config.aiMod.reviewDeleteScore;
+  config.aiMod.reviewDeleteScore = 0.75;
+  try {
+    fake(0.8);
+    const r = await testClassify("x");
+    assert.ok(r.ok && r.action === "review-delete");
+  } finally {
+    config.aiMod.reviewDeleteScore = orig;
   }
 });
 

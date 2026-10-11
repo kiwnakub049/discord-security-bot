@@ -218,6 +218,14 @@ function channelLabel(message: Message): string {
   return ch?.name ? `#${ch.name}` : `ห้อง ${message.channelId}`;
 }
 
+/**
+ * บอกใน log ว่าบอทลบข้อความไปไหม — หน้าเว็บโชว์ปุ่ม "ถูก/ผิด" เฉพาะ log ที่ลบแล้ว
+ * (ชื่อ field/ค่าต้องตรงกับ AI_DELETED ใน routes/ai.ts และ LogRow.tsx)
+ */
+function deletedField(deleted: boolean): { name: string; value: string } {
+  return { name: "ลบข้อความ", value: deleted ? "ลบแล้ว" : "ไม่ได้ลบ" };
+}
+
 function reasonField(result: ClassifyResult): { name: string; value: string }[] {
   return result.reason ? [{ name: "เหตุผล AI", value: excerpt(result.reason, 300) }] : [];
 }
@@ -263,8 +271,10 @@ async function handleToxic(message: Message, result: ClassifyResult): Promise<bo
   if (!message.member) return false;
   if (result.zone === "auto") {
     try {
+      let deleted = false;
       if (config.aiMod.deleteOnAuto && message.deletable) {
         await message.delete();
+        deleted = true;
       }
       const bot = message.client.user;
       const { count, actionMsg } = await warnMember(
@@ -283,6 +293,7 @@ async function handleToxic(message: Message, result: ClassifyResult): Promise<bo
           { name: "ข้อความ", value: excerpt(message.content) },
           ...reasonField(result),
           { name: "เตือนสะสม", value: `${count} ครั้ง ${actionMsg}`.trim() },
+          deletedField(deleted),
         ],
       );
     } catch (err) {
@@ -314,22 +325,23 @@ async function handleToxic(message: Message, result: ClassifyResult): Promise<bo
           { name: "คะแนน", value: result.score.toFixed(4) },
           { name: "ข้อความ", value: excerpt(message.content) },
           ...reasonField(result),
+          deletedField(deleted),
         ],
       );
       return true; // จัดการแล้ว (ลบ) — ไม่ต้องนับ XP ต่อ
     }
 
-    // คะแนนก้ำกึ่ง — ไม่แตะข้อความ ขึ้น dashboard ให้ mod ตัดสิน
-    // (ผลตัดสินของ mod ในโซนนี้ = label ฟรีสำหรับเทรนโมเดลรอบหน้า)
+    // ไม่ถึงขั้นด่าจริงจัง — ไม่แตะข้อความ แค่ลง log ไว้ (ไม่มีปุ่มให้ mod ตัดสิน)
     await logEvent(
       message.client, "warn", "security", "security_ai",
-      "AI สงสัยว่าเป็นข้อความ toxic — รอ mod ตรวจ",
+      "Claude สงสัยว่าไม่สุภาพ — ลง log ไว้ (ไม่ได้ลบ)",
       [
         { name: "User", value: `${message.author.tag} (${message.author.id})` },
         { name: "ห้อง", value: `<#${message.channelId}>` },
         { name: "คะแนน", value: result.score.toFixed(4) },
         { name: "ข้อความ", value: excerpt(message.content) },
         ...reasonField(result),
+        deletedField(false),
       ],
     );
   }

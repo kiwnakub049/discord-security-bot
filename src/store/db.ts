@@ -281,6 +281,12 @@ function migrateSchema(): void {
   db.exec("DROP TABLE IF EXISTS users");
   db.exec("DELETE FROM sessions WHERE username GLOB '*[^0-9]*' AND username <> 'dev'");
 
+  // หมายเหตุของ mod ต่อคำตัดสิน AI (ไม่บังคับ)
+  const verdictCols = db.prepare("PRAGMA table_info(ai_verdicts)").all() as { name: string }[];
+  if (!verdictCols.some((c) => c.name === "comment")) {
+    db.exec("ALTER TABLE ai_verdicts ADD COLUMN comment TEXT");
+  }
+
   const queueCols = db.prepare("PRAGMA table_info(queue_items)").all() as { name: string }[];
   if (!queueCols.some((c) => c.name === "refs")) {
     db.exec("ALTER TABLE queue_items ADD COLUMN refs TEXT");

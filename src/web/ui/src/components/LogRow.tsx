@@ -12,6 +12,13 @@ import { Avatar, idFromLabel } from "./Avatar";
  * ระดับของ log บอกด้วยเส้นซ้ายสีเดียวกับการ์ดคิว — ปกติเป็นเส้นสีฟอร์ม (ไม่แย่งสายตา)
  * ชื่อระดับใส่ไว้ให้โปรแกรมอ่านหน้าจอ เพราะสีอย่างเดียวคนตาบอดสีแยกไม่ได้
  */
+/** ต้องตรงกับ aiDeleted ใน src/web/routes/ai.ts */
+function aiDeleted(entry: LogEntry): boolean {
+  const f = entry.fields.find((x) => x.name === "ลบข้อความ")?.value;
+  if (f) return f === "ลบแล้ว";
+  return entry.title.includes("ลบข้อความแล้ว") || entry.title.includes("จัดการอัตโนมัติ");
+}
+
 const LEVEL: Record<LogLevel, { rule: string; name: string }> = {
   info: { rule: "rule-none", name: "ปกติ" },
   warn: { rule: "rule-warn", name: "เตือน" },
@@ -27,13 +34,16 @@ const LEVEL: Record<LogLevel, { rule: string; name: string }> = {
 export function LogRow({
   entry,
   verdict,
+  comment,
   onVerdict,
   isNew,
   guildId,
 }: {
   entry: LogEntry;
   verdict?: Verdict | null;
-  onVerdict?: (logId: number, v: Verdict | null) => void;
+  /** หมายเหตุของ mod ต่อคำตัดสิน (ถ้ามี) */
+  comment?: string | null;
+  onVerdict?: (logId: number, v: Verdict | null, comment?: string) => void;
   isNew?: boolean;
   /** ใช้ประกอบลิงก์ห้อง — ไม่มีก็แสดงเป็นข้อความเฉย ๆ */
   guildId?: string | null;
@@ -41,7 +51,8 @@ export function LogRow({
   const [open, setOpen] = useState(false);
   const linkTarget = useLinkTarget();
   const lv = LEVEL[entry.level];
-  const isAi = entry.event === "security_ai";
+  // ปุ่มถูก/ผิด เฉพาะ log ของ Claude ที่บอทลบข้อความไปแล้ว (ที่แค่ลง log ไม่ต้องตัดสิน)
+  const isAi = entry.event === "security_ai" && aiDeleted(entry);
 
   /*
    * ชื่อบอทพาร์ทเนอร์ — ตัดวงเล็บ id ท้ายออกจากช่อง "ผู้ทำ"
@@ -119,8 +130,9 @@ export function LogRow({
               </Badge>
             )}
             {verdict && (
-              <Badge tone={verdict === "toxic" ? "alert" : "ok"}>
-                {verdict === "toxic" ? "ตัดสิน: ผิดจริง" : "ตัดสิน: AI จับผิด"}
+              <Badge tone={verdict === "toxic" ? "ok" : "alert"}>
+                {verdict === "toxic" ? "AI ถูก" : "AI ผิด"}
+                {comment ? " · มีหมายเหตุ" : ""}
               </Badge>
             )}
             {entry.fields.length > 0 && (
@@ -158,33 +170,76 @@ export function LogRow({
           </dl>
 
           {isAi && onVerdict && (
-            <div className="mt-3 border-t border-line pt-3">
-              <p className="mb-2 text-xs text-faint">
-                AI ตัดสินถูกไหม — คำตอบจะถูกเก็บเป็นข้อมูลเทรนรอบหน้า
-              </p>
-              <div className="flex gap-2">
-                <VerdictButton
-                  active={verdict === "toxic"}
-                  tone="alert"
-                  icon="check"
-                  label="ผิดจริง"
-                  onClick={() =>
-                    onVerdict(entry.id, verdict === "toxic" ? null : "toxic")
-                  }
-                />
-                <VerdictButton
-                  active={verdict === "ok"}
-                  tone="ok"
-                  icon="x"
-                  label="จับผิดตัว"
-                  onClick={() => onVerdict(entry.id, verdict === "ok" ? null : "ok")}
-                />
-              </div>
-            </div>
+            <AiVerdict
+              verdict={verdict ?? null}
+              comment={comment ?? ""}
+              onVerdict={(v, c) => onVerdict(entry.id, v, c)}
+            />
           )}
         </div>
       )}
     </Card>
+  );
+}
+
+/**
+ * AI ตัดสินถูกไหม — ปุ่ม "ถูก" / "ผิด" (กดซ้ำ = ยกเลิก) + หมายเหตุไม่บังคับ
+ * เก็บเป็นข้อมูลไว้ดูว่า AI แม่นแค่ไหน และใช้ปรับเกณฑ์/prompt รอบหน้า
+ */
+function AiVerdict({
+  verdict,
+  comment,
+  onVerdict,
+}: {
+  verdict: Verdict | null;
+  comment: string;
+  onVerdict: (v: Verdict | null, comment?: string) => void;
+}) {
+  const [draft, setDraft] = useState(comment);
+  const dirty = draft.trim() !== comment;
+  return (
+    <div className="mt-3 space-y-2 border-t border-line pt-3">
+      <p className="text-xs text-faint">บอทลบข้อความนี้ — Claude ตัดสินถูกไหม?</p>
+      <div className="flex gap-2">
+        <VerdictButton
+          active={verdict === "toxic"}
+          tone="ok"
+          icon="check"
+          label="ถูก"
+          onClick={() => onVerdict(verdict === "toxic" ? null : "toxic", draft.trim())}
+        />
+        <VerdictButton
+          active={verdict === "ok"}
+          tone="alert"
+          icon="x"
+          label="ผิด"
+          onClick={() => onVerdict(verdict === "ok" ? null : "ok", draft.trim())}
+        />
+      </div>
+      {verdict && (
+        <div className="fade-in flex gap-2">
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && dirty) onVerdict(verdict, draft.trim());
+            }}
+            maxLength={500}
+            placeholder="หมายเหตุ (ไม่บังคับ) เช่น พูดเล่นกับเพื่อน"
+            className="min-w-0 flex-1 rounded-md border border-line bg-surface px-2.5 py-1.5 text-xs outline-none focus:border-accent"
+          />
+          {dirty && (
+            <button
+              type="button"
+              onClick={() => onVerdict(verdict, draft.trim())}
+              className="press shrink-0 rounded-md bg-accent px-3 text-xs font-medium text-surface"
+            >
+              บันทึก
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

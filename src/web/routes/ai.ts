@@ -9,6 +9,7 @@ import { rateLimit } from "../middleware/rateLimit.js";
 import {
   clearVerdict,
   getAllVerdicts,
+  getVerdictComments,
   getVerdictMap,
   setVerdict,
   verdictStats,
@@ -18,6 +19,17 @@ import {
 /** ดึงค่าจาก field ของ log ตามชื่อ */
 function fieldOf(entry: LogEntry, name: string): string {
   return entry.fields.find((f) => f.name === name)?.value ?? "";
+}
+
+/**
+ * log นี้บอทลบข้อความไปแล้วไหม — ตัดสินถูก/ผิดได้เฉพาะอันที่ลบ (ที่แค่ลง log ไม่มีปุ่ม)
+ * log ใหม่มี field "ลบข้อความ" (ดู aiMod.deletedField) · log เก่าดูจากหัวข้อ
+ * ต้องตรงกับ aiDeleted ใน ui/src/components/LogRow.tsx
+ */
+export function aiDeleted(entry: Pick<LogEntry, "title" | "fields">): boolean {
+  const f = fieldOf(entry as LogEntry, "ลบข้อความ");
+  if (f) return f === "ลบแล้ว";
+  return entry.title.includes("ลบข้อความแล้ว") || entry.title.includes("จัดการอัตโนมัติ");
 }
 
 /** "someone (123456789)" -> "123456789" */
@@ -49,7 +61,7 @@ export function aiRoutes(): Router {
   );
 
   r.get("/api/ai/verdicts", (_req: Request, res: Response) => {
-    res.json({ map: getVerdictMap(), stats: verdictStats() });
+    res.json({ map: getVerdictMap(), comments: getVerdictComments(), stats: verdictStats() });
   });
 
   r.post("/api/ai/verdict", (req: Request, res: Response) => {
@@ -75,10 +87,20 @@ export function aiRoutes(): Router {
       return;
     }
     const verdict = raw as Verdict;
+    const rawComment = req.body?.comment;
+    if (rawComment !== undefined && rawComment !== null && typeof rawComment !== "string") {
+      res.status(400).json({ ok: false, message: "comment ต้องเป็นข้อความ" });
+      return;
+    }
+    const comment = (rawComment ?? "").trim().slice(0, 500);
 
     const entry = getLogById(logId);
     if (!entry || entry.event !== "security_ai") {
       res.status(404).json({ ok: false, message: "ไม่พบการตรวจจับของ AI ตาม id นี้" });
+      return;
+    }
+    if (!aiDeleted(entry)) {
+      res.status(400).json({ ok: false, message: "ตัดสินได้เฉพาะข้อความที่บอทลบไปแล้ว" });
       return;
     }
 
@@ -101,8 +123,9 @@ export function aiRoutes(): Router {
       text,
       user_id: userIdFrom(fieldOf(entry, "User")),
       decided_by: String(res.locals.username),
+      comment,
     });
-    res.json({ ok: true, verdict, stats: verdictStats() });
+    res.json({ ok: true, verdict, comment, stats: verdictStats() });
   });
 
   /** eval set พร้อมใช้ — บรรทัดละ 1 ตัวอย่าง {text, label} */
@@ -119,6 +142,7 @@ export function aiRoutes(): Router {
             label: row.verdict === "toxic" ? 1 : 0,
             model_score: row.score,
             zone: row.zone,
+            ...(row.comment ? { comment: row.comment } : {}),
             decided_at: row.decided_at,
           }),
         )

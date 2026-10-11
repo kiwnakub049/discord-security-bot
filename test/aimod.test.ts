@@ -18,6 +18,7 @@ process.env.BOT_DB_PATH = join(mkdtempSync(join(tmpdir(), "botai-")), "test.db")
 const { handleAiMod, __setClassifierForTest, zoneFor } = await import("../src/modules/aiMod.js");
 const { getWarnings } = await import("../src/modules/warningStore.js");
 const { config } = await import("../src/config.js");
+const { getLogs } = await import("../src/store/logStore.js");
 const { listOpen } = await import("../src/store/queueStore.js");
 const { SPAM_QUEUE_CATEGORY } = await import("../src/modules/aiMod.js");
 
@@ -80,26 +81,40 @@ test("ai-mod: โซน review คะแนนก้ำกึ่ง (< reviewDel
   assert.equal(getWarnings("ai-review").length, 0);
 });
 
-test("ai-mod: โซน review คะแนนสูงถึงเกณฑ์ → ลบข้อความ แต่ไม่เตือน/ลงโทษ", async () => {
-  // จำลองเคสจริง "ควยยยย..." = 0.7631 ที่เดิมแค่ขึ้น dashboard เฉย ๆ
-  mockClassify("review", 0.7631);
-  const m = mockMessage({ content: "ควยยยยยยยย", userId: "ai-revhi" });
-  assert.equal(await handleAiMod(m.msg), true, "ต้องถือว่าจัดการแล้ว (ลบ)");
-  assert.equal(m.deleted(), true, "ต้องลบข้อความ");
-  assert.equal(getWarnings("ai-revhi").length, 0, "แต่ต้องไม่เข้าระบบเตือน");
+test("ai-mod: เปิด reviewDeleteScore → โซน review คะแนนถึงเกณฑ์ลบข้อความ แต่ไม่เตือน/ลงโทษ", async () => {
+  const orig = config.aiMod.reviewDeleteScore;
+  config.aiMod.reviewDeleteScore = 0.75;
+  try {
+    mockClassify("review", 0.7631);
+    const m = mockMessage({ content: "ควยยยยยยยย", userId: "ai-revhi" });
+    assert.equal(await handleAiMod(m.msg), true, "ต้องถือว่าจัดการแล้ว (ลบ)");
+    assert.equal(m.deleted(), true, "ต้องลบข้อความ");
+    assert.equal(getWarnings("ai-revhi").length, 0, "แต่ต้องไม่เข้าระบบเตือน");
+  } finally {
+    config.aiMod.reviewDeleteScore = orig;
+  }
 });
 
-test("ai-mod: reviewDeleteScore = 0 → ปิดการลบ กลับไปแค่ขึ้น dashboard", async () => {
-  const orig = config.aiMod.reviewDeleteScore;
-  config.aiMod.reviewDeleteScore = 0;
-  try {
+test("ai-mod: ค่าเริ่มต้นไม่ลบโซน review (ลบแค่ด่าจริงจังโซน auto)", async () => {
+  assert.equal(config.aiMod.reviewDeleteScore, 0);
+  {
     mockClassify("review", 0.9);
     const m = mockMessage({ content: "คะแนนสูงแต่ปิดการลบ", userId: "ai-revoff" });
     assert.equal(await handleAiMod(m.msg), false);
     assert.equal(m.deleted(), false);
-  } finally {
-    config.aiMod.reviewDeleteScore = orig;
+    const log = getLogs({ events: ["security_ai"] }).find((e) =>
+      e.fields.some((f) => f.value === "คะแนนสูงแต่ปิดการลบ"),
+    );
+    assert.equal(log?.fields.find((f) => f.name === "ลบข้อความ")?.value, "ไม่ได้ลบ");
   }
+});
+
+test("ai-mod: log ของโซน auto บอกว่าลบแล้ว (หน้าเว็บใช้โชว์ปุ่มถูก/ผิด)", async () => {
+  mockClassify("auto", 0.97);
+  const m = mockMessage({ content: "ด่าจริงจังมาก", userId: "ai-autolog" });
+  await handleAiMod(m.msg);
+  const log = getLogs({ events: ["security_ai"] }).find((e) => e.fields.some((f) => f.value === "ด่าจริงจังมาก"));
+  assert.equal(log?.fields.find((f) => f.name === "ลบข้อความ")?.value, "ลบแล้ว");
 });
 
 test("ai-mod: โซน ignore → ผ่านเฉย ๆ", async () => {

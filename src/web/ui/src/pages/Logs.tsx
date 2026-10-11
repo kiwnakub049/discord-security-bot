@@ -65,6 +65,7 @@ export function Logs({
 
   const [verdicts, setVerdicts] = useState<Record<number, Verdict>>({});
   const [vstats, setVstats] = useState<VerdictStats | null>(null);
+  const [comments, setComments] = useState<Record<number, string>>({});
   const [partners, setPartners] = useState<PartnerBot[]>([]);
   /** id ของรายการที่เพิ่งไหลเข้ามาสด ๆ — ใช้ทำกรอบไฮไลต์ */
   const [fresh, setFresh] = useState<Set<number>>(new Set());
@@ -99,9 +100,12 @@ export function Logs({
 
   useEffect(() => {
     api
-      .get<{ map: Record<number, Verdict>; stats: VerdictStats }>("/api/ai/verdicts")
+      .get<{ map: Record<number, Verdict>; comments?: Record<number, string>; stats: VerdictStats }>(
+        "/api/ai/verdicts",
+      )
       .then((r) => {
         setVerdicts(r.map);
+        setComments(r.comments ?? {});
         setVstats(r.stats);
       })
       .catch(() => {
@@ -177,7 +181,7 @@ export function Logs({
     // ถูกถอด-ติดใหม่ตลอด ค่าที่มันอ่าน (cursor/query) อยู่ใน deps ครบแล้ว
   }, [hasMore, cursor, loadingMore, query]);
 
-  async function setVerdict(logId: number, v: Verdict | null) {
+  async function setVerdict(logId: number, v: Verdict | null, comment?: string) {
     // อัปเดตหน้าจอทันทีแล้วค่อยยิง API — ถ้าพลาดค่อยย้อนกลับ
     const before = verdicts[logId] ?? null;
     setVerdicts((prev) => {
@@ -190,8 +194,15 @@ export function Logs({
       const r = await api.post<{ stats: VerdictStats }>("/api/ai/verdict", {
         logId,
         verdict: v,
+        ...(v ? { comment: comment ?? "" } : {}),
       });
       setVstats(r.stats);
+      setComments((prev) => {
+        const next = { ...prev };
+        if (v && comment) next[logId] = comment;
+        else delete next[logId];
+        return next;
+      });
     } catch (err) {
       setVerdicts((prev) => {
         const next = { ...prev };
@@ -378,8 +389,8 @@ export function Logs({
         <div className="rounded-md border border-line bg-surface px-3.5 py-2.5 text-xs text-muted">
           mod ตัดสินการตรวจจับของ AI ไปแล้ว{" "}
           <b className="text-text">{vstats.total}</b> รายการ ·{" "}
-          <span className="text-alert">ผิดจริง {vstats.toxic}</span> ·{" "}
-          <span className="text-ok">AI จับผิดตัว {vstats.ok}</span>
+          <span className="text-ok">AI ถูก {vstats.toxic}</span> ·{" "}
+          <span className="text-alert">AI ผิด {vstats.ok}</span>
         </div>
       )}
 
@@ -400,6 +411,7 @@ export function Logs({
                 key={e.id}
                 entry={e}
                 verdict={verdicts[e.id] ?? null}
+                comment={comments[e.id] ?? null}
                 onVerdict={setVerdict}
                 isNew={fresh.has(e.id)}
                 guildId={guildId}
