@@ -14,8 +14,8 @@ import { Settings } from "./pages/Settings";
 import { BeamNG } from "./pages/BeamNG";
 import { Assistant } from "./pages/Assistant";
 
-/** v2 = ตัวกรองแบบติ๊กหลายช่อง (ของเดิมเลือกได้ทีละกิ่ง ไม่ได้จำ) */
-const FILTER_KEY = "logs.filter.v2";
+/** v3 = หมวดแยกเป็นแถบ + ตัวกรองแบบติ๊ก (v2 ติ๊กหมวดได้หลายหมวด ใช้ต่อไม่ได้) */
+const FILTER_KEY = "logs.filter.v3";
 
 export function App() {
   const [route, go] = useRoute();

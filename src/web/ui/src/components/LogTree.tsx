@@ -2,9 +2,8 @@ import type { ReactNode } from "react";
 import { Icon } from "./Icon";
 import {
   LOG_TREE,
-  categoryState,
-  leafChecked,
-  toggleCategory,
+  leavesOf,
+  pickCategory,
   toggleLeaf,
   toggleLevel,
   type LogFilter,
@@ -12,11 +11,10 @@ import {
 import type { LogLevel } from "../lib/types";
 
 /**
- * แผงตัวกรองของหน้า Logs — ติ๊กได้หลายช่องพร้อมกัน
- *
- * ของเดิมเป็นต้นไม้ที่กดได้ทีละกิ่ง อยากดู "เตือนสมาชิก + ไมค์แดง" พร้อมกันทำไม่ได้
- * และกิ่งย่อยต้องกางก่อนถึงจะเห็น ตอนนี้ทุกกิ่งโชว์หมด ติ๊กกี่อันก็ได้
- * ไม่ติ๊กอะไรเลยในกลุ่มไหน = ไม่กรองด้วยกลุ่มนั้น
+ * ตัวกรองของหน้า Logs แบ่งเป็นสองส่วน
+ * - CategoryTabs: แถบหมวด เลือกทีละหมวด (แยกออกมา ไม่ปนกับช่องติ๊ก)
+ * - LogFilterPanel: ช่องติ๊กหลายช่อง — หัวข้อย่อยของหมวดที่เลือก, ระดับ, และช่วงเวลา
+ *   ไม่ติ๊กอะไรเลยในกลุ่มไหน = ไม่กรองด้วยกลุ่มนั้น
  */
 
 export const LEVEL_OPTIONS: { v: LogLevel; label: string; dot: string }[] = [
@@ -95,6 +93,7 @@ export function LogFilterPanel({
   filter: LogFilter;
   onChange: (f: LogFilter) => void;
 }) {
+  const leaves = leavesOf(filter.category);
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -139,40 +138,64 @@ export function LogFilterPanel({
         </Group>
       </div>
 
-      <Group title="หมวด">
-        <div className="grid gap-x-3 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
-          {LOG_TREE.map((node) => {
-            const st = categoryState(filter, node.category);
-            return (
-              <div key={node.category}>
-                <CheckRow
-                  state={st === "all" ? true : st === "some" ? "mixed" : false}
-                  onToggle={() => onChange(toggleCategory(filter, node.category))}
-                  className="font-medium"
-                >
-                  <Icon name={node.icon} className="size-4 shrink-0 text-accent" />
-                  <span className="flex-1">{node.label}</span>
-                </CheckRow>
-                {node.leaves.length > 0 && (
-                  <div className="relative ml-[17px] border-l border-line pl-2">
-                    {node.leaves.map((leaf) => (
-                      <CheckRow
-                        key={leaf.id}
-                        state={leafChecked(filter, node.category, leaf.id)}
-                        onToggle={() => onChange(toggleLeaf(filter, node.category, leaf.id))}
-                        className="text-muted"
-                      >
-                        <Icon name={leaf.icon} className="size-3.5 shrink-0 text-faint" />
-                        <span className="flex-1">{leaf.label}</span>
-                      </CheckRow>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </Group>
+      {leaves.length > 0 && (
+        <Group title="หัวข้อย่อย (ไม่ติ๊ก = ทั้งหมวด)">
+          <div className="grid gap-x-3 sm:grid-cols-2 lg:grid-cols-3">
+            {leaves.map((leaf) => (
+              <CheckRow
+                key={leaf.id}
+                state={filter.leaves.includes(leaf.id)}
+                onToggle={() => onChange(toggleLeaf(filter, leaf.id))}
+              >
+                <Icon name={leaf.icon} className="size-4 shrink-0 text-faint" />
+                <span className="flex-1">{leaf.label}</span>
+              </CheckRow>
+            ))}
+          </div>
+        </Group>
+      )}
+    </div>
+  );
+}
+
+/** แถบหมวด — เลือกได้ทีละหมวด เลื่อนซ้ายขวาได้บนมือถือ */
+export function CategoryTabs({
+  filter,
+  onChange,
+}: {
+  filter: LogFilter;
+  onChange: (f: LogFilter) => void;
+}) {
+  const tabs = [
+    { v: "" as const, label: "ทุกหมวด", icon: "list" as const },
+    ...LOG_TREE.map((n) => ({ v: n.category, label: n.label, icon: n.icon })),
+  ];
+  return (
+    <div
+      role="tablist"
+      aria-label="หมวด"
+      className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:flex-wrap md:px-0 [&::-webkit-scrollbar]:hidden"
+    >
+      {tabs.map((t) => {
+        const on = filter.category === t.v;
+        return (
+          <button
+            key={t.v || "all"}
+            type="button"
+            role="tab"
+            aria-selected={on}
+            onClick={() => onChange(pickCategory(filter, t.v))}
+            className={`press flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors ${
+              on
+                ? "border-accent bg-accent-soft font-semibold text-accent"
+                : "border-line bg-surface text-muted hover:text-text"
+            }`}
+          >
+            <Icon name={t.icon} className="size-4 shrink-0" />
+            {t.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

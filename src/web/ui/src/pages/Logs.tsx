@@ -9,15 +9,19 @@ import type {
 } from "../lib/types";
 import { Button, Empty, SearchBox, Spinner } from "../components/ui";
 import { LogRow } from "../components/LogRow";
-import { LEVEL_OPTIONS, LogFilterPanel, WINDOW_OPTIONS } from "../components/LogTree";
-import { labelOf } from "../lib/categories";
+import {
+  CategoryTabs,
+  LEVEL_OPTIONS,
+  LogFilterPanel,
+  WINDOW_OPTIONS,
+} from "../components/LogTree";
 import {
   EMPTY_FILTER,
   activeCount,
   filterParams,
-  LOG_TREE,
+  leavesOf,
   matchesFilter,
-  toggleCategory,
+  toggleLeaf,
   toggleLevel,
   type LogFilter,
 } from "../lib/logTree";
@@ -193,7 +197,7 @@ export function Logs({
   }
 
   const count = activeCount(filter);
-  /** รายการที่ติ๊กอยู่ เป็นป้ายกด × ได้ — เรียงตามแผง: ระดับ → เวลา → หมวด/กิ่ง */
+  /** รายการที่ติ๊กอยู่ เป็นป้ายกด × ได้ — เรียงตามแผง: ระดับ → เวลา → หัวข้อย่อย */
   const picked: { key: string; label: string; remove: () => void }[] = [
     ...LEVEL_OPTIONS.filter((l) => filter.levels.includes(l.v)).map((l) => ({
       key: `lv-${l.v}`,
@@ -205,33 +209,20 @@ export function Logs({
       label: w.label,
       remove: () => onFilterChange({ ...filter, window: "" }),
     })),
-    ...LOG_TREE.flatMap((n) =>
-      filter.categories.includes(n.category)
-        ? [
-            {
-              key: `cat-${n.category}`,
-              label: labelOf(n.category),
-              remove: () => onFilterChange(toggleCategory(filter, n.category)),
-            },
-          ]
-        : n.leaves
-            .filter((l) => filter.leaves.includes(l.id))
-            .map((l) => ({
-              key: `leaf-${l.id}`,
-              label: l.label,
-              remove: () =>
-                onFilterChange({
-                  ...filter,
-                  leaves: filter.leaves.filter((id) => id !== l.id),
-                }),
-            })),
-    ),
+    ...leavesOf(filter.category)
+      .filter((l) => filter.leaves.includes(l.id))
+      .map((l) => ({
+        key: `leaf-${l.id}`,
+        label: l.label,
+        remove: () => onFilterChange(toggleLeaf(filter, l.id)),
+      })),
   ];
 
   return (
     <div className="space-y-4">
-      {/* ---- ค้นหา + ตัวกรองแบบติ๊ก ---- */}
+      {/* ---- หมวด (แยกจากตัวกรอง) + ค้นหา + ตัวกรองแบบติ๊ก ---- */}
       <div className="space-y-2.5">
+        <CategoryTabs filter={filter} onChange={onFilterChange} />
         <div className="flex gap-2">
           <div className="min-w-0 flex-1">
             <SearchBox
@@ -289,7 +280,7 @@ export function Logs({
             ))}
             <button
               type="button"
-              onClick={() => onFilterChange(EMPTY_FILTER)}
+              onClick={() => onFilterChange({ ...EMPTY_FILTER, category: filter.category })}
               className="press px-1.5 text-xs font-medium text-muted underline-offset-2 hover:underline"
             >
               ล้างทั้งหมด
@@ -299,7 +290,7 @@ export function Logs({
       </div>
 
       {/* ---- อธิบายว่าหมวดพาร์ทเนอร์คือใคร ---- */}
-      {filter.categories.includes("partner") && partners.length > 0 && (
+      {filter.category === "partner" && partners.length > 0 && (
         <div className="fade-in space-y-1.5 rounded-md border border-line bg-surface px-3.5 py-3">
           <p className="text-xs text-muted">
             บอทจากพาร์ทเนอร์ที่เราให้สิทธิ์เข้ามาจัดการในเซิร์ฟเวอร์นี้
