@@ -108,7 +108,8 @@ export function chatRoutes(client?: Client): Router {
   // ทีละคำถามต่อ thread — กดส่งรัว ๆ จะได้ไม่ยิง API ซ้อนแล้วประวัติสลับลำดับ
   const busy = new Set<number>();
 
-  const owner = (res: Response) => String(res.locals.username);
+  // ผูกแชทกับ Discord user ID ไม่ใช่ชื่อ — ชื่อ Discord เปลี่ยนได้ ไม่งั้นเปลี่ยนชื่อแล้วแชทเก่าหาย
+  const owner = (res: Response) => String(res.locals.userId);
   const parseText = (req: Request): string | null => {
     const t = typeof req.body?.text === "string" ? req.body.text.trim() : "";
     return t && t.length <= TEXT_MAX ? t : null;
