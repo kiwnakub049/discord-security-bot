@@ -17,6 +17,7 @@ import { config } from "../config.js";
 import { csrfGuard, securityHeaders } from "./middleware/security.js";
 import { rateLimit } from "./middleware/rateLimit.js";
 import { requireAuth } from "./middleware/auth.js";
+import { discordAccess, noAccess, type AccessResolver } from "../auth/access.js";
 import { notifySecurity } from "../modules/securityAlerts.js";
 import { meRoutes, publicAuthRoutes } from "./routes/auth.js";
 import { overviewRoutes } from "./routes/overview.js";
@@ -38,7 +39,17 @@ const publicDir = join(__dirname, "public");
 /** หน้าเว็บที่ Vite build แล้ว — ต้อง login ก่อนถึงจะเห็น */
 const uiDir = join(__dirname, "ui", "dist");
 
-export function startWebServer(client?: Client): Server | undefined {
+/**
+ * opts.access — ตัดสินว่า Discord user ID ไหนเข้าได้ด้วยสิทธิ์อะไร
+ *   ค่าเริ่มต้น: มี client = ดูจากยศในเซิร์ฟ (discordAccess) · ไม่มี client = ไม่มีใครเข้าได้
+ *   เทส/npm run web ใส่ตัวอื่นเข้ามาแทนได้
+ * opts.fetchImpl — ใช้แทน fetch ตอนคุยกับ Discord OAuth (เทสใส่ของปลอม)
+ */
+export function startWebServer(
+  client?: Client,
+  opts: { access?: AccessResolver; fetchImpl?: typeof fetch } = {},
+): Server | undefined {
+  const access = opts.access ?? (client ? discordAccess(client) : noAccess);
   if (!config.web.enabled) return undefined;
   if (!process.env.SESSION_SECRET) {
     console.error(
@@ -64,16 +75,16 @@ export function startWebServer(client?: Client): Server | undefined {
   // ปฏิเสธคำขอข้ามเว็บ "ก่อน" อ่าน body — ไม่มีเหตุผลให้เสียแรงแกะ JSON 16kb
   // ของคำขอที่จะโดนตีกลับอยู่ดี
   app.use(csrfGuard);
-  app.use(express.urlencoded({ extended: false, limit: "16kb" })); // ฟอร์ม login
+  app.use(express.urlencoded({ extended: false, limit: "16kb" }));
   app.use(express.json({ limit: "16kb" })); // body ของ API
 
   // ---------- rate limit (กัน botnet ยิงถล่ม) ----------
-  // /login: backstop เหนือ lockout (5 ครั้ง/15 นาที) — จับการยิงรัวก่อนเสียแรง scrypt
-  // เพดาน 20 สูงกว่า lockout จงใจ: lockout คือตัวคุมหลัก อันนี้กันน้ำท่วมเฉย ๆ
-  app.post(
-    "/login",
-    rateLimit("login", 20, 15 * 60_000, (ip) =>
-      void notifySecurity("rate limit /login", `IP ${ip} ยิง POST /login เกิน 20 ครั้ง/15 นาที`),
+  // ขากลับจาก Discord: แต่ละครั้งยิง Discord API สองรอบ (แลก code + ถามตัวตน)
+  // คนปกติ login วันละไม่กี่ครั้ง 20 ครั้ง/15 นาทีเหลือเฟือ เกินนี้คือมีคนยิงเล่น
+  app.get(
+    "/auth/discord/callback",
+    rateLimit("oauth", 20, 15 * 60_000, (ip) =>
+      void notifySecurity("rate limit login", `IP ${ip} ยิงขากลับ login เกิน 20 ครั้ง/15 นาที`),
     ),
   );
   // API ทั้งหมด: 240 ครั้ง/นาที/IP — ยกเว้น /api/stream (SSE เชื่อมต่อยาว 1 ครั้ง
@@ -92,17 +103,17 @@ export function startWebServer(client?: Client): Server | undefined {
   app.get("/icon.svg", (_req: Request, res: Response) => {
     res.sendFile(join(publicDir, "icon.svg"));
   });
-  app.use(publicAuthRoutes(client));
+  app.use(publicAuthRoutes(client, access, opts.fetchImpl));
 
   // ---------- ด่านตรวจ ----------
-  app.use(requireAuth);
+  app.use(requireAuth(access));
 
   // ---------- หลัง login ----------
   app.use(meRoutes(client));
   app.use(overviewRoutes(client));
   app.use(queueRoutes(client));
   app.use(systemRoutes());
-  app.use(logRoutes());
+  app.use(logRoutes(access));
   app.use(memberRoutes(client));
   app.use(actionRoutes(client));
   app.use(adminRoutes(client));

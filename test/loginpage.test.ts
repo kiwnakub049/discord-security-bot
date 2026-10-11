@@ -1,45 +1,37 @@
 /**
  * ทดสอบการประกอบหน้า login ฝั่ง server
  *
- * เดิมหน้านี้ใช้ <script> ในไฟล์อ่าน ?error= มาแสดงเอง พอ CSP ตัด
- * script-src 'unsafe-inline' ออก สคริปต์นั้นถูกบล็อกเงียบ ๆ — กรอกรหัสผิดแล้ว
- * หน้าจะเด้งกลับมาเปล่า ๆ ไม่บอกอะไรเลย จึงย้ายมาประกอบฝั่ง server
- *
+ * หน้า login ห้ามมี <script> (CSP บล็อกเงียบ ๆ) ข้อความแจ้งเตือนเลยประกอบฝั่ง server
  * เทสนี้คุมสองเรื่อง: ข้อความต้องขึ้นจริง และค่าจาก query ต้องไม่หลุดเข้า HTML
  */
-import { test } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import type { Request } from "express";
+
+// auth.ts ลาก logger → logStore → db มาด้วย — ชี้ DB ไปที่ tmp ก่อน import
+const DB_PATH = join(tmpdir(), "bot-test-loginpage.db");
+process.env.BOT_DB_PATH = DB_PATH;
+process.env.SESSION_SECRET ||= "test-secret-do-not-use-in-prod";
+process.env.CLIENT_ID = "app-123";
+process.env.DISCORD_CLIENT_SECRET = "secret";
+process.env.DASHBOARD_URL = "https://bot.example.com";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const TEMPLATE = readFileSync(join(ROOT, "src/web/public/login.html"), "utf8");
 
-/**
- * สำเนาตรรกะเดียวกับ renderLogin() ใน src/web/routes/auth.ts
- *
- * import ของจริงไม่ได้ เพราะไฟล์นั้นลาก express + discord.js + store ทั้งชุดมาด้วย
- * (auth.ts import logger → logStore → db) ซึ่งจะเปิด DB จริงตอนโหลดโมดูล
- */
-function renderLogin(query: Request["query"]): string {
-  let message = "";
-  const locked = Number(query.locked);
-  if (Number.isFinite(locked) && locked > 0) {
-    const mins = Math.min(999, Math.ceil(locked));
-    message = `ลองเข้าสู่ระบบผิดหลายครั้งเกินไป — ถูกล็อกชั่วคราว ลองใหม่อีกครั้งใน ${mins} นาที`;
-  } else if (query.error) {
-    message = "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง";
-  }
-  return TEMPLATE.replace(
-    "<!--ERROR-->",
-    message ? `<p class="error" role="alert">${message}</p>` : "",
-  );
-}
+let renderLogin: typeof import("../src/web/routes/auth.js")["renderLogin"];
 
-test("เทมเพลตมีจุดสำหรับแทรกข้อความ และไม่มี inline script หลงเหลือ", () => {
+before(async () => {
+  for (const suffix of ["", "-wal", "-shm"]) rmSync(DB_PATH + suffix, { force: true });
+  ({ renderLogin } = await import("../src/web/routes/auth.js"));
+});
+
+test("เทมเพลตมีจุดสำหรับแทรกข้อความ ปุ่ม Discord และไม่มี inline script", () => {
   assert.ok(TEMPLATE.includes("<!--ERROR-->"), "ต้องมี <!--ERROR--> ให้แทรก");
+  assert.match(TEMPLATE, /href="\/auth\/discord"/);
 
   // ตัดคอมเมนต์ออกก่อนตรวจ — ในไฟล์มีคอมเมนต์เตือนว่า "ห้ามมี <script>"
   // ซึ่งไม่ใช่สคริปต์จริง ถ้าไม่ตัดจะจับผิดตัวเอง
@@ -60,24 +52,25 @@ test("ไม่มี query = ไม่มีกล่องข้อควา�
   assert.ok(!html.includes("<!--ERROR-->"), "ต้องแทนที่ placeholder ทิ้งไปแล้ว");
 });
 
-test("error=1 ขึ้นข้อความรหัสผิด", () => {
-  const html = renderLogin({ error: "1" });
-  assert.match(html, /ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง/);
-  assert.match(html, /role="alert"/);
+test("error แต่ละแบบขึ้นข้อความของตัวเอง", () => {
+  assert.match(renderLogin({ error: "norole" }), /ไม่มียศแอดมินหรือ mod/);
+  assert.match(renderLogin({ error: "state" }), /กดเข้าสู่ระบบใหม่/);
+  assert.match(renderLogin({ error: "failed" }), /เชื่อมต่อ Discord ไม่สำเร็จ/);
+  assert.match(renderLogin({ error: "denied" }), /ยกเลิก/);
+  assert.match(renderLogin({ error: "norole" }), /role="alert"/);
 });
 
-test("locked=N บอกจำนวนนาทีที่ต้องรอ", () => {
-  assert.match(renderLogin({ locked: "7" }), /ใน 7 นาที/);
-  // ถูกล็อกสำคัญกว่ารหัสผิด — ต้องขึ้นข้อความล็อกเมื่อมาพร้อมกัน
-  assert.match(renderLogin({ locked: "3", error: "1" }), /ถูกล็อกชั่วคราว/);
+test("error ที่ไม่รู้จัก ไม่ขึ้นข้อความ", () => {
+  assert.ok(!renderLogin({ error: "1" }).includes('class="error"'));
 });
 
-test("locked ที่ไม่ใช่ตัวเลขบวก ไม่ทำให้ขึ้นข้อความล็อก", () => {
-  for (const v of ["0", "-5", "abc", ""]) {
-    assert.ok(
-      !renderLogin({ locked: v }).includes("ถูกล็อกชั่วคราว"),
-      `locked=${JSON.stringify(v)} ไม่ควรนับว่าถูกล็อก`,
-    );
+test("ยังตั้งค่า OAuth ไม่ครบ → บอกว่าต้องตั้งอะไรตั้งแต่เปิดหน้า", () => {
+  const saved = process.env.DASHBOARD_URL;
+  delete process.env.DASHBOARD_URL;
+  try {
+    assert.match(renderLogin({}), /DASHBOARD_URL/);
+  } finally {
+    process.env.DASHBOARD_URL = saved;
   }
 });
 
@@ -88,14 +81,8 @@ test("ค่าจาก query ยัดสคริปต์เข้า HTML �
     "1</p><script>alert(1)</script><p>",
   ];
   for (const p of payloads) {
-    for (const html of [renderLogin({ locked: p }), renderLogin({ error: p })]) {
-      assert.ok(!html.includes("alert(1)"), `หลุดผ่าน payload: ${p}`);
-      assert.ok(!html.includes("onerror"), `หลุดผ่าน payload: ${p}`);
-    }
+    const html = renderLogin({ error: p });
+    assert.ok(!html.includes("alert(1)"), `หลุดผ่าน payload: ${p}`);
+    assert.ok(!html.includes("onerror"), `หลุดผ่าน payload: ${p}`);
   }
-});
-
-test("locked ค่ามหาศาลถูกจำกัดเพดาน ไม่ล้นหน้า", () => {
-  const html = renderLogin({ locked: "999999999" });
-  assert.match(html, /ใน 999 นาที/);
 });

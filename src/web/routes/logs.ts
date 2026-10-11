@@ -1,6 +1,6 @@
 /** อ่าน log — รายการ (เลื่อนดูทีละหน้า), กราฟย้อนหลัง, และสตรีมสด */
 import { Router, type Request, type Response } from "express";
-import { userExists } from "../../auth/users.js";
+import type { AccessResolver } from "../../auth/access.js";
 import { sessionExists } from "../../auth/session.js";
 import { BOM, toCsv } from "../csv.js";
 import {
@@ -66,7 +66,7 @@ function filtersFrom(query: Request["query"]) {
   };
 }
 
-export function logRoutes(): Router {
+export function logRoutes(access: AccessResolver): Router {
   const r = Router();
 
   r.get("/api/logs", (req: Request, res: Response) => {
@@ -125,7 +125,7 @@ export function logRoutes(): Router {
 
   // ---------- สตรีมสด (SSE) ----------
   r.get("/api/stream", (req: Request, res: Response) => {
-    const username = res.locals.username as string;
+    const userId = res.locals.userId as string;
     const sessionId = res.locals.sessionId as string;
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
@@ -141,11 +141,12 @@ export function logRoutes(): Router {
     };
     logEmitter.on("log", onLog);
 
-    // ทุก 15 วิ: ส่ง ping กันหลุด + เช็คสิทธิ์ซ้ำ (บัญชีถูกลบ หรือ session ถูก revoke → ปิด stream)
-    // ต้องเช็ค sessionExists ด้วย ไม่ใช่แค่ userExists — ไม่งั้นเครื่องที่ถูกเตะออก/เปลี่ยนรหัสแล้ว
-    // ยังรับ log สดต่อได้ตราบใดที่สายไม่ขาด (ping ทุก 15 วิยิ่งเลี้ยงไว้)
-    const tick = setInterval(() => {
-      if (!userExists(username) || !sessionExists(sessionId)) {
+    // ทุก 15 วิ: ส่ง ping กันหลุด + เช็คสิทธิ์ซ้ำ (ถูกถอดยศ หรือ session ถูก revoke → ปิด stream)
+    // ไม่งั้นคนที่ถูกถอดยศ/ถูกเตะออกแล้ว ยังรับ log สดต่อได้ตราบใดที่สายไม่ขาด
+    // (ping ทุก 15 วิยิ่งเลี้ยงสายไว้) — request อื่นโดนด่าน requireAuth แต่ stream ไม่ได้ผ่านซ้ำ
+    const tick = setInterval(async () => {
+      const stillOk = sessionExists(sessionId) && (await access(userId).catch(() => null));
+      if (!stillOk) {
         cleanup();
         res.end();
         return;

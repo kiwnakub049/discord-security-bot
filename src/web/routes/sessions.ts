@@ -53,10 +53,10 @@ export function sessionRoutes(client?: Client): Router {
   const r = Router();
 
   r.get("/api/sessions", (_req: Request, res: Response) => {
-    const username = String(res.locals.username);
+    const userId = String(res.locals.userId);
     const current = String(res.locals.sessionId);
     res.json(
-      listSessions(username).map((s) => ({
+      listSessions(userId).map((s) => ({
         // ส่ง id ไปให้หน้าเว็บใช้สั่งเตะได้ — เป็น hash อยู่แล้ว เอาไปสวมสิทธิ์ไม่ได้
         id: s.id,
         current: s.id === current,
@@ -70,7 +70,7 @@ export function sessionRoutes(client?: Client): Router {
   });
 
   r.post("/api/sessions/revoke", async (req: Request, res: Response) => {
-    const username = String(res.locals.username);
+    const userId = String(res.locals.userId);
     const current = String(res.locals.sessionId);
     const id = String(req.body?.id ?? "");
     if (!id) {
@@ -85,27 +85,26 @@ export function sessionRoutes(client?: Client): Router {
       });
       return;
     }
-    const ok = revokeSession(username, id);
+    const ok = revokeSession(userId, id);
     res.json({ ok, message: ok ? "เตะเครื่องนั้นออกแล้ว" : "ไม่พบเครื่องนี้" });
     if (ok && client) {
       await logEvent(client, "warn", "system", "system_login", "เตะอุปกรณ์ออกจากระบบ", [
-        { name: "บัญชี", value: username },
-        { name: "โดย", value: `${username} (จาก dashboard)` },
+        { name: "บัญชี", value: `${res.locals.username} (${userId})` },
       ]);
     }
   });
 
   r.post("/api/sessions/revoke-others", async (_req: Request, res: Response) => {
-    const username = String(res.locals.username);
+    const userId = String(res.locals.userId);
     const current = String(res.locals.sessionId);
-    const n = revokeOtherSessions(username, current);
+    const n = revokeOtherSessions(userId, current);
     res.json({
       ok: true,
       message: n ? `เตะออก ${n} เครื่อง` : "ไม่มีเครื่องอื่นที่ค้างอยู่",
     });
     if (n && client) {
       await logEvent(client, "warn", "system", "system_login", "ออกจากระบบทุกเครื่องยกเว้นเครื่องนี้", [
-        { name: "บัญชี", value: username },
+        { name: "บัญชี", value: `${res.locals.username} (${userId})` },
         { name: "จำนวน", value: `${n} เครื่อง` },
       ]);
     }

@@ -83,6 +83,13 @@ export const SECTIONS: { section: string; items: Item[] }[] = [
     ],
   },
   {
+    section: "สิทธิ์เข้า dashboard",
+    items: [
+      { key: "dashboard.adminRoleIds", label: "ยศที่เป็น admin (role ID) — คนมีสิทธิ์ Administrator เป็น admin เสมอ", type: "idlist" },
+      { key: "dashboard.modRoleIds", label: "ยศที่เป็น mod (role ID)", type: "idlist" },
+    ],
+  },
+  {
     section: "Ticket",
     items: [{ key: "ticket.policeRoleId", label: "ยศตำรวจที่เปิด ticket ได้ (role ID)", type: "id" }],
   },

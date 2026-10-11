@@ -24,14 +24,14 @@ export function Settings({
 }) {
   return (
     <div className="space-y-6">
-      {/* ตั้งค่าบอท + จัดการบัญชี = admin เท่านั้น (backend ก็บังคับซ้ำอีกชั้น) */}
+      {/* ตั้งค่าบอท + รายชื่อคนที่เข้าได้ = admin เท่านั้น (backend ก็บังคับซ้ำอีกชั้น) */}
       {isAdmin && <BotSettings />}
       <SkinPicker />
       <LinkTargetPicker />
       <OledPicker />
       <ServerLock />
       <Devices />
-      {isAdmin && <ModAccounts me={username} />}
+      {isAdmin && <AccessPeople me={username} />}
       <SignOut username={username} />
     </div>
   );
@@ -466,166 +466,59 @@ function ServerLock() {
   );
 }
 
-/* ---------------- บัญชีผู้ดูแล ---------------- */
+/* ---------------- ใครเข้า dashboard ได้ ---------------- */
 
-function ModAccounts({ me }: { me: string }) {
-  const toast = useToast();
-  const { data, reload } = useFetch<{ username: string; role: "admin" | "mod" }[]>(
-    "/api/users",
-  );
-  const [name, setName] = useState("");
-  const [pass, setPass] = useState("");
-  const [role, setRole] = useState<"admin" | "mod">("mod");
-  const [busy, setBusy] = useState(false);
-  const [adding, setAdding] = useState(false);
+interface AccessList {
+  roles: { id: string; name: string | null; role: "admin" | "mod" }[];
+  people: { id: string; name: string; role: "admin" | "mod" }[];
+}
 
-  async function add() {
-    setBusy(true);
-    try {
-      const r = await api.post<ActionResult>("/api/users/add", {
-        username: name,
-        password: pass,
-        role,
-      });
-      toast(r.message, "ok");
-      setName("");
-      setPass("");
-      setRole("mod");
-      setAdding(false);
-      reload();
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "เพิ่มบัญชีไม่สำเร็จ", "error");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function changeRole(username: string, next: "admin" | "mod") {
-    setBusy(true);
-    try {
-      const r = await api.post<ActionResult>("/api/users/role", {
-        username,
-        role: next,
-      });
-      toast(r.message, r.ok ? "ok" : "error");
-      reload();
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "เปลี่ยนสิทธิ์ไม่สำเร็จ", "error");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function remove(username: string) {
-    setBusy(true);
-    try {
-      const r = await api.post<ActionResult>("/api/users/remove", { username });
-      toast(r.message, r.ok ? "ok" : "error");
-      reload();
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "ลบบัญชีไม่สำเร็จ", "error");
-    } finally {
-      setBusy(false);
-    }
-  }
+/**
+ * ดูอย่างเดียว — สิทธิ์มาจากยศใน Discord ทั้งหมด
+ * เพิ่ม/ถอดคนทำที่ Discord (ให้/ถอดยศ) ส่วนยศไหนนับเป็น admin/mod ตั้งใน "ตั้งค่าบอท" ด้านบน
+ */
+function AccessPeople({ me }: { me: string }) {
+  const { data } = useFetch<AccessList>("/api/access");
 
   return (
     <section>
-      <SectionTitle>บัญชีผู้ดูแล</SectionTitle>
+      <SectionTitle>ใครเข้า dashboard ได้</SectionTitle>
       <Card className="divide-y divide-line">
-        {data?.map((u) => (
-          <div key={u.username} className="flex items-center gap-3 px-4 py-3">
-            <Icon name="user" className="size-5 shrink-0 text-faint" />
-            <span className="min-w-0 flex-1 truncate text-sm">
-              {u.username}
-              {u.username === me && (
-                <span className="ml-1.5 text-xs text-faint">(คุณ)</span>
-              )}
-            </span>
-            {/* คลิก badge เพื่อสลับ admin/mod (backend กัน admin คนสุดท้ายให้เอง) */}
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() =>
-                void changeRole(u.username, u.role === "admin" ? "mod" : "admin")
-              }
-              title={u.role === "admin" ? "กดเพื่อลดเป็น mod" : "กดเพื่อเลื่อนเป็น admin"}
-              className={`rounded-full px-2 py-0.5 text-xs font-medium disabled:opacity-40 ${
-                u.role === "admin"
-                  ? "bg-accent/15 text-accent"
-                  : "bg-raised text-faint"
-              }`}
-            >
-              {u.role}
-            </button>
-            {u.username !== me && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void remove(u.username)}
-                aria-label={`ลบบัญชี ${u.username}`}
-                className="rounded-lg p-2 text-alert active:bg-raised disabled:opacity-40"
-              >
-                <Icon name="x" className="size-4" />
-              </button>
-            )}
+        <p className="p-4 text-sm text-muted">
+          เข้าได้ด้วยบัญชี Discord ที่มียศตามที่ตั้งไว้ในหัวข้อ "สิทธิ์เข้า dashboard" ของตั้งค่าบอท
+          คนที่มีสิทธิ์ Administrator ในเซิร์ฟเป็น admin เสมอ — ถอดยศใน Discord แล้วหลุดจากเว็บทันที
+        </p>
+        {!data ? (
+          <div className="flex justify-center p-6 text-muted">
+            <Spinner />
           </div>
-        ))}
-
-        <div className="p-4">
-          {adding ? (
-            <div className="space-y-2">
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="ชื่อผู้ใช้ (3–32 ตัว)"
-                autoComplete="off"
-                className="w-full rounded-md border border-line bg-surface px-3 py-2.5 text-base outline-none focus:border-accent"
-              />
-              <input
-                value={pass}
-                onChange={(e) => setPass(e.target.value)}
-                type="password"
-                placeholder="รหัสผ่าน (อย่างน้อย 8 ตัว)"
-                autoComplete="new-password"
-                className="w-full rounded-md border border-line bg-surface px-3 py-2.5 text-base outline-none focus:border-accent"
-              />
-              <div className="flex gap-2">
-                {(["mod", "admin"] as const).map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => setRole(opt)}
-                    className={`flex-1 rounded-md border px-3 py-2 text-sm ${
-                      role === opt
-                        ? "border-accent bg-accent/10 text-accent"
-                        : "border-line text-faint"
-                    }`}
-                  >
-                    {opt}
-                  </button>
+        ) : (
+          <>
+            {data.roles.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 px-4 py-3">
+                {data.roles.map((r) => (
+                  <Badge key={`${r.role}-${r.id}`} tone={r.role === "admin" ? "accent" : "plain"}>
+                    {r.role === "admin" ? "admin" : "mod"}: {r.name ?? `ไม่พบยศ ${r.id}`}
+                  </Badge>
                 ))}
               </div>
-              <div className="flex gap-2">
-                <Button variant="ghost" onClick={() => setAdding(false)}>
-                  ยกเลิก
-                </Button>
-                <Button
-                  variant="accent"
-                  disabled={busy || name.length < 3 || pass.length < 8}
-                  onClick={() => void add()}
-                >
-                  เพิ่มบัญชี
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <Button full onClick={() => setAdding(true)}>
-              <Icon name="key" className="size-4" />
-              เพิ่มบัญชีผู้ดูแล
-            </Button>
-          )}
-        </div>
+            )}
+            {data.people.length === 0 ? (
+              <p className="p-4 text-sm text-faint">ยังไม่มีข้อมูล (บอทไม่ได้ต่อ Discord)</p>
+            ) : (
+              data.people.map((p) => (
+                <div key={p.id} className="flex items-center gap-3 px-4 py-3">
+                  <Icon name="user" className="size-5 shrink-0 text-faint" />
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                    {p.name}
+                    {p.name === me && <span className="ml-1.5 text-xs text-faint">(คุณ)</span>}
+                  </span>
+                  <Badge tone={p.role === "admin" ? "accent" : "plain"}>{p.role}</Badge>
+                </div>
+              ))
+            )}
+          </>
+        )}
       </Card>
     </section>
   );

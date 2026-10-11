@@ -107,21 +107,16 @@ sudo systemctl enable --now discord-bot
 journalctl -u discord-bot -f                         # ดู log สด ๆ (Ctrl+C เพื่อออก)
 ```
 
-## 6. สร้างบัญชี mod (login เข้า dashboard)
+## 6. ตั้ง login ด้วย Discord
 
-mod แต่ละคนมี user/pass ของตัวเอง:
-```bash
-sudo -u botuser -s
-cd /home/botuser/discord-security-bot
-npm run user:add alice      # จะถามรหัสผ่าน (พิมพ์แบบไม่โชว์ + ยืนยัน)
-npm run user:add bob
-exit
-```
-ตัดสิทธิ์ภายหลัง (session ที่ค้างอยู่ของคนนั้นจะใช้ไม่ได้ทันที):
-```bash
-sudo -u botuser -s -c 'cd /home/botuser/discord-security-bot && npm run user:remove bob'
-```
-> รหัสผ่านเก็บเป็น scrypt hash ในตาราง `users` ของ `data/bot.db` (โฟลเดอร์ `data/` อยู่ใน .gitignore ไม่หลุดขึ้น git)
+ไม่มีบัญชี/รหัสผ่านแยก — ใครเข้าได้ดูจากยศในเซิร์ฟ
+1. Developer Portal → แอปของบอท → **OAuth2**
+   - คัดลอก **Client Secret** ใส่ `.env` เป็น `DISCORD_CLIENT_SECRET`
+   - **Redirects** → เพิ่ม `https://<โดเมน dashboard>/auth/discord/callback`
+2. ใส่ `DASHBOARD_URL=https://<โดเมน dashboard>` ใน `.env` (ต้องตรงกับ Redirect ทุกตัวอักษร)
+3. รีสตาร์ทบอท แล้ว login ด้วยบัญชีที่มีสิทธิ์ Administrator ในเซิร์ฟ (เป็น admin อัตโนมัติ)
+4. Settings → "สิทธิ์เข้า dashboard" → ใส่ role ID ของยศ admin / mod
+ถอดยศใน Discord = คนนั้นหลุดจากเว็บทันทีใน request ถัดไป
 
 ## 7. เปิด dashboard ออกเน็ต (เลือกวิธีได้)
 

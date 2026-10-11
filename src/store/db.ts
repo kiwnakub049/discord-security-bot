@@ -38,14 +38,6 @@ if (!process.env.BOT_DB_PATH) {
 /** สร้างตารางทั้งหมดถ้ายังไม่มี — เรียกครั้งเดียวตอนบูต (idempotent) */
 export function initDb(): void {
   db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      username TEXT PRIMARY KEY,
-      salt     TEXT NOT NULL,
-      hash     TEXT NOT NULL,
-      -- 'admin' = จัดการบัญชี + ตั้งค่าบอทได้ | 'mod' = ดู + moderate (ban/kick/warn) เท่านั้น
-      role     TEXT NOT NULL DEFAULT 'mod'
-    );
-
     -- session ของ dashboard — เก็บใน DB ไม่ใช่ RAM เพื่อให้รีสตาร์ทบอทแล้วไม่หลุด
     -- (ของเดิมอยู่ใน Map ในหน่วยความจำ ทุกครั้งที่ deploy ทุกคนต้อง login ใหม่)
     --
@@ -253,14 +245,11 @@ export function initDb(): void {
  * เลยต้อง ALTER เอง โดยเช็คก่อนว่ายังไม่มีคอลัมน์นั้น
  */
 function migrateSchema(): void {
-  const userCols = db.prepare("PRAGMA table_info(users)").all() as {
-    name: string;
-  }[];
-  if (!userCols.some((c) => c.name === "role")) {
-    // DB เดิมมีแต่บัญชีที่ "มีสิทธิ์เต็ม" อยู่แล้ว — ตั้งเป็น admin ทั้งหมด
-    // จะได้ไม่ล็อกใครออกจากหน้าจัดการบัญชี/ตั้งค่าตอนอัปเกรด
-    db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'");
-  }
+  // เปลี่ยนไป login ด้วย Discord แล้ว: บัญชีรหัสผ่านเดิมไม่มีใครใช้ — ลบ hash ทิ้ง
+  // ไม่ให้ค้างอยู่ในไฟล์ DB และไฟล์สำรองรายวันไปเรื่อย ๆ
+  // session เดิมผูกกับชื่อบัญชี (ไม่ใช่ Discord ID ที่เป็นตัวเลข) — ใช้ต่อไม่ได้แล้ว ลบทิ้งด้วย
+  db.exec("DROP TABLE IF EXISTS users");
+  db.exec("DELETE FROM sessions WHERE username GLOB '*[^0-9]*' AND username <> 'dev'");
 
   const queueCols = db.prepare("PRAGMA table_info(queue_items)").all() as { name: string }[];
   if (!queueCols.some((c) => c.name === "refs")) {

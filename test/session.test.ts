@@ -160,36 +160,6 @@ test("ออกทุกเครื่องยกเว้นเครื่�
   assert.equal(S.listSessions("someone").length, 1, "ของคนอื่นต้องไม่โดนเตะ");
 });
 
-test("เปลี่ยนรหัสผ่านแล้วทุกเครื่องหลุด", async () => {
-  // ก่อนหน้านี้ session อยู่แค่ใน RAM รีสตาร์ทก็ล้างเอง แต่ตอนนี้อยู่ได้ 30 วัน
-  // ถ้าเปลี่ยนรหัสแล้วของเก่ายังใช้ได้ การเปลี่ยนรหัสจะไม่ช่วยอะไรเลย
-  // ตอนที่สงสัยว่าเครื่องหลุดมือไป
-  const users = await import("../src/auth/users.js");
-  db.prepare("DELETE FROM sessions").run();
-  db.prepare("DELETE FROM users").run();
-
-  await users.addUser("victim", "รหัสเดิมยาวพอ");
-  const cookie = S.createSession("victim", META);
-  assert.ok(S.resolveSession(cookie, META), "ก่อนเปลี่ยนต้องใช้ได้");
-
-  await users.setPassword("victim", "รหัสใหม่ยาวพอ");
-  assert.equal(S.resolveSession(cookie, META), null, "หลังเปลี่ยนต้องหลุด");
-});
-
-test("ลบบัญชีแล้วแถว session ไม่ค้างอยู่ในตาราง", async () => {
-  const users = await import("../src/auth/users.js");
-  db.prepare("DELETE FROM sessions").run();
-  db.prepare("DELETE FROM users").run();
-
-  await users.addUser("ephemeral", "รหัสผ่านยาวพอ");
-  S.createSession("ephemeral", META);
-  S.createSession("ephemeral", META);
-  assert.equal(S.listSessions("ephemeral").length, 2);
-
-  users.removeUser("ephemeral");
-  assert.equal(S.listSessions("ephemeral").length, 0);
-});
-
 test("pruneSessions ลบเฉพาะที่หมดอายุ", () => {
   db.prepare("DELETE FROM sessions").run();
   const live = S.createSession("flick", META);

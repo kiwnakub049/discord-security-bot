@@ -94,20 +94,22 @@ role/user ที่ยกเว้น, role คนมีบัตร — บั�
 พอรันบอท เว็บจะเปิดที่ **http://localhost:3000** (bind `127.0.0.1` เท่านั้น —
 เอาขึ้น VPS ให้ดู DEPLOY.md เรื่อง reverse proxy/SSH tunnel)
 
-### 🔐 Login & บัญชี mod
+### 🔐 Login ด้วย Discord
 
-dashboard ต้อง login ก่อนถึงดูได้ (session ฝั่ง server + cookie httpOnly/secure/sameSite)
-ต้องตั้ง `SESSION_SECRET` ใน `.env` ก่อน ไม่งั้นเว็บจะไม่เปิดเลย:
+dashboard ต้อง login ด้วยบัญชี Discord ก่อนถึงดูได้ — ไม่มีรหัสผ่านแยก
+สิทธิ์ดูจากยศในเซิร์ฟ: ตั้งยศที่เป็น admin / mod ในหน้า Settings หัวข้อ "สิทธิ์เข้า dashboard"
+คนที่มีสิทธิ์ Administrator ในเซิร์ฟเป็น admin เสมอ · ถอดยศใน Discord = หลุดจากเว็บทันที
+
+ตั้งใน `.env`:
 ```bash
-openssl rand -hex 32        # เอาค่าไปใส่ SESSION_SECRET ใน .env
+openssl rand -hex 32        # → SESSION_SECRET
+# CLIENT_ID              = Application ID (ตัวเดียวกับที่ใช้ deploy คำสั่ง)
+# DISCORD_CLIENT_SECRET  = Developer Portal → OAuth2 → Client Secret
+# DASHBOARD_URL          = ที่อยู่เว็บที่เปิดจริง เช่น https://bot.example.com
 ```
-เพิ่มบัญชี mod คนแรกผ่าน CLI (คนถัดไปเพิ่มจากหน้า Settings บนเว็บได้เลย):
-```bash
-npm run user:add <username>      # เพิ่ม (ถามรหัสผ่านแบบไม่โชว์)
-npm run user:remove <username>   # ตัดสิทธิ์ — session ที่ค้างอยู่ใช้ไม่ได้ทันที
-```
-รหัสผ่านเก็บเป็น scrypt hash ในตาราง `users` ของ `data/bot.db` (ไม่เก็บ plaintext)
-มีระบบกัน brute-force: ลองผิด 5 ครั้ง ล็อก IP 15 นาที
+แล้วเพิ่ม `<DASHBOARD_URL>/auth/discord/callback` ใน Developer Portal → OAuth2 → Redirects
+
+เปิด `npm run web` บนเครื่องโดยไม่ต่อ Discord: สร้าง cookie ด้วย `npm run dev:session`
 
 ## โครงสร้างโปรเจกต์
 ```
@@ -122,10 +124,10 @@ src/
 ├── idcard/               # สร้างรูปบัตร (canvas + เทมเพลต) + cache + ปุ่ม/modal
 ├── store/                # SQLite: db.ts (ตาราง), logStore, settingsStore,
 │                         #   activityStore (XP), voiceState
-├── auth/                 # บัญชี mod (scrypt) + session (HMAC cookie)
+├── auth/                 # login ด้วย Discord (OAuth2) + สิทธิ์จากยศ + session (HMAC cookie)
 ├── web/                  # 🌐 dashboard: server.ts (Express + auth + API + SSE)
 │   └── public/           #   index.html (SPA) + login.html
-├── scripts/              # CLI: user:add / user:remove / db:migrate / avatar:set
+├── scripts/              # CLI: dev:session / db:migrate / avatar:set
 └── utils/                # logger (log กลาง → DB + SSE + ห้อง Discord), exempt
 test/                     # node test runner — npm test
 deploy/                   # ตัวอย่าง systemd service + Caddyfile
