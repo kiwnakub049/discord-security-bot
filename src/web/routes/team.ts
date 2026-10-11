@@ -30,7 +30,10 @@ import { rateLimit } from "../middleware/rateLimit.js";
 export const MAX_FILE_BYTES = 100_000_000;
 const MAX_FILES_PER_MESSAGE = 10;
 const BODY_MAX = 4000;
-const MAX_MENTIONS = 20;
+/** @all ในห้องรวมแท็กได้ทั้งทีม — เผื่อทีมใหญ่ */
+const MAX_MENTIONS = 100;
+/** แท็กทุกคนในห้อง — ต้องตรงกับ ALL_RE ใน ui/src/pages/Team.tsx */
+export const ALL_RE = /(^|\s)@all(?=\s|$)/i;
 
 /**
  * ชนิดไฟล์ที่ให้เปิดดูในหน้าเว็บได้เลย (รูป/วิดีโอ/เสียง) — อย่างอื่นบังคับดาวน์โหลด
@@ -127,15 +130,20 @@ export function teamRoutes(client: Client | undefined, access: AccessResolver): 
       });
       return;
     }
+    // @all = ทุกคนในห้อง — server ไล่รายชื่อทีมเองด้วย ไม่พึ่งรายชื่อที่หน้าเว็บส่งมาอย่างเดียว
+    const everyone = ALL_RE.test(body) ? (await listStaff(client)).map((p) => p.id) : [];
     // แท็กได้เฉพาะทีมที่เห็นห้องนี้ — ห้อง DM แท็กได้แค่อีกฝ่าย, ไม่แท็กตัวเอง
-    const wanted = Array.isArray(rawMentions)
-      ? [...new Set(rawMentions.filter(isSnowflake))].filter((id) => id !== userId).slice(0, MAX_MENTIONS)
-      : [];
+    const wanted = [
+      ...new Set([...(Array.isArray(rawMentions) ? rawMentions.filter(isSnowflake) : []), ...everyone]),
+    ]
+      .filter((id) => id !== userId)
+      .slice(0, MAX_MENTIONS);
     const mentions: string[] = [];
     for (const id of wanted) {
       if (canAccessRoom(room, id) && (await access(id).catch(() => null))) mentions.push(id);
     }
 
+    const all = everyone.length > 0 || ALL_RE.test(body);
     let msg;
     try {
       msg = addMessage({
@@ -152,7 +160,7 @@ export function teamRoutes(client: Client | undefined, access: AccessResolver): 
     }
     res.json({ ok: true, message: msg });
     // DM คนที่ถูกแท็กหลังตอบแล้ว — ไม่ให้คนส่งรอ Discord
-    void notifyMentions(client, msg);
+    void notifyMentions(client, msg, all);
   });
 
   r.post("/api/team/read", (req: Request, res: Response) => {

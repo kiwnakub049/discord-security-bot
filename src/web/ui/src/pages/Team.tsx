@@ -40,6 +40,10 @@ function fmtTime(ms: number): string {
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/** แท็กทุกคนในห้อง — ต้องตรงกับ ALL_RE ใน src/web/routes/team.ts */
+const ALL_RE = /(^|\s)@all(?=\s|$)/i;
+const ALL: TeamPerson = { id: "all", name: "all", username: "ทุกคนในห้อง", role: "mod" };
+
 /** ข้อความ + ไฮไลต์ @ชื่อ ของคนที่ถูกแท็กจริง (ไม่ใช้ innerHTML) */
 function Body({ text, names, mine }: { text: string; names: string[]; mine: boolean }) {
   if (!text) return null;
@@ -169,9 +173,8 @@ export function Team({ userId }: { userId: string }) {
               </span>
               {s && s.unread > 0 && (
                 <span
-                  className={`tnum shrink-0 rounded-full px-1.5 text-xs font-semibold leading-5 text-surface ${
-                    s.mentioned ? "bg-alert" : "bg-accent"
-                  }`}
+                  // มีข้อความเข้า = แดงเสมอ (โดนแท็กมี @ นำหน้า)
+                  className="tnum shrink-0 rounded-full bg-alert px-1.5 text-xs font-semibold leading-5 text-surface"
                 >
                   {s.mentioned ? "@" : ""}
                   {s.unread}
@@ -360,7 +363,7 @@ function Conversation({
   const candidates =
     mentionQuery === null
       ? []
-      : members
+      : [...(members.length > 1 || mentionQuery ? [ALL] : []), ...members]
           .filter(
             (p) =>
               p.name.toLowerCase().includes(mentionQuery) || p.username.toLowerCase().includes(mentionQuery),
@@ -386,7 +389,10 @@ function Conversation({
     const body = text.trim();
     if (sending || uploading || (!body && !ready.length)) return;
     // แท็กใครบ้าง = ชื่อ @ของคนในห้องที่ยังอยู่ในข้อความตอนกดส่ง
-    const mentions = members.filter((p) => body.includes(`@${p.name}`)).map((p) => p.id);
+    // @all = ทุกคนในห้อง
+    const mentions = ALL_RE.test(body)
+      ? members.map((p) => p.id)
+      : members.filter((p) => body.includes(`@${p.name}`)).map((p) => p.id);
     setSending(true);
     try {
       const r = await api.post<{ ok: boolean; message: TeamMessage }>("/api/team/messages", {
@@ -471,7 +477,7 @@ function Conversation({
             )}
             {messages.length === 0 && (
               <p className="py-10 text-center text-sm text-faint">
-                ยังไม่มีข้อความ — พิมพ์ @ เพื่อแท็กคนในทีม
+                ยังไม่มีข้อความ — พิมพ์ @ เพื่อแท็กคนในทีม หรือ @all แท็กทุกคน
               </p>
             )}
             {messages.map((m, i) => {
@@ -479,6 +485,7 @@ function Conversation({
               const prev = messages[i - 1];
               const head = !prev || prev.authorId !== m.authorId || m.createdAt - prev.createdAt > 5 * 60_000;
               const mentionNames = m.mentions.map((id) => byId.get(id)?.name).filter((n): n is string => !!n);
+              if (ALL_RE.test(m.body)) mentionNames.push("all");
               const pingsMe = m.mentions.includes(userId);
               return (
                 <div key={m.id} className={`flex gap-2 ${mine ? "flex-row-reverse" : ""} ${head ? "pt-2" : ""}`}>
@@ -532,7 +539,13 @@ function Conversation({
                 }}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-raised"
               >
-                <Avatar id={p.id} name={p.name} size="xs" />
+                {p === ALL ? (
+                  <span className="flex size-5 items-center justify-center rounded-full bg-accent text-surface">
+                    <Icon name="users" className="size-3" />
+                  </span>
+                ) : (
+                  <Avatar id={p.id} name={p.name} size="xs" />
+                )}
                 <span className="font-medium">{p.name}</span>
                 <span className="text-xs text-faint">{p.username}</span>
                 {p.role === "admin" && <span className="ml-auto text-[10px] text-muted">admin</span>}

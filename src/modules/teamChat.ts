@@ -36,7 +36,12 @@ function roomLabel(room: string, recipientId: string): string {
  * DM คนที่ถูกแท็กผ่านบอท — ส่งไม่ได้ (ปิด DM) ก็ข้ามไป บนเว็บยังขึ้นจุดแจ้งเตือนอยู่ดี
  * คืนรายชื่อ id ที่ DM ถึง
  */
-export async function notifyMentions(client: Client | undefined, msg: TeamMessage): Promise<string[]> {
+export async function notifyMentions(
+  client: Client | undefined,
+  msg: TeamMessage,
+  /** แท็กด้วย @all — ข้อความ DM บอกว่าแท็กทุกคน */
+  all = false,
+): Promise<string[]> {
   if (!client) return [];
   const base = process.env.DASHBOARD_URL?.trim().replace(/\/+$/, "");
   const excerpt = msg.body.length > 300 ? `${msg.body.slice(0, 300)}…` : msg.body;
@@ -46,7 +51,7 @@ export async function notifyMentions(client: Client | undefined, msg: TeamMessag
     try {
       const user = await client.users.fetch(id);
       await user.send(
-        `💬 **${msg.authorName}** แท็กคุณในแชททีม (${roomLabel(msg.room, id)})\n${quoted}` +
+        `💬 **${msg.authorName}** แท็ก${all ? "ทุกคน" : "คุณ"}ในแชททีม (${roomLabel(msg.room, id)})\n${quoted}` +
           (base ? `\n${base}/team` : ""),
       );
       sent.push(id);

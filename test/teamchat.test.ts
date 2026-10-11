@@ -123,6 +123,33 @@ test("แท็ก: ขึ้นสถานะโดนแท็ก · ใน�
   assert.deepEqual((await dm.json()).message.mentions, [B], "carol ไม่อยู่ในห้องนี้");
 });
 
+test("@all: แท็กทุกคนในห้องที่หน้าเว็บส่งมา (ยังกรองคนนอกทีม/ตัวเองเหมือนเดิม)", async () => {
+  const r = await post(A, "/api/team/messages", { room: "general", body: "@all ประชุม 2 ทุ่ม", mentions: [A, B, C, OUT] });
+  assert.deepEqual((await r.json()).message.mentions.sort(), [B, C]);
+  assert.equal((await (await call(C, "/api/team/unread")).json()).mentioned, true);
+});
+
+test("notifyMentions: @all บอกว่าแท็กทุกคน · DM ไม่ได้ก็ข้ามไป", async () => {
+  const { notifyMentions } = await import("../src/modules/teamChat.js");
+  const sent: Record<string, string> = {};
+  const client = {
+    users: {
+      fetch: async (id: string) => ({
+        send: async (t: string) => {
+          if (id === C) throw new Error("Cannot send messages to this user");
+          sent[id] = t;
+        },
+      }),
+    },
+  } as never;
+  const msg = { id: 1, room: "general", authorId: A, authorName: "alice", body: "@all ประชุม", mentions: [B, C], createdAt: 0, files: [] };
+  assert.deepEqual(await notifyMentions(client, msg, true), [B]);
+  assert.match(sent[B]!, /alice\*\* แท็กทุกคนในแชททีม \(ห้องรวม\)/);
+  assert.match(sent[B]!, /> @all ประชุม/);
+  await notifyMentions(client, { ...msg, mentions: [B] }, false);
+  assert.match(sent[B]!, /แท็กคุณ/);
+});
+
 test("ไฟล์: อัป → แนบ → คนในห้องโหลดได้ · รูปเปิดในหน้า · ไฟล์อื่นบังคับดาวน์โหลด", async () => {
   const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
   const up = await (await upload(A, "หลักฐาน.png", "image/png", png)).json();

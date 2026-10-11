@@ -41,9 +41,7 @@ function TeamBadge({ badge }: { badge: { unread: number; mentioned: boolean } | 
   if (!badge || badge.unread === 0) return null;
   return (
     <span
-      className={`tnum rounded-full px-1.5 text-[10px] font-semibold leading-4 text-surface ${
-        badge.mentioned ? "bg-alert" : "bg-accent"
-      }`}
+      className="tnum rounded-full bg-alert px-1.5 text-[10px] font-semibold leading-4 text-surface"
     >
       {badge.mentioned ? "@" : ""}
       {badge.unread > 99 ? "99+" : badge.unread}
@@ -160,7 +158,7 @@ export function Shell({
   isAdmin: boolean;
   logFilter: TreePick;
   onPickLogFilter: (f: TreePick) => void;
-  /** แชททีม: ข้อความที่ยังไม่อ่าน + มีคนแท็กเราไหม (แดง = โดนแท็ก) */
+  /** แชททีม: ข้อความที่ยังไม่อ่าน (แดง) + มีคนแท็กเราไหม (มี @ นำหน้า) */
   teamBadge: { unread: number; mentioned: boolean } | null;
   children: ReactNode;
 }) {
