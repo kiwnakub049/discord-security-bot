@@ -142,7 +142,7 @@ test("notifyMentions: @all บอกว่าแท็กทุกคน · DM �
       }),
     },
   } as never;
-  const msg = { id: 1, room: "general", authorId: A, authorName: "alice", body: "@all ประชุม", mentions: [B, C], createdAt: 0, files: [] };
+  const msg = { id: 1, room: "general", authorId: A, authorName: "alice", body: "@all ประชุม", mentions: [B, C], createdAt: 0, files: [], replyTo: null };
   assert.deepEqual(await notifyMentions(client, msg, true), [B]);
   assert.match(sent[B]!, /alice\*\* แท็กทุกคนในแชททีม \(ห้องรวม\)/);
   assert.match(sent[B]!, /> @all ประชุม/);
@@ -192,6 +192,38 @@ test("ไฟล์: แนบไฟล์คนอื่น/แนบซ้ำ�
   }).catch(() => null);
   // server ตอบ 413 ทันทีจาก content-length (fetch อาจตัดก่อนได้เพราะ length ไม่ตรง)
   if (big) assert.equal(big.status, 413);
+});
+
+test("ตอบกลับ: แนบต้นทางย่อ ๆ · แจ้งเจ้าของต้นทาง · ข้ามห้อง/id มั่วไม่ได้", async () => {
+  const orig = (await (await post(C, "/api/team/messages", { room: "general", body: "ต้นทาง\nสองบรรทัด" })).json()).message;
+  const r = await post(B, "/api/team/messages", { room: "general", body: "ตอบนะ", replyTo: orig.id });
+  assert.equal(r.status, 200);
+  const msg = (await r.json()).message;
+  assert.deepEqual(msg.replyTo, { id: orig.id, authorId: C, authorName: "carol", excerpt: "ต้นทาง สองบรรทัด", files: 0, gone: false });
+  assert.deepEqual(msg.mentions, [C], "เจ้าของต้นทางโดนแจ้ง");
+  assert.equal((await (await call(C, "/api/team/unread")).json()).mentioned, true);
+
+  const list = await (await call(A, "/api/team/messages?room=general")).json();
+  assert.equal(list.find((m: { id: number }) => m.id === msg.id).replyTo.id, orig.id);
+
+  // ตอบข้อความตัวเอง = ไม่แจ้งตัวเอง
+  const self = await (await post(C, "/api/team/messages", { room: "general", body: "ต่อ", replyTo: orig.id })).json();
+  assert.deepEqual(self.message.mentions, []);
+
+  // ต้นทางอยู่ห้อง DM → ตอบจากห้องรวมไม่ได้ (กันแอบดูข้อความห้องอื่นผ่าน excerpt)
+  const dm = (await (await post(A, "/api/team/messages", { room: DM_AB, body: "ลับมาก" })).json()).message;
+  assert.equal((await post(C, "/api/team/messages", { room: "general", body: "x", replyTo: dm.id })).status, 400);
+  assert.equal((await post(B, "/api/team/messages", { room: "general", body: "x", replyTo: 999999 })).status, 400);
+  assert.equal((await post(B, "/api/team/messages", { room: "general", body: "x", replyTo: "1" })).status, 400);
+});
+
+test("notifyMentions: โดนแจ้งเพราะถูกตอบกลับ → บอกว่าตอบกลับ", async () => {
+  const { notifyMentions } = await import("../src/modules/teamChat.js");
+  const sent: Record<string, string> = {};
+  const client = { users: { fetch: async (id: string) => ({ send: async (t: string) => void (sent[id] = t) }) } } as never;
+  const replyTo = { id: 1, authorId: B, authorName: "bob", excerpt: "x", files: 0, gone: false };
+  await notifyMentions(client, { id: 2, room: "general", authorId: A, authorName: "alice", body: "โอเค", mentions: [B], createdAt: 0, files: [], replyTo }, false);
+  assert.match(sent[B]!, /alice\*\* ตอบกลับข้อความของคุณ/);
 });
 
 test("ข้อความว่างไม่มีไฟล์ = 400", async () => {

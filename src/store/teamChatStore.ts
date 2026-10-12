@@ -78,6 +78,16 @@ export function getFile(id: string): (TeamFileRow & { room: string | null }) | u
     .get(id) as (TeamFileRow & { room: string | null }) | undefined;
 }
 
+/** ข้อความต้นทางที่ถูกตอบกลับ — ย่อพอให้เห็นว่าตอบอันไหน · gone = ต้นทางถูกลบไปแล้ว (เก่าเกิน 90 วัน) */
+export interface TeamReplyRef {
+  id: number;
+  authorId: string | null;
+  authorName: string | null;
+  excerpt: string;
+  files: number;
+  gone: boolean;
+}
+
 export interface TeamMessage {
   id: number;
   room: string;
@@ -87,6 +97,44 @@ export interface TeamMessage {
   mentions: string[];
   createdAt: number;
   files: { id: string; name: string; mime: string; size: number }[];
+  replyTo: TeamReplyRef | null;
+}
+
+/** ความยาวข้อความต้นทางที่ส่งไปพร้อมคำตอบ */
+const REPLY_EXCERPT = 140;
+
+/** ข้อความต้นทางที่ตอบได้ — ต้องอยู่ห้องเดียวกัน (กันอ้างข้อความจากห้อง DM ของคนอื่น) */
+export function getReplyTarget(room: string, id: number): { id: number; author_id: string } | undefined {
+  return db.prepare("SELECT id, author_id FROM team_messages WHERE id = ? AND room = ?").get(id, room) as
+    | { id: number; author_id: string }
+    | undefined;
+}
+
+function replyRefs(ids: number[]): Map<number, TeamReplyRef> {
+  const out = new Map<number, TeamReplyRef>();
+  if (!ids.length) return out;
+  const rows = db
+    .prepare(
+      `SELECT m.id, m.author_id, m.author_name, m.body,
+              (SELECT COUNT(*) FROM team_files f WHERE f.message_id = m.id) AS files
+       FROM team_messages m WHERE m.id IN (${ids.map(() => "?").join(",")})`,
+    )
+    .all(...ids) as { id: number; author_id: string; author_name: string; body: string; files: number }[];
+  for (const r of rows) {
+    const body = r.body.replace(/\s+/g, " ").trim();
+    out.set(r.id, {
+      id: r.id,
+      authorId: r.author_id,
+      authorName: r.author_name,
+      excerpt: body.length > REPLY_EXCERPT ? `${body.slice(0, REPLY_EXCERPT)}…` : body,
+      files: r.files,
+      gone: false,
+    });
+  }
+  for (const id of ids) {
+    if (!out.has(id)) out.set(id, { id, authorId: null, authorName: null, excerpt: "", files: 0, gone: true });
+  }
+  return out;
 }
 
 interface MsgRow {
@@ -97,6 +145,7 @@ interface MsgRow {
   body: string;
   mentions: string;
   created_at: number;
+  reply_to: number | null;
 }
 
 /**
@@ -110,6 +159,8 @@ export function addMessage(m: {
   body: string;
   mentions: string[];
   fileIds: string[];
+  /** id ข้อความที่ตอบกลับ — ต้องอยู่ห้องเดียวกัน (route เช็คก่อนแล้ว เช็คซ้ำในนี้อีกชั้น) */
+  replyTo?: number | null;
 }): TeamMessage {
   return db.transaction(() => {
     const files = m.fileIds.map((id) => {
@@ -119,13 +170,15 @@ export function addMessage(m: {
       }
       return f;
     });
+    const replyTo = m.replyTo ?? null;
+    if (replyTo !== null && !getReplyTarget(m.room, replyTo)) throw new Error("ไม่พบข้อความที่จะตอบกลับ");
     const now = Date.now();
     const info = db
       .prepare(
-        `INSERT INTO team_messages (room, author_id, author_name, body, mentions, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO team_messages (room, author_id, author_name, body, mentions, created_at, reply_to)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(m.room, m.authorId, m.authorName, m.body, JSON.stringify(m.mentions), now);
+      .run(m.room, m.authorId, m.authorName, m.body, JSON.stringify(m.mentions), now, replyTo);
     const id = Number(info.lastInsertRowid);
     for (const f of files) {
       db.prepare("UPDATE team_files SET message_id = ? WHERE id = ?").run(id, f.id);
@@ -140,6 +193,7 @@ export function addMessage(m: {
       mentions: m.mentions,
       createdAt: now,
       files: files.map((f) => ({ id: f.id, name: f.name, mime: f.mime, size: f.size })),
+      replyTo: replyTo === null ? null : (replyRefs([replyTo]).get(replyTo) ?? null),
     };
   })();
 }
@@ -169,6 +223,7 @@ export function listMessages(
       `SELECT * FROM team_files WHERE message_id IN (${ids.map(() => "?").join(",")}) ORDER BY rowid`,
     )
     .all(...ids) as TeamFileRow[];
+  const replies = replyRefs([...new Set(rows.map((r) => r.reply_to).filter((x): x is number => x !== null))]);
   return rows.map((r) => ({
     id: r.id,
     room: r.room,
@@ -180,6 +235,7 @@ export function listMessages(
     files: files
       .filter((f) => f.message_id === r.id)
       .map((f) => ({ id: f.id, name: f.name, mime: f.mime, size: f.size })),
+    replyTo: r.reply_to === null ? null : (replies.get(r.reply_to) ?? null),
   }));
 }
 

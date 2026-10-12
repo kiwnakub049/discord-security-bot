@@ -50,8 +50,10 @@ export async function notifyMentions(
   for (const id of msg.mentions) {
     try {
       const user = await client.users.fetch(id);
+      // โดนแจ้งเพราะมีคนตอบกลับข้อความของเรา (ไม่ได้ @ ในข้อความ) — บอกให้ตรง
+      const action = all ? "แท็กทุกคน" : msg.replyTo?.authorId === id ? "ตอบกลับข้อความของคุณ" : "แท็กคุณ";
       await user.send(
-        `💬 **${msg.authorName}** แท็ก${all ? "ทุกคน" : "คุณ"}ในแชททีม (${roomLabel(msg.room, id)})\n${quoted}` +
+        `💬 **${msg.authorName}** ${action}ในแชททีม (${roomLabel(msg.room, id)})\n${quoted}` +
           (base ? `\n${base}/team` : ""),
       );
       sent.push(id);
