@@ -386,5 +386,5 @@ test("/api/avatar/:id ต้อง login · ไม่ได้ต่อ Discord 
 
 test("CSP อนุญาตรูปจาก CDN ของ Discord เท่านั้น (รูปโปรไฟล์)", async () => {
   const csp = (await fetch(`${BASE}/login`)).headers.get("content-security-policy") ?? "";
-  assert.match(csp, /img-src 'self' data: https:\/\/cdn\.discordapp\.com(;|$)/);
+  assert.match(csp, /img-src 'self' data: blob: https:\/\/cdn\.discordapp\.com(;|$)/);
 });

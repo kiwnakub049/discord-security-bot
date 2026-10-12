@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { api, uploadTeamFile } from "../lib/api";
 import { useFetch } from "../hooks/useFetch";
 import type { TeamFile, TeamMessage, TeamPerson, TeamRoomSummary } from "../lib/types";
@@ -64,18 +65,21 @@ function Body({ text, names, mine }: { text: string; names: string[]; mine: bool
   return <p className="whitespace-pre-wrap break-words text-sm">{parts}</p>;
 }
 
-function Attachment({ f }: { f: TeamFile }) {
+const isImage = (mime: string) => /^image\/(png|jpeg|gif|webp)$/.test(mime);
+
+function Attachment({ f, onOpen }: { f: TeamFile; onOpen: (f: TeamFile) => void }) {
   const src = `/api/team/files/${f.id}`;
-  if (/^image\/(png|jpeg|gif|webp)$/.test(f.mime)) {
+  if (isImage(f.mime)) {
+    // GIF ขยับเองอยู่แล้ว — กดเพื่อดูใหญ่
     return (
-      <a href={src} target="_blank" rel="noreferrer" className="block">
+      <button type="button" onClick={() => onOpen(f)} className="block cursor-zoom-in" aria-label={`ดู ${f.name}`}>
         <img
           src={src}
           alt={f.name}
           loading="lazy"
           className="max-h-64 max-w-full rounded-md border border-line bg-raised object-contain"
         />
-      </a>
+      </button>
     );
   }
   if (/^video\/(mp4|webm)$/.test(f.mime)) {
@@ -94,12 +98,61 @@ function Attachment({ f }: { f: TeamFile }) {
   );
 }
 
+/** ดูรูปเต็มจอ — กดพื้นหลัง/× หรือ Esc เพื่อปิด */
+function Lightbox({ file, onClose }: { file: TeamFile; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const src = `/api/team/files/${file.id}`;
+  // portal ไปที่ body — กล่องแชทมี overflow-hidden/animation ที่อาจตัดหรือเลื่อนภาพเต็มจอ
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={file.name}
+      onClick={onClose}
+      className="fade-in fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-black/85 p-4"
+    >
+      <img
+        src={src}
+        alt={file.name}
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[82dvh] max-w-full rounded-md object-contain"
+      />
+      <div className="flex items-center gap-3 text-sm text-white/90" onClick={(e) => e.stopPropagation()}>
+        <span className="max-w-[60vw] truncate">{file.name}</span>
+        <span className="tnum text-white/60">{fmtSize(file.size)}</span>
+        <a
+          href={`${src}?download=1`}
+          className="flex items-center gap-1 rounded-md bg-white/15 px-2.5 py-1 hover:bg-white/25"
+        >
+          <Icon name="download" className="size-4" />
+          ดาวน์โหลด
+        </a>
+      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="ปิด"
+        className="absolute right-3 top-3 rounded-full bg-white/15 p-2 text-white hover:bg-white/25"
+      >
+        <Icon name="x" className="size-5" />
+      </button>
+    </div>,
+    document.body,
+  );
+}
+
 interface Pending {
   key: string;
   file: File;
   progress: number;
   id?: string;
   error?: string;
+  /** รูปที่ยังไม่ส่ง — object URL ของไฟล์ในเครื่อง (คืนหน่วยความจำตอนเอาออก/ส่ง) */
+  preview?: string;
 }
 
 export function Team({ userId }: { userId: string }) {
@@ -243,6 +296,21 @@ function Conversation({
   const [sending, setSending] = useState(false);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [viewing, setViewing] = useState<TeamFile | null>(null);
+  const closeViewer = useCallback(() => setViewing(null), []);
+
+  // พรีวิวที่ค้างตอนออกจากห้อง — คืนหน่วยความจำ
+  const pendingRef = useRef<Pending[]>([]);
+  pendingRef.current = pending;
+  useEffect(
+    () => () => pendingRef.current.forEach((p) => p.preview && URL.revokeObjectURL(p.preview)),
+    [],
+  );
+  const dropPending = (keys: Set<string> | "all") =>
+    setPending((list) => {
+      for (const p of list) if (p.preview && (keys === "all" || keys.has(p.key))) URL.revokeObjectURL(p.preview);
+      return keys === "all" ? [] : list.filter((p) => !keys.has(p.key));
+    });
 
   const scroller = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
@@ -339,7 +407,8 @@ function Conversation({
         continue;
       }
       const key = `${Date.now()}-${Math.random()}`;
-      setPending((p) => [...p, { key, file, progress: 0 }]);
+      const preview = isImage(file.type) ? URL.createObjectURL(file) : undefined;
+      setPending((p) => [...p, { key, file, progress: 0, ...(preview ? { preview } : {}) }]);
       uploadTeamFile(file, (progress) =>
         setPending((p) => p.map((x) => (x.key === key ? { ...x, progress } : x))),
       )
@@ -405,7 +474,7 @@ function Conversation({
       lastId.current = Math.max(lastId.current, r.message.id);
       readId.current = lastId.current;
       setText("");
-      setPending([]);
+      dropPending("all");
       toBottom();
       onRead();
     } catch (err) {
@@ -515,7 +584,7 @@ function Conversation({
                       </div>
                     )}
                     {m.files.map((f) => (
-                      <Attachment key={f.id} f={f} />
+                      <Attachment key={f.id} f={f} onOpen={setViewing} />
                     ))}
                   </div>
                 </div>
@@ -555,35 +624,74 @@ function Conversation({
         )}
 
         {pending.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-1.5">
-            {pending.map((p) => (
-              <span
-                key={p.key}
-                className={`relative flex max-w-[14rem] items-center gap-1.5 overflow-hidden rounded-md border px-2 py-1 text-xs ${
-                  p.error ? "border-alert text-alert" : "border-line"
-                }`}
-              >
-                {!p.id && !p.error && (
-                  <span
-                    className="absolute inset-y-0 left-0 bg-accent-soft"
-                    style={{ width: `${Math.round(p.progress * 100)}%` }}
-                    aria-hidden="true"
-                  />
-                )}
-                <span className="relative min-w-0 truncate">{p.error ? `${p.file.name} — ${p.error}` : p.file.name}</span>
-                <span className="relative tnum shrink-0 text-faint">
-                  {p.id || p.error ? fmtSize(p.file.size) : `${Math.round(p.progress * 100)}%`}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setPending((x) => x.filter((y) => y.key !== p.key))}
-                  aria-label={`เอา ${p.file.name} ออก`}
-                  className="relative shrink-0 text-faint hover:text-text"
+          <div className="mb-2 flex flex-wrap items-end gap-1.5">
+            {pending.map((p) =>
+              p.preview ? (
+                // รูป/GIF: โชว์ภาพจริงก่อนส่ง (GIF ขยับด้วย) + แถบความคืบหน้าทับด้านล่าง
+                <span
+                  key={p.key}
+                  title={p.error ? `${p.file.name} — ${p.error}` : p.file.name}
+                  className={`relative size-20 shrink-0 overflow-hidden rounded-md border bg-raised ${
+                    p.error ? "border-alert" : "border-line"
+                  }`}
                 >
-                  <Icon name="x" className="size-3" />
-                </button>
-              </span>
-            ))}
+                  <img src={p.preview} alt={p.file.name} className="size-full object-cover" />
+                  {!p.id && !p.error && (
+                    <span className="absolute inset-x-0 bottom-0 h-1.5 bg-black/30" aria-hidden="true">
+                      <span
+                        className="block h-full bg-accent"
+                        style={{ width: `${Math.round(p.progress * 100)}%` }}
+                      />
+                    </span>
+                  )}
+                  {p.error && (
+                    <span className="absolute inset-0 flex items-center justify-center bg-alert/70 p-1 text-center text-[10px] font-semibold text-surface">
+                      อัปไม่สำเร็จ
+                    </span>
+                  )}
+                  {/\.gif$/i.test(p.file.name) || p.file.type === "image/gif" ? (
+                    <span className="absolute bottom-2 left-1 rounded bg-black/60 px-1 text-[9px] font-bold text-white">
+                      GIF
+                    </span>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => dropPending(new Set([p.key]))}
+                    aria-label={`เอา ${p.file.name} ออก`}
+                    className="absolute right-0.5 top-0.5 rounded-full bg-black/60 p-0.5 text-white hover:bg-black/80"
+                  >
+                    <Icon name="x" className="size-3" />
+                  </button>
+                </span>
+              ) : (
+                <span
+                  key={p.key}
+                  className={`relative flex max-w-[14rem] items-center gap-1.5 overflow-hidden rounded-md border px-2 py-1 text-xs ${
+                    p.error ? "border-alert text-alert" : "border-line"
+                  }`}
+                >
+                  {!p.id && !p.error && (
+                    <span
+                      className="absolute inset-y-0 left-0 bg-accent-soft"
+                      style={{ width: `${Math.round(p.progress * 100)}%` }}
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span className="relative min-w-0 truncate">{p.error ? `${p.file.name} — ${p.error}` : p.file.name}</span>
+                  <span className="relative tnum shrink-0 text-faint">
+                    {p.id || p.error ? fmtSize(p.file.size) : `${Math.round(p.progress * 100)}%`}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => dropPending(new Set([p.key]))}
+                    aria-label={`เอา ${p.file.name} ออก`}
+                    className="relative shrink-0 text-faint hover:text-text"
+                  >
+                    <Icon name="x" className="size-3" />
+                  </button>
+                </span>
+              ),
+            )}
           </div>
         )}
 
@@ -647,6 +755,8 @@ function Conversation({
           Enter ส่ง · Shift+Enter ขึ้นบรรทัดใหม่ · ลากไฟล์มาวาง หรือวางรูปจากคลิปบอร์ดได้ · เก็บ 90 วัน
         </p>
       </div>
+
+      {viewing && <Lightbox file={viewing} onClose={closeViewer} />}
 
       {dragging && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-md border-2 border-dashed border-accent bg-accent-soft/80 text-sm font-semibold text-accent">
