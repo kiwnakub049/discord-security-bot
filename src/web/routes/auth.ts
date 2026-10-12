@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { createSession, destroySession, SESSION_TTL_MS } from "../../auth/session.js";
 import type { AccessResolver } from "../../auth/access.js";
 import { authorizeUrl, identify, newState, oauthConfig } from "../../auth/discordOAuth.js";
+import { consumeLoginLink, peekLoginLink, rememberState, takeState } from "../../auth/loginLink.js";
 import { logEvent } from "../../utils/logger.js";
 import { notifySecurity } from "../../modules/securityAlerts.js";
 import { isOwner, seesSystem } from "../middleware/auth.js";
@@ -35,17 +36,42 @@ const MESSAGES: Record<string, string> = {
   state: "หมดเวลาหรือเปิดลิงก์ข้ามหน้าต่าง — กดเข้าสู่ระบบใหม่อีกครั้ง",
   failed: "เชื่อมต่อ Discord ไม่สำเร็จ — ลองใหม่อีกครั้ง",
   denied: "ยกเลิกการเข้าสู่ระบบแล้ว",
+  link: "ลิงก์หมดอายุหรือถูกใช้ไปแล้ว — พิมพ์ /dashboard ใน Discord เพื่อขอลิงก์ใหม่",
   config:
     "ยังไม่ได้ตั้งค่า login ด้วย Discord (ต้องมี CLIENT_ID, DISCORD_CLIENT_SECRET และ DASHBOARD_URL ใน .env)",
 };
 
-export function renderLogin(query: Request["query"]): string {
+const escapeAttr = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/**
+ * authorizeHref = ลิงก์ไปหน้าอนุญาตของ Discord ตรง ๆ (ไม่ผ่าน /auth/discord)
+ * มือถือส่งลิงก์ discord.com ให้แอป Discord เปิดได้ก็ต่อเมื่อเป็นการแตะลิงก์ข้ามโดเมนตรง ๆ
+ * ถ้าผ่าน redirect ของเรามักเปิดในเบราว์เซอร์แทน
+ */
+export function renderLogin(query: Request["query"], authorizeHref?: string): string {
   const key = typeof query.error === "string" ? query.error : "";
   const message = MESSAGES[key] ?? (oauthConfig() ? "" : MESSAGES.config);
-  return LOGIN_HTML.replace(
+  let html = LOGIN_HTML.replace(
     "<!--ERROR-->",
     message ? `<p class="error" role="alert">${message}</p>` : "",
   );
+  if (authorizeHref) html = html.replace('href="/auth/discord"', `href="${escapeAttr(authorizeHref)}"`);
+  return html;
+}
+
+/** หน้ายืนยันของลิงก์จาก /dashboard — ปุ่ม POST (GET ไม่ใช้ token กันแอปโหลดลิงก์ล่วงหน้า) */
+export function renderLinkConfirm(token: string): string {
+  const start = LOGIN_HTML.indexOf("<!--ACTION-->");
+  const end = LOGIN_HTML.indexOf("<!--/ACTION-->");
+  const form = `<form method="post" action="/auth/link">
+        <input type="hidden" name="t" value="${escapeAttr(token)}" />
+        <button type="submit" class="discord">เข้าสู่ระบบ</button>
+      </form>
+      <p class="note">ลิงก์จาก /dashboard ใน Discord · ใช้ได้ครั้งเดียว</p>`;
+  return (LOGIN_HTML.slice(0, start) + form + LOGIN_HTML.slice(end + "<!--/ACTION-->".length))
+    .replace("<!--ERROR-->", "")
+    .replace("<title>เข้าสู่ระบบ — Undawn Dashboard</title>", "<title>ยืนยันเข้าสู่ระบบ — Undawn Dashboard</title>");
 }
 
 /**
@@ -59,8 +85,18 @@ export function publicAuthRoutes(
 ): Router {
   const r = Router();
 
+  // ออก state ตั้งแต่เปิดหน้า แล้วให้ปุ่มชี้ไป Discord ตรง ๆ — มือถือจะได้ส่งให้แอป Discord เปิด
   r.get("/login", (req: Request, res: Response) => {
-    res.type("html").send(renderLogin(req.query));
+    const cfg = oauthConfig();
+    if (!cfg) {
+      res.type("html").send(renderLogin(req.query));
+      return;
+    }
+    const state = newState();
+    rememberState(state);
+    res.cookie(STATE_COOKIE, state, { ...cookieOptions(), maxAge: STATE_TTL_MS });
+    res.set("Cache-Control", "no-store"); // state ต่อหน้า ห้าม cache
+    res.type("html").send(renderLogin(req.query, authorizeUrl(cfg, state)));
   });
 
   // ขั้น 1: ส่งไปหน้าอนุญาตของ Discord พร้อม state สุ่ม (กันคนอื่นยัด code ของเขาให้เรา login แทน)
@@ -71,6 +107,7 @@ export function publicAuthRoutes(
       return;
     }
     const state = newState();
+    rememberState(state);
     res.cookie(STATE_COOKIE, state, { ...cookieOptions(), maxAge: STATE_TTL_MS });
     res.redirect(authorizeUrl(cfg, state));
   });
@@ -91,7 +128,10 @@ export function publicAuthRoutes(
     }
     const code = typeof req.query.code === "string" ? req.query.code : "";
     const state = typeof req.query.state === "string" ? req.query.state : "";
-    if (!code || !expected || state !== expected) {
+    // state ต้องเป็นของที่เราออกให้: ตรงกับ cookie (เบราว์เซอร์เดิม) หรืออยู่ใน DB
+    // (แอป Discord พากลับมาใน browser ในแอปที่ไม่มี cookie) · ใช้ได้ครั้งเดียวทั้งสองทาง
+    const issued = takeState(state);
+    if (!code || !state || (state !== expected && !issued)) {
       res.redirect("/login?error=state");
       return;
     }
@@ -113,17 +153,53 @@ export function publicAuthRoutes(
       return;
     }
 
-    const token = createSession(user.id, metaOf(req));
+    startSession(req, res, user.id, who, "Discord");
+  });
+
+  // ---------- ลิงก์ครั้งเดียวจาก /dashboard ใน Discord ----------
+  r.get("/auth/link", (req: Request, res: Response) => {
+    const t = req.query.t;
+    if (!peekLoginLink(t)) {
+      res.redirect("/login?error=link");
+      return;
+    }
+    res.set({ "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
+    res.type("html").send(renderLinkConfirm(String(t)));
+  });
+
+  r.post("/auth/link", async (req: Request, res: Response) => {
+    const userId = consumeLoginLink(req.body?.t);
+    if (!userId) {
+      res.redirect(303, "/login?error=link");
+      return;
+    }
+    // ถามยศใหม่ — ถ้าถูกถอดยศระหว่างขอลิงก์กับกด ก็เข้าไม่ได้
+    const who = await access(userId).catch(() => null);
+    if (!who) {
+      res.redirect(303, "/login?error=norole");
+      return;
+    }
+    startSession(req, res, userId, who, "ลิงก์ /dashboard");
+  });
+
+  function startSession(
+    req: Request,
+    res: Response,
+    userId: string,
+    who: { name: string; role: string },
+    via: string,
+  ): void {
+    const token = createSession(userId, metaOf(req));
     res.cookie(COOKIE_NAME, token, { ...cookieOptions(), maxAge: SESSION_TTL_MS });
-    res.redirect("/");
+    res.redirect(303, "/");
     if (client) {
-      void logEvent(client, "info", "system", "system_login", "เข้าสู่ระบบ dashboard (Discord)", [
-        { name: "User", value: `${who.name} (${user.id})` },
+      void logEvent(client, "info", "system", "system_login", `เข้าสู่ระบบ dashboard (${via})`, [
+        { name: "User", value: `${who.name} (${userId})` },
         { name: "สิทธิ์", value: who.role },
-        { name: "IP", value: ip },
+        { name: "IP", value: req.ip ?? "?" },
       ]);
     }
-  });
+  }
 
   r.post("/logout", (req: Request, res: Response) => {
     const cookies = parseCookies(req.headers.cookie);

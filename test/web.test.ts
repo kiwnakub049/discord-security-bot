@@ -129,7 +129,8 @@ test("GET /api/logs โดยไม่ login → 401", async () => {
 
 test("หน้า login มีปุ่ม Discord และไม่มีช่องรหัสผ่านแล้ว", async () => {
   const html = await (await fetch(`${BASE}/login`)).text();
-  assert.match(html, /href="\/auth\/discord"/);
+  // ปุ่มชี้หน้าอนุญาตของ Discord ตรง ๆ (มือถือจะได้ส่งให้แอป Discord เปิด)
+  assert.match(html, /class="discord" href="https:\/\/discord\.com\/oauth2\/authorize\?/);
   assert.doesNotMatch(html, /type="password"/);
 });
 

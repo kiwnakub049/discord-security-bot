@@ -88,6 +88,8 @@ export function startWebServer(
       void notifySecurity("rate limit login", `IP ${ip} ยิงขากลับ login เกิน 20 ครั้ง/15 นาที`),
     ),
   );
+  // ลิงก์ login จาก /dashboard — token สุ่ม 256 บิต เดาไม่ได้อยู่แล้ว แต่กันยิงรัวไว้อีกชั้น
+  app.use("/auth/link", rateLimit("login-link", 20, 15 * 60_000));
   // API ทั้งหมด: 240 ครั้ง/นาที/IP — ยกเว้น /api/stream (SSE เชื่อมต่อยาว 1 ครั้ง
   // แต่ตอน deploy/เน็ตสะดุด client จะ reconnect วน ถ้านับรวมจะเผาโควตาตัวเอง)
   const apiLimiter = rateLimit("api", 240, 60_000, (ip) =>

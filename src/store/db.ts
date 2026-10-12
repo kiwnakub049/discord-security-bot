@@ -55,6 +55,20 @@ export function initDb(): void {
     CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(username);
     CREATE INDEX IF NOT EXISTS idx_sessions_exp  ON sessions(expires);
 
+    -- ลิงก์ login ครั้งเดียวจาก /dashboard ใน Discord — เก็บแค่ sha256 ของ token
+    CREATE TABLE IF NOT EXISTS login_links (
+      token_hash TEXT PRIMARY KEY,
+      user_id    TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      used_at    INTEGER
+    );
+    -- state ของ OAuth ที่ออกให้ไปแล้ว — ขากลับจากแอป Discord อาจไม่มี cookie ของเรา
+    CREATE TABLE IF NOT EXISTS oauth_states (
+      state_hash TEXT PRIMARY KEY,
+      expires_at INTEGER NOT NULL
+    );
+
     -- แผงบัตรที่ /setup-idcard ปักไว้ในห้อง — เก็บไว้ให้ลูปไล่สีขอบ embed หาเจอ
     -- หลัง restart (สี embed แก้หลังส่งไม่ได้ ต้อง edit ข้อความเดิมเป็นระยะ)
     CREATE TABLE IF NOT EXISTS idcard_panels (
