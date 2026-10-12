@@ -294,6 +294,15 @@ export interface TeamMessage {
   mentions: string[];
   createdAt: number;
   files: TeamFile[];
+  /** ตอบกลับข้อความไหน · gone = ต้นทางถูกลบไปแล้ว */
+  replyTo: {
+    id: number;
+    authorId: string | null;
+    authorName: string | null;
+    excerpt: string;
+    files: number;
+    gone: boolean;
+  } | null;
 }
 
 export interface TeamRoomSummary {

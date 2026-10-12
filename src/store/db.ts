@@ -295,6 +295,12 @@ function migrateSchema(): void {
   db.exec("DROP TABLE IF EXISTS users");
   db.exec("DELETE FROM sessions WHERE username GLOB '*[^0-9]*' AND username <> 'dev'");
 
+  // แชททีม: ข้อความนี้ตอบกลับข้อความไหน (NULL = ไม่ได้ตอบใคร)
+  const teamCols = db.prepare("PRAGMA table_info(team_messages)").all() as { name: string }[];
+  if (!teamCols.some((c) => c.name === "reply_to")) {
+    db.exec("ALTER TABLE team_messages ADD COLUMN reply_to INTEGER");
+  }
+
   // หมายเหตุของ mod ต่อคำตัดสิน AI (ไม่บังคับ)
   const verdictCols = db.prepare("PRAGMA table_info(ai_verdicts)").all() as { name: string }[];
   if (!verdictCols.some((c) => c.name === "comment")) {

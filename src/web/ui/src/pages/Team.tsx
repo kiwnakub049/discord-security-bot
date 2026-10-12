@@ -299,6 +299,12 @@ function Conversation({
   const [dragging, setDragging] = useState(false);
   const [viewing, setViewing] = useState<TeamFile | null>(null);
   const closeViewer = useCallback(() => setViewing(null), []);
+  // กำลังตอบกลับข้อความไหน (แถบเหนือช่องพิมพ์) + ข้อความที่กระพริบหลังกดดูต้นทาง
+  const [replying, setReplying] = useState<TeamMessage | null>(null);
+  const [flash, setFlash] = useState<number | null>(null);
+  const flashTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(flashTimer.current), []);
+  useEffect(() => setReplying(null), [room]);
 
   // พรีวิวที่ค้างตอนออกจากห้อง — คืนหน่วยความจำ
   const pendingRef = useRef<Pending[]>([]);
@@ -470,11 +476,13 @@ function Conversation({
         body,
         files: ready.map((p) => p.id),
         mentions,
+        ...(replying ? { replyTo: replying.id } : {}),
       });
       setMessages((prev) => (prev.some((m) => m.id === r.message.id) ? prev : [...prev, r.message]));
       lastId.current = Math.max(lastId.current, r.message.id);
       readId.current = lastId.current;
       setText("");
+      setReplying(null);
       dropPending("all");
       toBottom();
       onRead();
@@ -486,6 +494,24 @@ function Conversation({
   }
 
   const nameOf = (m: TeamMessage) => byId.get(m.authorId)?.name ?? m.authorName;
+
+  function startReply(m: TeamMessage) {
+    setReplying(m);
+    requestAnimationFrame(() => input.current?.focus());
+  }
+
+  /** เลื่อนไปข้อความต้นทางแล้วกระพริบ — ยังไม่ได้โหลด (เก่ากว่าที่โหลดไว้) ก็บอก */
+  function jumpTo(id: number) {
+    const el = document.getElementById(`team-msg-${id}`);
+    if (!el) {
+      toast(hasOlder ? "ข้อความนี้เก่ากว่าที่โหลดไว้ — กด \"โหลดข้อความเก่ากว่านี้\" ด้านบน" : "ไม่พบข้อความต้นทางแล้ว", "error");
+      return;
+    }
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    setFlash(id);
+    window.clearTimeout(flashTimer.current);
+    flashTimer.current = window.setTimeout(() => setFlash(null), 1600);
+  }
 
   return (
     <section
@@ -558,7 +584,13 @@ function Conversation({
               if (ALL_RE.test(m.body)) mentionNames.push("all");
               const pingsMe = m.mentions.includes(userId);
               return (
-                <div key={m.id} className={`flex gap-2 ${mine ? "flex-row-reverse" : ""} ${head ? "pt-2" : ""}`}>
+                <div
+                  key={m.id}
+                  id={`team-msg-${m.id}`}
+                  className={`group flex gap-2 rounded-md transition-colors duration-500 ${mine ? "flex-row-reverse" : ""} ${
+                    head || m.replyTo ? "pt-2" : ""
+                  } ${flash === m.id ? "bg-accent-soft" : ""}`}
+                >
                   <div className="w-7 shrink-0">
                     {head && !mine && <Avatar id={m.authorId} name={nameOf(m)} size="sm" />}
                   </div>
@@ -570,6 +602,31 @@ function Conversation({
                           {fmtTime(m.createdAt)}
                         </span>
                       </div>
+                    )}
+                    {m.replyTo && (
+                      <button
+                        type="button"
+                        onClick={() => m.replyTo && !m.replyTo.gone && jumpTo(m.replyTo.id)}
+                        disabled={m.replyTo.gone}
+                        title={m.replyTo.gone ? undefined : "ไปที่ข้อความต้นทาง"}
+                        className={`flex max-w-full items-center gap-1.5 rounded-md border-l-2 border-accent/60 bg-raised/60 px-2 py-1 text-left text-xs text-muted ${
+                          m.replyTo.gone ? "" : "press hover:bg-raised"
+                        }`}
+                      >
+                        <Icon name="reply" className="size-3 shrink-0" />
+                        {m.replyTo.gone ? (
+                          <span className="italic">ข้อความต้นทางถูกลบไปแล้ว</span>
+                        ) : (
+                          <>
+                            <span className="shrink-0 font-semibold text-text">
+                              {(m.replyTo.authorId && byId.get(m.replyTo.authorId)?.name) ?? m.replyTo.authorName}
+                            </span>
+                            <span className="min-w-0 truncate">
+                              {m.replyTo.excerpt || (m.replyTo.files ? `📎 ไฟล์แนบ ${m.replyTo.files} ไฟล์` : "")}
+                            </span>
+                          </>
+                        )}
+                      </button>
                     )}
                     {m.body && (
                       <div
@@ -588,6 +645,16 @@ function Conversation({
                       <Attachment key={f.id} f={f} onOpen={setViewing} />
                     ))}
                   </div>
+                  {/* ตอบกลับ — จอใหญ่โผล่ตอนชี้ · มือถือ (ไม่มี hover) โชว์จาง ๆ ตลอด */}
+                  <button
+                    type="button"
+                    onClick={() => startReply(m)}
+                    aria-label={`ตอบกลับ ${nameOf(m)}`}
+                    title="ตอบกลับ"
+                    className="press self-center rounded-md p-1.5 text-faint opacity-60 hover:bg-raised hover:text-text focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                  >
+                    <Icon name="reply" className="size-4" />
+                  </button>
                 </div>
               );
             })}
@@ -621,6 +688,28 @@ function Conversation({
                 {p.role === "admin" && <span className="ml-auto text-[10px] text-muted">admin</span>}
               </button>
             ))}
+          </div>
+        )}
+
+        {replying && (
+          <div className="mb-2 flex items-center gap-2 rounded-md border-l-2 border-accent bg-raised/60 px-2.5 py-1.5 text-xs">
+            <Icon name="reply" className="size-3.5 shrink-0 text-accent" />
+            <span className="min-w-0 flex-1 truncate">
+              <span className="text-muted">ตอบกลับ </span>
+              <span className="font-semibold">{nameOf(replying)}</span>
+              <span className="text-muted">
+                {" · "}
+                {replying.body || (replying.files.length ? `📎 ไฟล์แนบ ${replying.files.length} ไฟล์` : "")}
+              </span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setReplying(null)}
+              aria-label="ยกเลิกการตอบกลับ"
+              className="press shrink-0 rounded p-0.5 text-faint hover:text-text"
+            >
+              <Icon name="x" className="size-3.5" />
+            </button>
           </div>
         )}
 
@@ -734,7 +823,9 @@ function Conversation({
                 e.preventDefault();
                 pickMention(candidates[0]!);
               } else if (e.key === "Escape") {
-                setMentionQuery(null);
+                // ปิดรายชื่อแท็กก่อน ไม่มีรายชื่อค้างแล้วค่อยยกเลิกการตอบกลับ
+                if (mentionQuery !== null) setMentionQuery(null);
+                else setReplying(null);
               } else if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 void send();

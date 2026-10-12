@@ -18,6 +18,7 @@ import {
   dmMembers,
   filePath,
   getFile,
+  getReplyTarget,
   isSnowflake,
   listMessages,
   markRead,
@@ -114,7 +115,7 @@ export function teamRoutes(client: Client | undefined, access: AccessResolver): 
 
   r.post("/api/team/messages", async (req: Request, res: Response) => {
     const userId = me(res);
-    const { room, body: rawBody, files: rawFiles, mentions: rawMentions } = req.body ?? {};
+    const { room, body: rawBody, files: rawFiles, mentions: rawMentions, replyTo: rawReply } = req.body ?? {};
     if (typeof room !== "string" || !(await roomOk(room, userId))) {
       res.status(404).json({ ok: false, error: "ไม่พบห้องนี้" });
       return;
@@ -130,11 +131,28 @@ export function teamRoutes(client: Client | undefined, access: AccessResolver): 
       });
       return;
     }
+    // ตอบกลับ: ต้นทางต้องอยู่ห้องเดียวกัน
+    let replyTo: number | null = null;
+    let replyAuthor: string | null = null;
+    if (rawReply !== undefined && rawReply !== null) {
+      const target = Number.isInteger(rawReply) ? getReplyTarget(room, rawReply) : undefined;
+      if (!target) {
+        res.status(400).json({ ok: false, error: "ไม่พบข้อความที่จะตอบกลับ" });
+        return;
+      }
+      replyTo = target.id;
+      replyAuthor = target.author_id;
+    }
     // @all = ทุกคนในห้อง — server ไล่รายชื่อทีมเองด้วย ไม่พึ่งรายชื่อที่หน้าเว็บส่งมาอย่างเดียว
     const everyone = ALL_RE.test(body) ? (await listStaff(client)).map((p) => p.id) : [];
     // แท็กได้เฉพาะทีมที่เห็นห้องนี้ — ห้อง DM แท็กได้แค่อีกฝ่าย, ไม่แท็กตัวเอง
+    // ตอบกลับ = แจ้งเจ้าของข้อความต้นทางด้วย (เหมือน Discord)
     const wanted = [
-      ...new Set([...(Array.isArray(rawMentions) ? rawMentions.filter(isSnowflake) : []), ...everyone]),
+      ...new Set([
+        ...(Array.isArray(rawMentions) ? rawMentions.filter(isSnowflake) : []),
+        ...everyone,
+        ...(replyAuthor ? [replyAuthor] : []),
+      ]),
     ]
       .filter((id) => id !== userId)
       .slice(0, MAX_MENTIONS);
@@ -153,6 +171,7 @@ export function teamRoutes(client: Client | undefined, access: AccessResolver): 
         body,
         mentions,
         fileIds,
+        replyTo,
       });
     } catch (err) {
       res.status(400).json({ ok: false, error: err instanceof Error ? err.message : "ส่งไม่สำเร็จ" });
