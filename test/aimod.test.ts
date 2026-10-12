@@ -162,6 +162,26 @@ test("ai-mod: ส่งทีละข้อความ ครบทั้ง�
   assert.deepEqual(texts, ["ทดสอบ 1", "ทดสอบ 2"]);
 });
 
+test("ai-mod: ส่งบริบทของห้องไปด้วย (รวมข้อความทีมงานที่ไม่ได้ส่งตรวจ) + เป้าหมายขึ้น log", async () => {
+  const ctxs: unknown[] = [];
+  __setClassifierForTest(async (_t, ctx) => {
+    ctxs.push(ctx);
+    return { score: 0.6, zone: "review", label: "toxic", reason: "แซะ", target: "เอ" };
+  });
+  const first = mockMessage({ content: "ข้อความแรกในห้องบริบท", userId: "ctx-a" });
+  first.msg.channelId = "ctx-room";
+  first.msg.id = "ctx1";
+  await handleAiMod(first.msg);
+  const second = mockMessage({ content: "ข้อความที่สองบริบท", userId: "ctx-b" });
+  second.msg.channelId = "ctx-room";
+  second.msg.id = "ctx2";
+  await handleAiMod(second.msg);
+  const ctx = ctxs.at(-1) as { recent: { text: string }[] };
+  assert.deepEqual(ctx.recent.map((l) => l.text), ["ข้อความแรกในห้องบริบท"]);
+  const log = getLogs({ events: ["security_ai"] }).find((e) => e.fields.some((f) => f.value === "ข้อความที่สองบริบท"));
+  assert.equal(log?.fields.find((f) => f.name === "ด่า/แซะใคร")?.value, "เอ");
+});
+
 test("ai-mod: API ล่ม → fail-open ปล่อยข้อความผ่าน ไม่ throw", async () => {
   __setClassifierForTest(async () => { throw new Error("ECONNREFUSED"); });
   const m = mockMessage({ content: "ข้อความตอน API ตาย" });

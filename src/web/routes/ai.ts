@@ -5,6 +5,7 @@
 import { Router, type Request, type Response } from "express";
 import { getLogById, type LogEntry } from "../../store/logStore.js";
 import { testClassify } from "../../modules/aiMod.js";
+import { contextFromLines } from "../../modules/chatContext.js";
 import { requireSystemView } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rateLimit.js";
 import {
@@ -83,7 +84,9 @@ export function aiRoutes(): Router {
         res.status(400).json({ ok: false, error: `ใส่ข้อความ 1–${TEST_MAX} ตัวอักษร` });
         return;
       }
-      res.json(await testClassify(text));
+      // บริบทไม่บังคับ — บรรทัดละข้อความ "ชื่อ: ข้อความ"
+      const rawCtx = typeof req.body?.context === "string" ? req.body.context.slice(0, 3000).trim() : "";
+      res.json(await testClassify(text, rawCtx ? contextFromLines(rawCtx) : undefined));
     },
   );
 

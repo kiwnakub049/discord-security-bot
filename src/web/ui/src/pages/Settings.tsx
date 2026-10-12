@@ -484,6 +484,7 @@ interface ClaudeTestResult {
     score: number;
     zone: string;
     reason?: string;
+    target?: string;
     spamScore?: number;
     spamType?: "scam" | "advert" | "evasion" | "none";
   } | null;
@@ -493,7 +494,7 @@ interface ClaudeTestResult {
 
 const ACTION_TEXT: Record<NonNullable<ClaudeTestResult["action"]>, { text: string; tone: string }> = {
   ignore: { text: "ปล่อยผ่าน ไม่ทำอะไร", tone: "text-ok" },
-  review: { text: "ขึ้น Logs ให้ mod ตรวจ (ข้อความยังอยู่)", tone: "text-warn" },
+  review: { text: "ขึ้นการ์ดหน้าแรกให้ mod ตัดสิน (ข้อความยังอยู่)", tone: "text-warn" },
   "review-delete": { text: "ลบข้อความ แต่ไม่เตือน", tone: "text-warn" },
   auto: { text: "ลบข้อความ + เตือนสมาชิกอัตโนมัติ", tone: "text-alert" },
 };
@@ -521,6 +522,7 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
  */
 function ClaudeTest() {
   const [text, setText] = useState("");
+  const [context, setContext] = useState("");
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState<ClaudeTestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -530,7 +532,7 @@ function ClaudeTest() {
     setBusy(true);
     setError(null);
     try {
-      setOut(await api.post<ClaudeTestResult>("/api/ai/test", { text }));
+      setOut(await api.post<ClaudeTestResult>("/api/ai/test", { text, context }));
     } catch (err) {
       setOut(null);
       setError(err instanceof Error ? err.message : "ทดสอบไม่สำเร็จ");
@@ -548,6 +550,20 @@ function ClaudeTest() {
           ลองพิมพ์ข้อความ แล้วดูว่า Claude ให้คะแนนเท่าไร และบอทจะทำอะไรถ้ามีคนพิมพ์แบบนี้ในเซิร์ฟ
           — แค่ทดสอบ ไม่ลบ ไม่เตือน ไม่ขึ้น log
         </p>
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-muted">
+            บริบทก่อนหน้า (ไม่บังคับ) — บรรทัดละข้อความ แบบ <code>ชื่อ: ข้อความ</code>
+          </span>
+          <textarea
+            value={context}
+            onChange={(e) => setContext(e.target.value)}
+            maxLength={3000}
+            rows={3}
+            placeholder={"เอ: เมื่อกี้ใครเล่นแพ้วะ\nบี: ก็มึงไง 555"}
+            className="w-full resize-y rounded-md border border-line bg-surface px-3 py-2 text-sm outline-none placeholder:text-faint focus:border-accent"
+          />
+        </label>
+        <span className="block text-xs font-medium text-muted">ข้อความที่จะให้ Claude ตัดสิน</span>
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -578,6 +594,11 @@ function ClaudeTest() {
               <>
                 <ScoreBar label="toxic" value={r.score} />
                 <ScoreBar label={`spam · ${SPAM_TEXT[r.spamType ?? "none"]}`} value={r.spamScore ?? 0} />
+                {r.target && r.target !== "ไม่มี" && (
+                  <p className="text-sm">
+                    <span className="text-muted">ด่า/แซะใคร:</span> <b>{r.target}</b>
+                  </p>
+                )}
                 {r.reason && <p className="text-sm">“{r.reason}”</p>}
               </>
             ) : (
