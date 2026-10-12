@@ -5,7 +5,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { Router, type Request, type Response } from "express";
 import type { Client } from "discord.js";
-import { requireAdmin } from "../middleware/auth.js";
+import { requireAdmin, requireSystemView } from "../middleware/auth.js";
 import {
   createThread,
   deleteThread,
@@ -103,7 +103,8 @@ function errorMessage(err: unknown): string {
 
 export function chatRoutes(client?: Client): Router {
   const r = Router();
-  r.use("/api/chat", requireAdmin);
+  // admin เท่านั้น และไม่ใช่ admin ทั่วไป (ดู seesSystem) → เหลือแค่เจ้าของ
+  r.use("/api/chat", requireAdmin, requireSystemView);
 
   // ทีละคำถามต่อ thread — กดส่งรัว ๆ จะได้ไม่ยิง API ซ้อนแล้วประวัติสลับลำดับ
   const busy = new Set<number>();

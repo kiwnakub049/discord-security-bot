@@ -26,6 +26,8 @@ const TABS: { route: Route; label: string; icon: IconName }[] = [
 const OWNER_ONLY = new Set<Route>(["/beamng"]);
 /** แท็บเฉพาะ admin (ด่านจริงคือ requireAdmin ฝั่งเซิร์ฟเวอร์) */
 const ADMIN_ONLY = new Set<Route>(["/assistant"]);
+/** admin ทั่วไป (ไม่ใช่เจ้าของ) ไม่เห็น — mod เห็นตั้งค่าปกติ (ด่านจริงคือ requireSystemView) */
+const SYSTEM_ONLY = new Set<Route>(["/settings", "/assistant"]);
 
 const TITLES: Record<Route, string> = {
   "/": "ภาพรวม",
@@ -145,6 +147,7 @@ export function Shell({
   logFilter,
   onPickLogFilter,
   teamBadge,
+  seesSystem,
   children,
 }: {
   route: Route;
@@ -160,6 +163,8 @@ export function Shell({
   onPickLogFilter: (f: TreePick) => void;
   /** แชททีม: ข้อความที่ยังไม่อ่าน (แดง) + มีคนแท็กเราไหม (มี @ นำหน้า) */
   teamBadge: { unread: number; mentioned: boolean } | null;
+  /** false = admin ที่ไม่ใช่เจ้าของ → ไม่เห็นแท็บตั้งค่าและผู้ช่วย AI */
+  seesSystem: boolean;
   children: ReactNode;
 }) {
   /*
@@ -167,7 +172,10 @@ export function Shell({
    * ไม่ใช่จาก ROUTES ทั้งหมด ไม่งั้นตำแหน่งจะเลื่อนผิดไปหนึ่งช่องสำหรับคนที่ไม่ใช่เจ้าของ
    */
   const tabs = TABS.filter(
-    (t) => (isOwner || !OWNER_ONLY.has(t.route)) && (isAdmin || !ADMIN_ONLY.has(t.route)),
+    (t) =>
+      (isOwner || !OWNER_ONLY.has(t.route)) &&
+      (isAdmin || !ADMIN_ONLY.has(t.route)) &&
+      (seesSystem || !SYSTEM_ONLY.has(t.route)),
   );
   const activeIndex = Math.max(
     0,
@@ -253,6 +261,19 @@ export function Shell({
             <LiveDot state={stream} />
             <NotifyButton />
             <ThemeButton />
+            {/* ไม่มีหน้าตั้งค่า = ไม่มีปุ่มออกจากระบบบนมือถือ — ใส่ไว้บนหัวแทน */}
+            {!seesSystem && (
+              <form method="post" action="/logout" className="md:hidden">
+                <button
+                  type="submit"
+                  aria-label="ออกจากระบบ"
+                  title="ออกจากระบบ"
+                  className="press rounded-md border border-line bg-surface p-2 text-muted"
+                >
+                  <Icon name="logout" className="size-5" />
+                </button>
+              </form>
+            )}
           </div>
         </header>
 

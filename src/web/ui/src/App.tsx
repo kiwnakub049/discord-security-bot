@@ -43,6 +43,11 @@ export function App() {
   // admin ที่ไม่ใช่เจ้าของไม่เห็นตั้งค่าระบบ/สถานะ Pi — ค่าเริ่ม false จนกว่า /api/me จะตอบ
   const seesSystem = me.data?.seesSystem === true;
   const guildId = me.data?.guildId ?? null;
+  // admin ทั่วไปเปิด /settings หรือ /assistant ตรง ๆ (บุ๊กมาร์กเก่า) → พากลับหน้าแรก
+  useEffect(() => {
+    if (me.data && !seesSystem && (route === "/settings" || route === "/assistant")) go("/");
+  }, [me.data, seesSystem, route, go]);
+
   // จุดแจ้งเตือนของแชททีมบนเมนู — ดึงทุก 15 วิ (useFetch หยุดเองตอนสลับแท็บ)
   const teamUnread = useFetch<{ unread: number; mentioned: boolean }>("/api/team/unread", 15_000);
 
@@ -90,6 +95,7 @@ export function App() {
         logFilter={logFilter}
         onPickLogFilter={pickLogFilter}
         teamBadge={teamUnread.data}
+        seesSystem={seesSystem}
       >
         {route === "/" && <Overview go={go} seesSystem={seesSystem} />}
         {route === "/logs" && (
@@ -103,10 +109,10 @@ export function App() {
         )}
         {route === "/members" && <Members />}
         {route === "/team" && <Team userId={userId} />}
-        {route === "/assistant" && isAdmin && <Assistant />}
+        {route === "/assistant" && isAdmin && seesSystem && <Assistant />}
         {/* กันคนพิมพ์ /beamng เองตอนไม่ใช่เจ้าของ — API ก็ตอบ 404 อยู่แล้วอีกชั้น */}
         {route === "/beamng" && isOwner && <BeamNG />}
-        {route === "/settings" && (
+        {route === "/settings" && seesSystem && (
           <Settings
             username={username}
             userId={userId}

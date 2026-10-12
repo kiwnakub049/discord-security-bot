@@ -5,6 +5,7 @@
 import { Router, type Request, type Response } from "express";
 import { getLogById, type LogEntry } from "../../store/logStore.js";
 import { testClassify } from "../../modules/aiMod.js";
+import { requireSystemView } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rateLimit.js";
 import {
   clearVerdict,
@@ -49,6 +50,7 @@ export function aiRoutes(): Router {
    */
   r.post(
     "/api/ai/test",
+    requireSystemView, // อยู่ในหน้าตั้งค่า — admin ทั่วไปไม่เห็นหน้านั้น
     rateLimit("ai-test", 20, 10 * 60_000),
     async (req: Request, res: Response) => {
       const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";

@@ -312,6 +312,8 @@ test("seesSystem: admin ที่ไม่ใช่เจ้าของ → 403
     ["GET", "/api/oled", undefined],
     ["POST", "/api/oled", { page: "load" }],
     ["GET", "/api/access", undefined],
+    ["GET", "/api/chat/threads", undefined],
+    ["POST", "/api/ai/test", { text: "ทดสอบ" }],
   ] as const) {
     const res = await fetch(`${BASE}${path}`, {
       method,
