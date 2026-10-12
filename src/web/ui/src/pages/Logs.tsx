@@ -28,6 +28,7 @@ import {
 } from "../lib/logTree";
 import { Icon } from "../components/Icon";
 import { useToast } from "../components/Toast";
+import { t } from "../lib/i18n";
 
 const PAGE = 40;
 
@@ -88,7 +89,7 @@ export function Logs({
       setHasMore(page.hasMore);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "โหลด logs ไม่สำเร็จ");
+      setError(err instanceof Error ? err.message : t("โหลด logs ไม่สำเร็จ"));
     } finally {
       setLoading(false);
     }
@@ -158,7 +159,7 @@ export function Logs({
       setCursor(page.nextCursor);
       setHasMore(page.hasMore);
     } catch (err) {
-      toast(err instanceof Error ? err.message : "โหลดเพิ่มไม่สำเร็จ", "error");
+      toast(err instanceof Error ? err.message : t("โหลดเพิ่มไม่สำเร็จ"), "error");
     } finally {
       setLoadingMore(false);
     }
@@ -210,12 +211,12 @@ export function Logs({
         else delete next[logId];
         return next;
       });
-      toast(err instanceof Error ? err.message : "บันทึกคำตัดสินไม่สำเร็จ", "error");
+      toast(err instanceof Error ? err.message : t("บันทึกคำตัดสินไม่สำเร็จ"), "error");
     }
   }
 
   /** ชื่อของสิ่งที่กำลังดูอยู่ — โชว์บนหัวปุ่มกางต้นไม้ */
-  const pickedLabel = leaf ? leaf.label : category ? labelOf(category) : "ทุกหมวด";
+  const pickedLabel = leaf ? leaf.label : category ? labelOf(category) : t("ทุกหมวด");
   const count = activeCount(filter);
   /** รายการที่ติ๊กอยู่ เป็นป้ายกด × ได้ — เรียงตามแผง: ระดับ → เวลา */
   const picked: { key: string; label: string; remove: () => void }[] = [
@@ -285,7 +286,7 @@ export function Logs({
             <SearchBox
               value={search}
               onChange={setSearch}
-              placeholder="ค้นหาหัวข้อ / รายละเอียด / ชื่อผู้ใช้…"
+              placeholder={t("ค้นหาหัวข้อ / รายละเอียด / ชื่อผู้ใช้…")}
             />
           </div>
           <button
@@ -299,7 +300,7 @@ export function Logs({
             }`}
           >
             <Icon name="list" className="size-4" />
-            ตัวกรอง
+            {t("ตัวกรอง")}
             {count > 0 && (
               <span className="tnum rounded-full bg-accent px-1.5 text-xs leading-5 text-surface">
                 {count}
@@ -322,7 +323,7 @@ export function Logs({
                 key={p.key}
                 type="button"
                 onClick={p.remove}
-                aria-label={`เอาตัวกรอง ${p.label} ออก`}
+                aria-label={t("เอาตัวกรอง {f} ออก", { f: p.label })}
                 className="press flex items-center gap-1 rounded-full border border-accent/40 bg-accent-soft py-0.5 pl-2.5 pr-1.5 text-xs text-accent"
               >
                 {p.label}
@@ -334,7 +335,7 @@ export function Logs({
               onClick={() => onFilterChange({ ...filter, levels: EMPTY_FILTER.levels, window: EMPTY_FILTER.window })}
               className="press px-1.5 text-xs font-medium text-muted underline-offset-2 hover:underline"
             >
-              ล้างทั้งหมด
+              {t("ล้างทั้งหมด")}
             </button>
           </div>
         )}
@@ -344,7 +345,7 @@ export function Logs({
       {filter.category === "partner" && partners.length > 0 && (
         <div className="fade-in space-y-1.5 rounded-md border border-line bg-surface px-3.5 py-3">
           <p className="text-xs text-muted">
-            บอทจากพาร์ทเนอร์ที่เราให้สิทธิ์เข้ามาจัดการในเซิร์ฟเวอร์นี้
+            {t("บอทจากพาร์ทเนอร์ที่เราให้สิทธิ์เข้ามาจัดการในเซิร์ฟเวอร์นี้")}
           </p>
           {partners.map((p) => (
             <div key={p.id} className="flex items-start gap-2 text-xs">
@@ -370,7 +371,7 @@ export function Logs({
           className="flex items-center gap-1 font-medium text-accent"
         >
           <Icon name="download" className="size-3.5" />
-          ส่งออก CSV ตามตัวกรอง
+          {t("ส่งออก CSV ตามตัวกรอง")}
         </a>
         {vstats && vstats.total > 0 && (
           <a
@@ -379,7 +380,7 @@ export function Logs({
             className="flex items-center gap-1 font-medium text-accent"
           >
             <Icon name="download" className="size-3.5" />
-            ชุดข้อมูลเทรน (.jsonl)
+            {t("ชุดข้อมูลเทรน (.jsonl)")}
           </a>
         )}
       </div>
@@ -387,10 +388,9 @@ export function Logs({
       {/* ---- สรุปคำตัดสิน AI ---- */}
       {vstats && vstats.total > 0 && (
         <div className="rounded-md border border-line bg-surface px-3.5 py-2.5 text-xs text-muted">
-          mod ตัดสินการตรวจจับของ AI ไปแล้ว{" "}
-          <b className="text-text">{vstats.total}</b> รายการ ·{" "}
-          <span className="text-ok">AI ถูก {vstats.toxic}</span> ·{" "}
-          <span className="text-alert">AI ผิด {vstats.ok}</span>
+          {t("mod ตัดสินการตรวจจับของ AI ไปแล้ว {n} รายการ", { n: vstats.total })} ·{" "}
+          <span className="text-ok">{t("AI ถูก {n}", { n: vstats.toxic })}</span> ·{" "}
+          <span className="text-alert">{t("AI ผิด {n}", { n: vstats.ok })}</span>
         </div>
       )}
 
@@ -402,7 +402,7 @@ export function Logs({
       ) : error ? (
         <Empty icon="warn">{error}</Empty>
       ) : entries.length === 0 ? (
-        <Empty icon="search">ไม่พบรายการที่ตรงกับเงื่อนไข</Empty>
+        <Empty icon="search">{t("ไม่พบรายการที่ตรงกับเงื่อนไข")}</Empty>
       ) : (
         <>
           <div className="stagger space-y-2">
@@ -426,11 +426,11 @@ export function Logs({
               </div>
             ) : hasMore ? (
               <Button full onClick={() => void loadMore()}>
-                โหลดเพิ่ม
+                {t("โหลดเพิ่ม")}
               </Button>
             ) : (
               <p className="text-center text-xs text-faint">
-                หมดแล้ว — ทั้งหมด {entries.length} รายการ
+                {t("หมดแล้ว — ทั้งหมด {n} รายการ", { n: entries.length })}
               </p>
             )}
           </div>

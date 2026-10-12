@@ -45,8 +45,12 @@ export function setLang(next: Lang): void {
   location.reload();
 }
 
+/**
+ * คำไทยเดียวกันที่อังกฤษต้องต่างกันตามที่ใช้ — ต่อท้าย key ด้วย "@@บริบท" (ไทยตัดทิ้งตอนโชว์)
+ * เช่น t("ปิด@@server") = "ปิด" / "Stop" ขณะที่ t("ปิด") = "ปิด" / "Close"
+ */
 export function t(th: string, vars?: Record<string, string | number>): string {
-  let s = lang === "en" ? (EN[th] ?? th) : th;
+  let s = lang === "en" ? (EN[th] ?? th.split("@@")[0]!) : th.split("@@")[0]!;
   if (vars) s = s.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
   return s;
 }

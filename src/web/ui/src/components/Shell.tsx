@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { lang, setLang } from "../lib/i18n";
+import { lang, setLang, t } from "../lib/i18n";
 import { Icon, type IconName } from "./Icon";
 import type { StreamState } from "../hooks/useStream";
 import { type Route } from "../hooks/useRoute";
@@ -14,13 +14,13 @@ import {
 import { Avatar } from "./Avatar";
 
 const TABS: { route: Route; label: string; icon: IconName }[] = [
-  { route: "/", label: "ภาพรวม", icon: "home" },
+  { route: "/", label: t("ภาพรวม"), icon: "home" },
   { route: "/logs", label: "Logs", icon: "list" },
-  { route: "/members", label: "สมาชิก", icon: "users" },
-  { route: "/team", label: "แชททีม", icon: "message" },
-  { route: "/assistant", label: "ผู้ช่วย AI", icon: "bot" },
+  { route: "/members", label: t("สมาชิก"), icon: "users" },
+  { route: "/team", label: t("แชททีม"), icon: "message" },
+  { route: "/assistant", label: t("ผู้ช่วย AI"), icon: "bot" },
   { route: "/beamng", label: "BeamNG", icon: "car" },
-  { route: "/settings", label: "ตั้งค่า", icon: "settings" },
+  { route: "/settings", label: t("ตั้งค่า"), icon: "settings" },
 ];
 
 /** แท็บที่มีให้เฉพาะเจ้าของเครื่อง — คนอื่นไม่เห็นแม้แต่ชื่อ */
@@ -29,13 +29,13 @@ const OWNER_ONLY = new Set<Route>(["/beamng"]);
 const SYSTEM_ONLY = new Set<Route>(["/settings", "/assistant"]);
 
 const TITLES: Record<Route, string> = {
-  "/": "ภาพรวม",
+  "/": t("ภาพรวม"),
   "/logs": "Logs",
-  "/members": "สมาชิก",
-  "/team": "แชททีม",
-  "/assistant": "ผู้ช่วย AI",
-  "/beamng": "เซิร์ฟเวอร์ BeamNG",
-  "/settings": "ตั้งค่า",
+  "/members": t("สมาชิก"),
+  "/team": t("แชททีม"),
+  "/assistant": t("ผู้ช่วย AI"),
+  "/beamng": t("เซิร์ฟเวอร์ BeamNG"),
+  "/settings": t("ตั้งค่า"),
 };
 
 function TeamBadge({ badge }: { badge: { unread: number; mentioned: boolean } | null }) {
@@ -54,11 +54,11 @@ function LiveDot({ state }: { state: StreamState }) {
   const tone =
     state === "live" ? "bg-ok" : state === "connecting" ? "bg-warn" : "bg-alert";
   const label =
-    state === "live" ? "สด" : state === "connecting" ? "กำลังต่อ" : "หลุด";
+    state === "live" ? t("สด") : state === "connecting" ? t("กำลังต่อ") : t("หลุด");
   return (
     <span
       className="flex items-center gap-1.5 text-xs text-muted"
-      title={`สถานะสตรีม: ${label}`}
+      title={t("สถานะสตรีม: {label}", { label })}
     >
       <span className="relative flex size-2">
         {state === "live" && (
@@ -83,8 +83,8 @@ function NotifyButton() {
         // ขอสิทธิ์เดสก์ท็อปตอนเปิด (นี่คือ user gesture ที่เบราว์เซอร์ต้องการ)
         if (next) requestNotifyPermission();
       }}
-      title={enabled ? "แจ้งเตือน: เปิด (กดเพื่อปิดเสียง/เดสก์ท็อป)" : "แจ้งเตือน: ปิด"}
-      aria-label={enabled ? "ปิดแจ้งเตือน" : "เปิดแจ้งเตือน"}
+      title={enabled ? t("แจ้งเตือน: เปิด (กดเพื่อปิดเสียง/เดสก์ท็อป)") : t("แจ้งเตือน: ปิด")}
+      aria-label={enabled ? t("ปิดแจ้งเตือน") : t("เปิดแจ้งเตือน")}
       aria-pressed={enabled}
       className={`press rounded-md border border-line bg-surface p-2 ${enabled ? "text-accent" : "text-faint"}`}
     >
@@ -128,14 +128,14 @@ function ThemeButton() {
   const icon: IconName =
     theme === "light" ? "sun" : theme === "dark" ? "moon" : "monitor";
   const label =
-    theme === "light" ? "โทนสว่าง" : theme === "dark" ? "โทนมืด" : "ตามเครื่อง";
+    theme === "light" ? t("โทนสว่าง") : theme === "dark" ? t("โทนมืด") : t("ตามเครื่อง");
 
   return (
     <button
       type="button"
       onClick={() => setTheme(next)}
-      title={`ธีม: ${label} (กดเพื่อเปลี่ยน)`}
-      aria-label={`ธีม: ${label}`}
+      title={t("ธีม: {label} (กดเพื่อเปลี่ยน)", { label })}
+      aria-label={t("ธีม: {label}", { label })}
       className="press rounded-md border border-line bg-surface p-2 text-muted"
     >
       <Icon name={icon} className="size-5" />
@@ -185,13 +185,13 @@ export function Shell({
    * ไม่ใช่จาก ROUTES ทั้งหมด ไม่งั้นตำแหน่งจะเลื่อนผิดไปหนึ่งช่องสำหรับคนที่ไม่ใช่เจ้าของ
    */
   const tabs = TABS.filter(
-    (t) =>
-      (isOwner || !OWNER_ONLY.has(t.route)) &&
-      (seesSystem || !SYSTEM_ONLY.has(t.route)),
+    (tab) =>
+      (isOwner || !OWNER_ONLY.has(tab.route)) &&
+      (seesSystem || !SYSTEM_ONLY.has(tab.route)),
   );
   const activeIndex = Math.max(
     0,
-    tabs.findIndex((t) => t.route === route),
+    tabs.findIndex((tab) => tab.route === route),
   );
 
   return (
@@ -207,7 +207,7 @@ export function Shell({
             <div className="truncate text-[15px] font-bold text-text leading-tight">Undawn Dashboard</div>
             <div className="flex items-center gap-1.5 text-xs text-muted">
               <span className="size-2 rounded-full bg-ok" />
-              บอทออนไลน์
+              {t("บอทออนไลน์")}
             </div>
           </div>
         </div>
@@ -217,27 +217,27 @@ export function Shell({
           ความสูงของแต่ละแถวไม่คงที่อีกต่อไป การคำนวณตำแหน่งจาก index จึงเพี้ยน
           (แถบล่างบนมือถือยังใช้ได้เพราะทุกแท็บกว้างเท่ากันเสมอ)
         */}
-        <nav className="flex flex-col gap-0.5 overflow-y-auto" aria-label="เมนูหลัก">
-          {tabs.map((t) => (
-            <div key={t.route}>
+        <nav className="flex flex-col gap-0.5 overflow-y-auto" aria-label={t("เมนูหลัก")}>
+          {tabs.map((tab) => (
+            <div key={tab.route}>
               <button
                 type="button"
-                onClick={() => go(t.route)}
-                aria-current={route === t.route ? "page" : undefined}
+                onClick={() => go(tab.route)}
+                aria-current={route === tab.route ? "page" : undefined}
                 // เมนูที่เลือก = เส้นฟ้าด้านซ้ายแบบเดียวกับเส้นระดับบนการ์ด ไม่ใช่เม็ดยาสีทึบ
                 className={`press flex h-10 w-full items-center gap-3 rounded-md border-l-[3px] px-3 text-[15px] transition-colors ${
-                  route === t.route
+                  route === tab.route
                     ? "border-accent bg-surface font-semibold text-text"
                     : "border-transparent text-muted hover:bg-raised hover:text-text"
                 }`}
               >
-                <Icon name={t.icon} className="size-5" />
-                <span className="flex-1 text-left">{t.label}</span>
-                {t.route === "/team" && <TeamBadge badge={teamBadge} />}
+                <Icon name={tab.icon} className="size-5" />
+                <span className="flex-1 text-left">{tab.label}</span>
+                {tab.route === "/team" && <TeamBadge badge={teamBadge} />}
               </button>
 
               {/* ต้นไม้หมวดหมู่ กางอยู่ใต้ Logs เมื่ออยู่หน้านั้น */}
-              {t.route === "/logs" && route === "/logs" && (
+              {tab.route === "/logs" && route === "/logs" && (
                 <div className="fade-in mt-1 border-l border-line pl-2">
                   <LogTree filter={logFilter} onPick={onPickLogFilter} compact />
                 </div>
@@ -252,8 +252,8 @@ export function Shell({
           <form method="post" action="/logout">
             <button
               type="submit"
-              aria-label="ออกจากระบบ"
-              title="ออกจากระบบ"
+              aria-label={t("ออกจากระบบ")}
+              title={t("ออกจากระบบ")}
               className="press rounded-md p-2 text-muted hover:bg-raised hover:text-text"
             >
               <Icon name="logout" className="size-4" />
@@ -279,8 +279,8 @@ export function Shell({
               <form method="post" action="/logout" className="md:hidden">
                 <button
                   type="submit"
-                  aria-label="ออกจากระบบ"
-                  title="ออกจากระบบ"
+                  aria-label={t("ออกจากระบบ")}
+                  title={t("ออกจากระบบ")}
                   className="press rounded-md border border-line bg-surface p-2 text-muted"
                 >
                   <Icon name="logout" className="size-5" />
@@ -296,7 +296,7 @@ export function Shell({
         </main>
 
         {/* ---- แถบแท็บล่าง (เฉพาะมือถือ) ---- */}
-        <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface pb-safe md:hidden" aria-label="เมนูหลัก">
+        <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface pb-safe md:hidden" aria-label={t("เมนูหลัก")}>
           <div className="relative flex">
             {/*
               เม็ดยาเลื่อนตามแท็บ — คำนวณจาก index เป็นเปอร์เซ็นต์ของความกว้างตัวเอง

@@ -18,8 +18,9 @@ export function langOf(req: Request): Lang {
   if (h === "en" || h === "th") return h;
   const c = /(?:^|;\s*)lang=(en|th)\b/.exec(req.get("cookie") ?? "")?.[1];
   if (c === "en" || c === "th") return c;
-  const al = (req.get("accept-language") ?? "").toLowerCase();
-  return al && !al.startsWith("th") ? "en" : "th";
+  // ไม่เคยเลือก = ตามภาษาเครื่อง (เหมือนหน้าเว็บ) · "*" หรือไม่ส่งมา = ไทย
+  const al = (req.get("accept-language") ?? "").trim().toLowerCase();
+  return /^[a-z]{2}/.test(al) && !al.startsWith("th") ? "en" : "th";
 }
 
 /** แปลข้อความเดียว — ไทยล้วนที่มีตัวแปรก็ลอง pattern ทีละอัน */

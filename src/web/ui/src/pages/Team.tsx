@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { api, uploadTeamFile } from "../lib/api";
@@ -43,7 +44,7 @@ const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** แท็กทุกคนในห้อง — ต้องตรงกับ ALL_RE ใน src/web/routes/team.ts */
 const ALL_RE = /(^|\s)@all(?=\s|$)/i;
-const ALL: TeamPerson = { id: "all", name: "all", username: "ทุกคนในห้อง", role: "mod" };
+const ALL: TeamPerson = { id: "all", name: "all", username: t("ทุกคนในห้อง"), role: "mod" };
 
 /** ข้อความ + ไฮไลต์ @ชื่อ ของคนที่ถูกแท็กจริง (ไม่ใช้ innerHTML) */
 function Body({ text, names, mine }: { text: string; names: string[]; mine: boolean }) {
@@ -72,7 +73,7 @@ function Attachment({ f, onOpen }: { f: TeamFile; onOpen: (f: TeamFile) => void 
   if (isImage(f.mime)) {
     // GIF ขยับเองอยู่แล้ว — กดเพื่อดูใหญ่
     return (
-      <button type="button" onClick={() => onOpen(f)} className="block cursor-zoom-in" aria-label={`ดู ${f.name}`}>
+      <button type="button" onClick={() => onOpen(f)} className="block cursor-zoom-in" aria-label={t("ดู {name}", { name: f.name })}>
         <img
           src={src}
           alt={f.name}
@@ -129,13 +130,13 @@ function Lightbox({ file, onClose }: { file: TeamFile; onClose: () => void }) {
           className="flex items-center gap-1 rounded-md bg-white/15 px-2.5 py-1 hover:bg-white/25"
         >
           <Icon name="download" className="size-4" />
-          ดาวน์โหลด
+          {t("ดาวน์โหลด")}
         </a>
       </div>
       <button
         type="button"
         onClick={onClose}
-        aria-label="ปิด"
+        aria-label={t("ปิด")}
         className="absolute right-3 top-3 rounded-full bg-white/15 p-2 text-white hover:bg-white/25"
       >
         <Icon name="x" className="size-5" />
@@ -172,7 +173,7 @@ export function Team({ userId }: { userId: string }) {
   );
 
   const roomList = [
-    { room: GENERAL, label: "ห้องรวม", person: null as TeamPerson | null },
+    { room: GENERAL, label: t("ห้องรวม"), person: null as TeamPerson | null },
     ...staff
       .filter((p) => p.id !== userId)
       .map((p) => ({ room: dmRoom(userId, p.id), label: p.name, person: p })),
@@ -221,7 +222,7 @@ export function Team({ userId }: { userId: string }) {
                   )}
                 </span>
                 <span className="block truncate text-xs text-faint">
-                  {s?.lastText ?? (r.room === GENERAL ? "ทุกคนในทีม" : "ยังไม่เคยคุยกัน")}
+                  {s?.lastText ?? (r.room === GENERAL ? t("ทุกคนในทีม") : t("ยังไม่เคยคุยกัน"))}
                 </span>
               </span>
               {s && s.unread > 0 && (
@@ -259,7 +260,7 @@ export function Team({ userId }: { userId: string }) {
         />
       ) : (
         <div className="hidden flex-1 items-center justify-center text-sm text-muted md:flex">
-          เลือกห้องทางซ้าย
+          {t("เลือกห้องทางซ้าย")}
         </div>
       )}
     </div>
@@ -347,7 +348,7 @@ function Conversation({
         toBottom();
         markRead();
       })
-      .catch((err) => toast(err instanceof Error ? err.message : "โหลดข้อความไม่สำเร็จ", "error"))
+      .catch((err) => toast(err instanceof Error ? err.message : t("โหลดข้อความไม่สำเร็จ"), "error"))
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
@@ -356,7 +357,7 @@ function Conversation({
 
   // ดึงข้อความใหม่เรื่อย ๆ
   useEffect(() => {
-    const t = window.setInterval(async () => {
+    const timer = window.setInterval(async () => {
       if (document.hidden || loading) return;
       try {
         const fresh = await api.get<TeamMessage[]>(
@@ -377,7 +378,7 @@ function Conversation({
         /* เน็ตสะดุด — รอบหน้าลองใหม่ */
       }
     }, POLL_MS);
-    return () => window.clearInterval(t);
+    return () => window.clearInterval(timer);
   }, [room, loading, markRead]);
 
   async function loadOlder() {
@@ -400,10 +401,10 @@ function Conversation({
   function addFiles(list: FileList | File[]) {
     const files = [...list];
     const room_ = MAX_FILES - pending.length;
-    if (files.length > room_) toast(`แนบได้ไม่เกิน ${MAX_FILES} ไฟล์ต่อข้อความ`, "error");
+    if (files.length > room_) toast(t("แนบได้ไม่เกิน {n} ไฟล์ต่อข้อความ", { n: MAX_FILES }), "error");
     for (const file of files.slice(0, Math.max(0, room_))) {
       if (file.size > MAX_FILE) {
-        toast(`${file.name} ใหญ่เกิน 100 MB`, "error");
+        toast(t("{name} ใหญ่เกิน 100 MB", { name: file.name }), "error");
         continue;
       }
       const key = `${Date.now()}-${Math.random()}`;
@@ -416,7 +417,7 @@ function Conversation({
         .catch((err) =>
           setPending((p) =>
             p.map((x) =>
-              x.key === key ? { ...x, error: err instanceof Error ? err.message : "อัปไม่สำเร็จ" } : x,
+              x.key === key ? { ...x, error: err instanceof Error ? err.message : t("อัปไม่สำเร็จ") } : x,
             ),
           ),
         );
@@ -478,7 +479,7 @@ function Conversation({
       toBottom();
       onRead();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "ส่งไม่สำเร็จ", "error");
+      toast(err instanceof Error ? err.message : t("ส่งไม่สำเร็จ"), "error");
     } finally {
       setSending(false);
     }
@@ -509,7 +510,7 @@ function Conversation({
         <button
           type="button"
           onClick={onBack}
-          aria-label="กลับไปรายชื่อห้อง"
+          aria-label={t("กลับไปรายชื่อห้อง")}
           className="press -ml-1 rounded-md p-1.5 text-muted hover:bg-raised md:hidden"
         >
           <Icon name="chevron" className="size-4 rotate-180" />
@@ -522,7 +523,7 @@ function Conversation({
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold">{title}</div>
           <div className="text-xs text-faint">
-            {person ? `คุยส่วนตัว · ${person.role}` : `ทีมทั้งหมด ${members.length + 1} คน`}
+            {person ? t("คุยส่วนตัว · {role}", { role: person.role }) : t("ทีมทั้งหมด {n} คน", { n: members.length + 1 })}
           </div>
         </div>
       </header>
@@ -541,12 +542,12 @@ function Conversation({
                 onClick={() => void loadOlder()}
                 className="press mx-auto mb-2 block rounded-md px-3 py-1 text-xs text-accent hover:bg-raised"
               >
-                โหลดข้อความเก่ากว่านี้
+                {t("โหลดข้อความเก่ากว่านี้")}
               </button>
             )}
             {messages.length === 0 && (
               <p className="py-10 text-center text-sm text-faint">
-                ยังไม่มีข้อความ — พิมพ์ @ เพื่อแท็กคนในทีม หรือ @all แท็กทุกคน
+                {t("ยังไม่มีข้อความ — พิมพ์ @ เพื่อแท็กคนในทีม หรือ @all แท็กทุกคน")}
               </p>
             )}
             {messages.map((m, i) => {
@@ -646,7 +647,7 @@ function Conversation({
                   )}
                   {p.error && (
                     <span className="absolute inset-0 flex items-center justify-center bg-alert/70 p-1 text-center text-[10px] font-semibold text-surface">
-                      อัปไม่สำเร็จ
+                      {t("อัปไม่สำเร็จ")}
                     </span>
                   )}
                   {/\.gif$/i.test(p.file.name) || p.file.type === "image/gif" ? (
@@ -657,7 +658,7 @@ function Conversation({
                   <button
                     type="button"
                     onClick={() => dropPending(new Set([p.key]))}
-                    aria-label={`เอา ${p.file.name} ออก`}
+                    aria-label={t("เอา {name} ออก", { name: p.file.name })}
                     className="absolute right-0.5 top-0.5 rounded-full bg-black/60 p-0.5 text-white hover:bg-black/80"
                   >
                     <Icon name="x" className="size-3" />
@@ -684,7 +685,7 @@ function Conversation({
                   <button
                     type="button"
                     onClick={() => dropPending(new Set([p.key]))}
-                    aria-label={`เอา ${p.file.name} ออก`}
+                    aria-label={t("เอา {name} ออก", { name: p.file.name })}
                     className="relative shrink-0 text-faint hover:text-text"
                   >
                     <Icon name="x" className="size-3" />
@@ -699,8 +700,8 @@ function Conversation({
           <button
             type="button"
             onClick={() => fileInput.current?.click()}
-            aria-label="แนบไฟล์หรือรูป"
-            title="แนบไฟล์หรือรูป (ไม่เกิน 100 MB)"
+            aria-label={t("แนบไฟล์หรือรูป")}
+            title={t("แนบไฟล์หรือรูป (ไม่เกิน 100 MB)")}
             className="press shrink-0 rounded-md p-2 text-muted hover:bg-raised hover:text-text"
           >
             <Icon name="upload" className="size-5" />
@@ -720,7 +721,7 @@ function Conversation({
             value={text}
             rows={1}
             maxLength={4000}
-            placeholder={person ? `ส่งถึง ${title}…` : "พิมพ์ข้อความ… (@ เพื่อแท็ก)"}
+            placeholder={person ? t("ส่งถึง {name}…", { name: title }) : t("พิมพ์ข้อความ… (@ เพื่อแท็ก)")}
             onChange={(e) => onType(e.target.value, e.target.selectionStart)}
             onPaste={(e) => {
               if (e.clipboardData.files.length) {
@@ -745,14 +746,14 @@ function Conversation({
             type="button"
             onClick={() => void send()}
             disabled={sending || uploading || (!text.trim() && !ready.length)}
-            aria-label="ส่ง"
+            aria-label={t("ส่ง")}
             className="press shrink-0 rounded-md bg-accent p-2 text-surface disabled:opacity-40"
           >
             {sending ? <Spinner className="size-5" /> : <Icon name="message" className="size-5" />}
           </button>
         </div>
         <p className="mt-1 hidden text-[11px] text-faint md:block">
-          Enter ส่ง · Shift+Enter ขึ้นบรรทัดใหม่ · ลากไฟล์มาวาง หรือวางรูปจากคลิปบอร์ดได้ · เก็บ 90 วัน
+          {t("Enter ส่ง · Shift+Enter ขึ้นบรรทัดใหม่ · ลากไฟล์มาวาง หรือวางรูปจากคลิปบอร์ดได้ · เก็บ 90 วัน")}
         </p>
       </div>
 
@@ -760,7 +761,7 @@ function Conversation({
 
       {dragging && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-md border-2 border-dashed border-accent bg-accent-soft/80 text-sm font-semibold text-accent">
-          วางไฟล์เพื่อแนบ
+          {t("วางไฟล์เพื่อแนบ")}
         </div>
       )}
     </section>

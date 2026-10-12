@@ -22,7 +22,7 @@ applyStoredSkin();
 applyLang();
 
 const root = document.getElementById("root");
-if (!root) throw new Error("ไม่พบ #root ใน index.html");
+if (!root) throw new Error("ไม่พบ #root ใน index.html"); // i18n-ignore (นักพัฒนาเห็นเท่านั้น)
 
 createRoot(root).render(
   <StrictMode>

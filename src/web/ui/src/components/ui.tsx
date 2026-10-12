@@ -1,4 +1,5 @@
 /** ชิ้นส่วนเล็ก ๆ ที่ใช้ซ้ำทุกหน้า — รวมไว้ไฟล์เดียวเพราะแต่ละอันสั้นมาก */
+import { t } from "../lib/i18n";
 import type { ReactNode } from "react";
 import { Icon, type IconName } from "./Icon";
 
@@ -201,7 +202,7 @@ export function SearchBox({
         <button
           type="button"
           onClick={() => onChange("")}
-          aria-label="ล้างคำค้น"
+          aria-label={t("ล้างคำค้น")}
           className="press absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-faint"
         >
           <Icon name="x" className="size-4" />

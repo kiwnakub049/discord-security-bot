@@ -106,6 +106,16 @@ export function startWebServer(
   app.get("/api/logs/export.csv", rateLimit("export", 10, 5 * 60_000));
 
   // ---------- ก่อน login ----------
+  // Open Sans ของหน้า login ภาษาอังกฤษ (หน้าเว็บหลักฝังฟอนต์มากับ build อยู่แล้ว)
+  app.use(
+    "/fonts",
+    express.static(join(__dirname, "../../node_modules/@fontsource/open-sans/files"), {
+      maxAge: "30d",
+      immutable: true,
+      fallthrough: false,
+      index: false,
+    }),
+  );
   app.get("/icon.svg", (_req: Request, res: Response) => {
     res.sendFile(join(publicDir, "icon.svg"));
   });

@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Icon } from "./Icon";
 import { LOG_TREE, toggleLevel, type LogFilter, type TreePick } from "../lib/logTree";
 import type { LogLevel } from "../lib/types";
+import { t } from "../lib/i18n";
 
 /**
  * ต้นไม้หมวดหมู่ของ log
@@ -49,7 +50,7 @@ export function LogTree({
         }`}
       >
         <Icon name="list" className={compact ? "size-4 shrink-0" : "size-[18px] shrink-0"} />
-        ทั้งหมด
+        {t("ทั้งหมด")}
       </button>
 
       {LOG_TREE.map((node) => {
@@ -119,18 +120,18 @@ export function LogTree({
 }
 
 export const LEVEL_OPTIONS: { v: LogLevel; label: string; dot: string }[] = [
-  { v: "alert", label: "แจ้งเตือน", dot: "bg-alert" },
-  { v: "warn", label: "เตือน", dot: "bg-warn" },
-  { v: "info", label: "ปกติ", dot: "bg-info" },
+  { v: "alert", label: t("แจ้งเตือน@@level"), dot: "bg-alert" },
+  { v: "warn", label: t("เตือน@@level"), dot: "bg-warn" },
+  { v: "info", label: t("ปกติ"), dot: "bg-info" },
 ];
 
 /** ต้องตรงกับ WINDOWS ใน src/web/routes/logs.ts */
 export const WINDOW_OPTIONS = [
-  { v: "", label: "ทุกเวลา" },
-  { v: "1h", label: "1 ชม." },
-  { v: "24h", label: "24 ชม." },
-  { v: "7d", label: "7 วัน" },
-  { v: "30d", label: "30 วัน" },
+  { v: "", label: t("ทุกเวลา") },
+  { v: "1h", label: t("1 ชม.") },
+  { v: "24h", label: t("24 ชม.") },
+  { v: "7d", label: t("7 วัน") },
+  { v: "30d", label: t("30 วัน") },
 ] as const;
 
 /** ช่องติ๊ก — "mixed" = ติ๊กลูกบางตัว (ขีดกลาง) */
@@ -200,7 +201,7 @@ export function LogFilterPanel({
 }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      <Group title="ระดับ">
+      <Group title={t("ระดับ")}>
         <div className="flex flex-wrap gap-x-1">
           {LEVEL_OPTIONS.map((l) => (
             <CheckRow
@@ -216,8 +217,8 @@ export function LogFilterPanel({
         </div>
       </Group>
 
-      <Group title="ช่วงเวลา">
-        <div className="flex flex-wrap gap-1.5 px-2" role="radiogroup" aria-label="ช่วงเวลา">
+      <Group title={t("ช่วงเวลา")}>
+        <div className="flex flex-wrap gap-1.5 px-2" role="radiogroup" aria-label={t("ช่วงเวลา")}>
           {WINDOW_OPTIONS.map((w) => {
             const on = filter.window === w.v;
             return (

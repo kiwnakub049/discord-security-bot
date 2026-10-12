@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, uploadMod } from "../lib/api";
 import { useFetch } from "../hooks/useFetch";
@@ -36,10 +37,10 @@ interface Status {
 }
 
 const STATE_LOOK: Record<State, { label: string; tone: "ok" | "warn" | "plain" }> = {
-  running: { label: "กำลังทำงาน", tone: "ok" },
-  starting: { label: "กำลังเปิด", tone: "warn" },
-  stopping: { label: "กำลังปิด", tone: "warn" },
-  stopped: { label: "หยุดอยู่", tone: "plain" },
+  running: { label: t("กำลังทำงาน"), tone: "ok" },
+  starting: { label: t("กำลังเปิด"), tone: "warn" },
+  stopping: { label: t("กำลังปิด"), tone: "warn" },
+  stopped: { label: t("หยุดอยู่"), tone: "plain" },
 };
 
 export function BeamNG() {
@@ -62,12 +63,12 @@ export function BeamNG() {
         <div className="flex items-start gap-3">
           <Icon name="warn" className="mt-0.5 size-5 shrink-0 text-alert" />
           <div className="min-w-0">
-            <p className="text-sm font-medium">ต่อ agent ไม่ได้</p>
+            <p className="text-sm font-medium">{t("ต่อ agent ไม่ได้")}</p>
             <p className="mt-1 text-xs text-muted">
-              {status.error ?? "ไม่ทราบสาเหตุ"}
+              {status.error ?? t("ไม่ทราบสาเหตุ")}
             </p>
             <p className="mt-2 text-xs text-faint">
-              เช็คบนเครื่อง:{" "}
+              {t("เช็คบนเครื่อง:")}{" "}
               <code className="rounded bg-raised px-1">
                 systemctl status beammp-agent
               </code>
@@ -85,9 +86,9 @@ export function BeamNG() {
       <div className="flex gap-1 rounded-md bg-raised p-1">
         {(
           [
-            ["control", "คอนโซล", "terminal"],
-            ["config", "ตั้งค่า", "settings"],
-            ["mods", "ม็อด", "download"],
+            ["control", t("คอนโซล"), "terminal"],
+            ["config", t("ตั้งค่า"), "settings"],
+            ["mods", t("ม็อด"), "download"],
           ] as const
         ).map(([key, label, icon]) => (
           <button
@@ -120,16 +121,26 @@ function StatusCard({ s, onChanged }: { s: Status; onChanged: () => void }) {
   const look = STATE_LOOK[s.state];
   const running = s.state === "running";
 
-  const act = async (action: "start" | "stop" | "restart", label: string) => {
+  const DONE = {
+    start: t("เปิดเซิร์ฟเวอร์แล้ว"),
+    stop: t("ปิดเซิร์ฟเวอร์แล้ว"),
+    restart: t("รีสตาร์ทเซิร์ฟเวอร์แล้ว"),
+  };
+  const FAIL = {
+    start: t("เปิดไม่สำเร็จ"),
+    stop: t("ปิดไม่สำเร็จ"),
+    restart: t("รีสตาร์ทไม่สำเร็จ"),
+  };
+  const act = async (action: "start" | "stop" | "restart") => {
     setBusy(true);
     try {
       const r = await api.post<{ ok: boolean; error?: string }>(
         `/api/beammp/${action}`,
       );
-      if (r.ok) toast(`${label}เซิร์ฟเวอร์แล้ว`, "ok");
-      else toast(r.error ?? `${label}ไม่สำเร็จ`, "error");
+      if (r.ok) toast(DONE[action], "ok");
+      else toast(r.error ?? FAIL[action], "error");
     } catch (err) {
-      toast(err instanceof Error ? err.message : `${label}ไม่สำเร็จ`, "error");
+      toast(err instanceof Error ? err.message : FAIL[action], "error");
     } finally {
       setBusy(false);
       onChanged();
@@ -151,7 +162,7 @@ function StatusCard({ s, onChanged }: { s: Status; onChanged: () => void }) {
           />
         </span>
         <span className="text-sm font-medium">{look.label}</span>
-        <Badge tone={look.tone}>{running ? `PID ${s.pid}` : "ไม่ได้รัน"}</Badge>
+        <Badge tone={look.tone}>{running ? `PID ${s.pid}` : t("ไม่ได้รัน")}</Badge>
         {running && s.startedAt && (
           <Badge tone="plain">
             <Icon name="clock" className="size-3" />
@@ -162,40 +173,39 @@ function StatusCard({ s, onChanged }: { s: Status; onChanged: () => void }) {
 
       {/* เตือนสาเหตุที่ทำให้เปิดไม่ขึ้น ก่อนที่ผู้ใช้จะกดปุ่มแล้วงงว่าทำไมไม่ติด */}
       {!s.binaryExists && (
-        <Warn>ไม่พบไฟล์ BeamMP-Server ในโฟลเดอร์เกม</Warn>
+        <Warn>{t("ไม่พบไฟล์ BeamMP-Server ในโฟลเดอร์เกม")}</Warn>
       )}
       {s.binaryExists && !s.hasAuthKey && (
         <Warn>
-          ยังไม่ได้ใส่ AuthKey — ขอได้ที่ keymaster.beammp.com แล้วใส่ในไฟล์
-          ServerConfig.toml บนเครื่อง (ไม่ให้แก้จากหน้าเว็บเพราะเป็นคีย์ลับ)
+          {t("ยังไม่ได้ใส่ AuthKey — ขอได้ที่ keymaster.beammp.com แล้วใส่ในไฟล์ ServerConfig.toml บนเครื่อง (ไม่ให้แก้จากหน้าเว็บเพราะเป็นคีย์ลับ)")}
         </Warn>
       )}
       {!running && s.lastExit && s.lastExit.code !== 0 && s.lastExit.code !== null && (
         <Warn>
-          รอบที่แล้วจบด้วยรหัส {s.lastExit.code} — ดูสาเหตุได้ในแท็บคอนโซล
+          {t("รอบที่แล้วจบด้วยรหัส {code} — ดูสาเหตุได้ในแท็บคอนโซล", { code: s.lastExit.code })}
         </Warn>
       )}
 
       <div className="mt-3 flex gap-2">
         {running ? (
           <>
-            <Button variant="danger" onClick={() => act("stop", "ปิด")} disabled={busy}>
+            <Button variant="danger" onClick={() => act("stop")} disabled={busy}>
               <Icon name="square" className="size-4" />
-              ปิด
+              {t("ปิด@@server")}
             </Button>
-            <Button onClick={() => act("restart", "รีสตาร์ท")} disabled={busy}>
+            <Button onClick={() => act("restart")} disabled={busy}>
               <Icon name="refresh" className="size-4" />
-              รีสตาร์ท
+              {t("รีสตาร์ท")}
             </Button>
           </>
         ) : (
           <Button
             variant="accent"
-            onClick={() => act("start", "เปิด")}
+            onClick={() => act("start")}
             disabled={busy || !s.binaryExists || !s.hasAuthKey}
           >
             <Icon name="play" className="size-4" />
-            เปิดเซิร์ฟเวอร์
+            {t("เปิดเซิร์ฟเวอร์")}
           </Button>
         )}
         {busy && <Spinner className="size-5 self-center text-muted" />}
@@ -213,7 +223,7 @@ function JoinInfo({ s }: { s: Status }) {
   if (s.addresses.length === 0) return null;
   return (
     <div className="mt-3 border-t border-line pt-3">
-      <p className="mb-2 text-xs text-muted">เข้าเล่นที่ (Multiplayer → Direct Connect)</p>
+      <p className="mb-2 text-xs text-muted">{t("เข้าเล่นที่ (Multiplayer → Direct Connect)")}</p>
       <div className="space-y-1.5">
         {s.addresses.map((a) => {
           const full = `${a.host}:${s.port}`;
@@ -223,8 +233,8 @@ function JoinInfo({ s }: { s: Status }) {
               type="button"
               onClick={() => {
                 void navigator.clipboard.writeText(full).then(
-                  () => toast(`คัดลอก ${full} แล้ว`, "ok"),
-                  () => toast("คัดลอกไม่สำเร็จ", "error"),
+                  () => toast(t("คัดลอก {addr} แล้ว", { addr: full }), "ok"),
+                  () => toast(t("คัดลอกไม่สำเร็จ"), "error"),
                 );
               }}
               className="press flex w-full items-center gap-2 rounded-md bg-raised px-3 py-2 text-left"
@@ -255,7 +265,7 @@ function Players({ data }: { data: Status["players"] }) {
   if (!data) {
     return (
       <p className="mt-3 border-t border-line pt-3 text-xs text-faint">
-        กำลังรอข้อมูลผู้เล่นจากเซิร์ฟเวอร์…
+        {t("กำลังรอข้อมูลผู้เล่นจากเซิร์ฟเวอร์…")}
       </p>
     );
   }
@@ -263,15 +273,15 @@ function Players({ data }: { data: Status["players"] }) {
     <div className="mt-3 border-t border-line pt-3">
       <div className="mb-2 flex items-center gap-2 text-xs text-muted">
         <Icon name="users" className="size-4" />
-        ผู้เล่นออนไลน์ {data.count} คน
+        {t("ผู้เล่นออนไลน์ {n} คน", { n: data.count })}
         {/*
           ปลั๊กอินเขียนสถานะทุก 2 วินาที ถ้าไฟล์ค้างเกิน 15 วิ แปลว่าปลั๊กอินไม่ทำงาน
           บอกตรง ๆ ดีกว่าโชว์เลข 0 ให้เข้าใจผิดว่าไม่มีใครเล่น
         */}
-        {data.stale && <Badge tone="warn">ข้อมูลค้าง</Badge>}
+        {data.stale && <Badge tone="warn">{t("ข้อมูลค้าง")}</Badge>}
       </div>
       {data.players.length === 0 ? (
-        <p className="text-xs text-faint">ยังไม่มีใครเข้ามา</p>
+        <p className="text-xs text-faint">{t("ยังไม่มีใครเข้ามา")}</p>
       ) : (
         <ul className="space-y-1">
           {data.players.map((p) => (
@@ -341,10 +351,10 @@ function LogPanel() {
     <Card className="overflow-hidden">
       <SectionTitle
         action={
-          <Badge tone={live ? "ok" : "warn"}>{live ? "สด" : "หลุด"}</Badge>
+          <Badge tone={live ? "ok" : "warn"}>{live ? t("สด") : t("หลุด")}</Badge>
         }
       >
-        คอนโซลเซิร์ฟเวอร์
+        {t("คอนโซลเซิร์ฟเวอร์")}
       </SectionTitle>
       <div
         ref={boxRef}
@@ -352,7 +362,7 @@ function LogPanel() {
         className="max-h-[60vh] min-h-[240px] overflow-y-auto bg-raised px-3 py-2 font-mono text-[11px] leading-relaxed"
       >
         {lines.length === 0 ? (
-          <p className="py-8 text-center text-faint">ยังไม่มี log</p>
+          <p className="py-8 text-center text-faint">{t("ยังไม่มี log")}</p>
         ) : (
           lines.map((l, i) => (
             <div key={`${l.at}-${i}`} className="whitespace-pre-wrap break-all">
@@ -403,7 +413,7 @@ function ConfigPanel({ running }: { running: boolean }) {
       </div>
     );
   }
-  if (!cfg.data) return <Empty icon="warn">โหลดค่าตั้งไม่ได้</Empty>;
+  if (!cfg.data) return <Empty icon="warn">{t("โหลดค่าตั้งไม่ได้")}</Empty>;
 
   const dirty = Object.keys(draft).filter(
     (k) => draft[k] !== cfg.data!.values[k],
@@ -420,13 +430,13 @@ function ConfigPanel({ running }: { running: boolean }) {
       );
       toast(
         r.needsRestart
-          ? "บันทึกแล้ว — ต้องรีสตาร์ทเซิร์ฟเวอร์ถึงจะมีผล"
-          : "บันทึกแล้ว",
+          ? t("บันทึกแล้ว — ต้องรีสตาร์ทเซิร์ฟเวอร์ถึงจะมีผล")
+          : t("บันทึกแล้ว"),
         "ok",
       );
       cfg.reload();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "บันทึกไม่สำเร็จ", "error");
+      toast(err instanceof Error ? err.message : t("บันทึกไม่สำเร็จ"), "error");
     } finally {
       setSaving(false);
     }
@@ -437,7 +447,7 @@ function ConfigPanel({ running }: { running: boolean }) {
 
   return (
     <Card className="overflow-hidden">
-      <SectionTitle>ตั้งค่าเซิร์ฟเวอร์</SectionTitle>
+      <SectionTitle>{t("ตั้งค่าเซิร์ฟเวอร์")}</SectionTitle>
       <div className="space-y-4 p-4">
         {Object.entries(cfg.data.fields).map(([key, spec]) => {
           const v = draft[key];
@@ -517,10 +527,10 @@ function ConfigPanel({ running }: { running: boolean }) {
       <div className="flex items-center gap-2 border-t border-line bg-raised px-4 py-3">
         <Button variant="accent" onClick={save} disabled={dirty.length === 0 || saving}>
           <Icon name="check" className="size-4" />
-          บันทึก{dirty.length > 0 ? ` (${dirty.length})` : ""}
+          {t("บันทึก")}{dirty.length > 0 ? ` (${dirty.length})` : ""}
         </Button>
         {dirty.length > 0 && running && (
-          <span className="text-xs text-warn">ต้องรีสตาร์ทถึงจะมีผล</span>
+          <span className="text-xs text-warn">{t("ต้องรีสตาร์ทถึงจะมีผล")}</span>
         )}
       </div>
     </Card>
@@ -564,7 +574,7 @@ function MapPicker({
         }}
         className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm"
       >
-        <optgroup label="มากับเกม">
+        <optgroup label={t("มากับเกม")}>
           {builtin.map((m) => (
             <option key={m.value} value={m.value}>
               {m.label}
@@ -572,7 +582,7 @@ function MapPicker({
           ))}
         </optgroup>
         {custom.length > 0 && (
-          <optgroup label="จากม็อดที่อัปโหลด">
+          <optgroup label={t("จากม็อดที่อัปโหลด")}>
             {custom.map((c) => (
               <option key={c.value} value={c.value}>
                 {/\/levels\/([^/]+)\//.exec(c.value)?.[1] ?? c.value} — {c.from}
@@ -580,7 +590,7 @@ function MapPicker({
             ))}
           </optgroup>
         )}
-        <option value={CUSTOM}>พิมพ์เอง…</option>
+        <option value={CUSTOM}>{t("พิมพ์เอง…")}</option>
       </select>
 
       {manual && (
@@ -588,12 +598,12 @@ function MapPicker({
           <input
             type="text"
             value={value}
-            placeholder="/levels/ชื่อแผนที่/info.json"
+            placeholder={t("/levels/ชื่อแผนที่/info.json")}
             onChange={(e) => onChange(e.target.value)}
             className="w-full rounded-md border border-line bg-surface px-3 py-2 font-mono text-sm"
           />
           <p className="mt-1 text-[11px] text-faint">
-            ชื่อแผนที่ดูได้จากในไฟล์ม็อด โฟลเดอร์ levels/&lt;ชื่อ&gt;/
+            {t("ชื่อแผนที่ดูได้จากในไฟล์ม็อด โฟลเดอร์ levels/<ชื่อ>/")}
           </p>
         </div>
       )}
@@ -623,7 +633,7 @@ function ModsPanel({ running }: { running: boolean }) {
      */
     const max = mods.data?.maxBytes ?? 0;
     if (max > 0 && file.size > max) {
-      toast(`ไฟล์ใหญ่เกิน ${fmtMb(max / 1024 / 1024)}`, "error");
+      toast(t("ไฟล์ใหญ่เกิน {size}", { size: fmtMb(max / 1024 / 1024) }), "error");
       if (fileRef.current) fileRef.current.value = "";
       return;
     }
@@ -638,15 +648,15 @@ function ModsPanel({ running }: { running: boolean }) {
       const lv = r.levels ?? [];
       toast(
         lv.length > 0
-          ? `อัปโหลดแล้ว — มีแผนที่ ${lv.length} อัน เลือกได้ในแท็บตั้งค่า`
+          ? t("อัปโหลดแล้ว — มีแผนที่ {n} อัน เลือกได้ในแท็บตั้งค่า", { n: lv.length })
           : running
-            ? "อัปโหลดแล้ว — รีสตาร์ทเพื่อให้ผู้เล่นได้รับ"
-            : "อัปโหลดแล้ว",
+            ? t("อัปโหลดแล้ว — รีสตาร์ทเพื่อให้ผู้เล่นได้รับ")
+            : t("อัปโหลดแล้ว"),
         "ok",
       );
       mods.reload();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "อัปโหลดไม่สำเร็จ", "error");
+      toast(err instanceof Error ? err.message : t("อัปโหลดไม่สำเร็จ"), "error");
     } finally {
       setBusy(false);
       setProgress(null);
@@ -655,23 +665,24 @@ function ModsPanel({ running }: { running: boolean }) {
   };
 
   const remove = async (name: string) => {
-    if (!window.confirm(`ลบ "${name}" ?`)) return;
+    if (!window.confirm(t("ลบ \"{name}\" ?", { name }))) return;
     try {
       await api.del(`/api/beammp/mods?name=${encodeURIComponent(name)}`);
-      toast("ลบแล้ว", "ok");
+      toast(t("ลบแล้ว"), "ok");
       mods.reload();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "ลบไม่สำเร็จ", "error");
+      toast(err instanceof Error ? err.message : t("ลบไม่สำเร็จ"), "error");
     }
   };
 
   return (
     <Card className="overflow-hidden">
-      <SectionTitle>ม็อดฝั่งผู้เล่น</SectionTitle>
+      <SectionTitle>{t("ม็อดฝั่งผู้เล่น")}</SectionTitle>
       <div className="p-4">
         <p className="mb-3 text-xs text-muted">
-          ไฟล์ .zip ในนี้จะถูกส่งให้ทุกคนตอนเข้าเซิร์ฟเวอร์ — สูงสุด{" "}
-          {fmtMb((mods.data?.maxBytes ?? 0) / 1024 / 1024)} ต่อไฟล์
+          {t("ไฟล์ .zip ในนี้จะถูกส่งให้ทุกคนตอนเข้าเซิร์ฟเวอร์ — สูงสุด {size} ต่อไฟล์", {
+            size: fmtMb((mods.data?.maxBytes ?? 0) / 1024 / 1024),
+          })}
         </p>
 
         <input
@@ -690,7 +701,7 @@ function ModsPanel({ running }: { running: boolean }) {
           disabled={busy}
         >
           {busy ? <Spinner className="size-4" /> : <Icon name="upload" className="size-4" />}
-          {busy ? "กำลังอัปโหลด…" : "เพิ่มม็อด"}
+          {busy ? t("กำลังอัปโหลด…") : t("เพิ่มม็อด")}
         </Button>
 
         {/* ไฟล์ 1GB ใช้เวลาเป็นนาที ต้องมีตัวเลขบอก ไม่งั้นดูเหมือนค้าง */}
@@ -699,7 +710,7 @@ function ModsPanel({ running }: { running: boolean }) {
             <Meter pct={progress * 100} />
             <p className="tnum mt-1 text-[11px] text-faint">
               {Math.round(progress * 100)}%
-              {progress >= 1 && " — กำลังตรวจไฟล์…"}
+              {progress >= 1 && ` — ${t("กำลังตรวจไฟล์…")}`}
             </p>
           </div>
         )}
@@ -710,7 +721,7 @@ function ModsPanel({ running }: { running: boolean }) {
               <Spinner />
             </div>
           ) : !mods.data || mods.data.mods.length === 0 ? (
-            <Empty icon="download">ยังไม่มีม็อด</Empty>
+            <Empty icon="download">{t("ยังไม่มีม็อด")}</Empty>
           ) : (
             <ul className="divide-y divide-line">
               {mods.data.mods.map((m) => (
@@ -720,7 +731,7 @@ function ModsPanel({ running }: { running: boolean }) {
                     <span className="block truncate text-sm">{m.name}</span>
                     {m.levels && m.levels.length > 0 && (
                       <span className="block truncate text-[11px] text-accent">
-                        แผนที่:{" "}
+                        {t("แผนที่:")}{" "}
                         {m.levels
                           .map((l) => /\/levels\/([^/]+)\//.exec(l)?.[1] ?? l)
                           .join(", ")}
@@ -733,7 +744,7 @@ function ModsPanel({ running }: { running: boolean }) {
                   <button
                     type="button"
                     onClick={() => void remove(m.name)}
-                    aria-label={`ลบ ${m.name}`}
+                    aria-label={t("ลบ {name}", { name: m.name })}
                     className="press shrink-0 rounded-lg p-1.5 text-muted hover:text-alert"
                   >
                     <Icon name="trash" className="size-4" />

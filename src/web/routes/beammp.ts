@@ -11,6 +11,7 @@ import { AGENT_URL } from "../../beammp/paths.js";
 import { requireOwner } from "../middleware/auth.js";
 import { logEvent } from "../../utils/logger.js";
 import type { Client } from "discord.js";
+import { tr, type Lang } from "../i18n.js";
 
 const TOKEN = process.env.BEAMMP_AGENT_TOKEN ?? "";
 
@@ -43,6 +44,30 @@ async function callAgent(
   }
 }
 
+/**
+ * ป้ายที่ agent ส่งมา (ชื่อช่องตั้งค่า, ป้ายที่อยู่เซิร์ฟ) เป็นหน้าตาเว็บ — แปลก่อนส่งต่อ
+ * agent ไม่รู้ภาษาของคนดู เลยแปลที่ขานี้ (ข้อความ error ให้ middleware แปลตามปกติ)
+ */
+function localizeAgent(body: unknown, lang: Lang): unknown {
+  if (lang !== "en" || !body || typeof body !== "object") return body;
+  const b = body as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...b };
+  if (b.fields && typeof b.fields === "object") {
+    out.fields = Object.fromEntries(
+      Object.entries(b.fields as Record<string, { label?: string }>).map(([k, spec]) => [
+        k,
+        { ...spec, ...(typeof spec?.label === "string" ? { label: tr(spec.label, lang) } : {}) },
+      ]),
+    );
+  }
+  if (Array.isArray(b.addresses)) {
+    out.addresses = (b.addresses as { label?: unknown }[]).map((a) =>
+      typeof a?.label === "string" ? { ...a, label: tr(a.label, lang) } : a,
+    );
+  }
+  return out;
+}
+
 function pass(res: Response, r: { status: number; body: unknown }): void {
   res.status(r.status).json(r.body);
 }
@@ -52,7 +77,8 @@ export function beammpRoutes(client?: Client): Router {
   r.use("/api/beammp", requireOwner);
 
   r.get("/api/beammp/status", async (_req, res) => {
-    pass(res, await callAgent("/status"));
+    const out = await callAgent("/status");
+    pass(res, { ...out, body: localizeAgent(out.body, res.locals.lang) });
   });
 
   /* คำสั่งที่เปลี่ยนสถานะเครื่อง — บันทึกทุกครั้งว่าใครสั่งเมื่อไหร่ */
@@ -71,7 +97,8 @@ export function beammpRoutes(client?: Client): Router {
   }
 
   r.get("/api/beammp/config", async (_req, res) => {
-    pass(res, await callAgent("/config"));
+    const out = await callAgent("/config");
+    pass(res, { ...out, body: localizeAgent(out.body, res.locals.lang) });
   });
 
   r.put("/api/beammp/config", async (req, res) => {

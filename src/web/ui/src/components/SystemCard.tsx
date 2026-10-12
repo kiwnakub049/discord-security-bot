@@ -1,3 +1,4 @@
+import { locale, t } from "../lib/i18n";
 import type { SystemInfo } from "../lib/types";
 import { fmtDuration, fmtMb } from "../lib/format";
 import { Card, Meter } from "./ui";
@@ -50,30 +51,30 @@ export function SystemCard({ sys }: { sys: SystemInfo }) {
   // เตือนเรื่องไฟ/ความร้อนเฉพาะตอนที่มีอะไรผิดปกติจริง ๆ
   const flags: { text: string; now: boolean }[] = [];
   if (power.underVoltageNow || power.lowVoltageAlarm)
-    flags.push({ text: "ไฟตกอยู่ตอนนี้", now: true });
+    flags.push({ text: t("ไฟตกอยู่ตอนนี้"), now: true });
   else if (power.underVoltagePast)
-    flags.push({ text: "เคยไฟตกตั้งแต่บูตล่าสุด", now: false });
-  if (power.throttledNow) flags.push({ text: "กำลังถูกลดความเร็ว", now: true });
+    flags.push({ text: t("เคยไฟตกตั้งแต่บูตล่าสุด"), now: false });
+  if (power.throttledNow) flags.push({ text: t("กำลังถูกลดความเร็ว"), now: true });
   else if (power.throttledPast)
-    flags.push({ text: "เคยถูกลดความเร็วตั้งแต่บูตล่าสุด", now: false });
-  if (power.tempLimitNow) flags.push({ text: "ชนเพดานอุณหภูมิ", now: true });
+    flags.push({ text: t("เคยถูกลดความเร็วตั้งแต่บูตล่าสุด"), now: false });
+  if (power.tempLimitNow) flags.push({ text: t("ชนเพดานอุณหภูมิ"), now: true });
 
   return (
     <Card level="glass" className="space-y-3.5 p-4">
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-1.5 text-sm font-semibold text-muted">
           <Icon name="cpu" className="size-4" />
-          เครื่องที่บอทรันอยู่
+          {t("เครื่องที่บอทรันอยู่")}
         </span>
         <span className="text-xs text-faint">
-          เปิดมา {fmtDuration(uptime.hostSec)}
+          {t("เปิดมา {d}", { d: fmtDuration(uptime.hostSec) })}
         </span>
       </div>
 
       {cpu.tempC !== null && (
         <Row
           icon="thermometer"
-          label="อุณหภูมิ CPU"
+          label={t("อุณหภูมิ CPU")}
           value={`${cpu.tempC.toFixed(1)}°C`}
           // 40°C = เย็นสนิท, 85°C = เพดาน — ยืดสเกลให้เห็นความต่างในช่วงที่ใช้จริง
           pct={((cpu.tempC - 40) / 45) * 100}
@@ -84,7 +85,7 @@ export function SystemCard({ sys }: { sys: SystemInfo }) {
       {cpu.freqMhz !== null && (
         <Row
           icon="zap"
-          label="ความเร็ว CPU"
+          label={t("ความเร็ว CPU")}
           value={`${(cpu.freqMhz / 1000).toFixed(1)} GHz`}
           {...(cpu.maxFreqMhz
             ? { pct: (cpu.freqMhz / cpu.maxFreqMhz) * 100, meterTone: "accent" as const }
@@ -94,7 +95,7 @@ export function SystemCard({ sys }: { sys: SystemInfo }) {
 
       <Row
         icon="chart"
-        label="หน่วยความจำ"
+        label={t("หน่วยความจำ")}
         value={`${fmtMb(memory.totalMb - memory.availableMb)} / ${fmtMb(memory.totalMb)}`}
         pct={memory.usedPct}
         meterTone={tone(memory.usedPct, 75, 90)}
@@ -103,8 +104,8 @@ export function SystemCard({ sys }: { sys: SystemInfo }) {
       {disk && (
         <Row
           icon="disk"
-          label="พื้นที่ดิสก์"
-          value={`เหลือ ${disk.freeGb} GB`}
+          label={t("พื้นที่ดิสก์")}
+          value={t("เหลือ {n} GB", { n: disk.freeGb })}
           pct={disk.usedPct}
           meterTone={tone(disk.usedPct, 80, 92)}
         />
@@ -114,14 +115,14 @@ export function SystemCard({ sys }: { sys: SystemInfo }) {
         {sys.fanRpm !== null && (
           <span className="flex items-center gap-1">
             <Icon name="fan" className="size-3.5" />
-            พัดลม {sys.fanRpm.toLocaleString("th-TH")} rpm
+            {t("พัดลม {n} rpm", { n: sys.fanRpm.toLocaleString(locale) })}
           </span>
         )}
         <span className="flex items-center gap-1">
           <Icon name="clock" className="size-3.5" />
-          บอททำงานมา {fmtDuration(uptime.botSec)}
+          {t("บอททำงานมา {d}", { d: fmtDuration(uptime.botSec) })}
         </span>
-        <span>บอทใช้ RAM {fmtMb(sys.process.rssMb)}</span>
+        <span>{t("บอทใช้ RAM {n}", { n: fmtMb(sys.process.rssMb) })}</span>
       </div>
 
       {flags.length > 0 && (

@@ -13,6 +13,7 @@ import { guildOf, roleOf } from "../../auth/access.js";
 import { config } from "../../config.js";
 import { isOwner, requireSystemView } from "../middleware/auth.js";
 import { logEvent } from "../../utils/logger.js";
+import { tr, type Lang } from "../i18n.js";
 
 export function adminRoutes(client?: Client): Router {
   const r = Router();
@@ -28,7 +29,13 @@ export function adminRoutes(client?: Client): Router {
   const ownerOnlyKey = (k: string) => k.startsWith("dashboard.");
 
   r.get("/api/settings", (_req: Request, res: Response) => {
-    const all = getSettings();
+    // ชื่อหัวข้อ/ป้ายช่องเป็นหน้าตาเว็บ — แปลตามภาษา (key/ค่า/ตัวเลือก select ไม่แตะ)
+    const lang: Lang = res.locals.lang;
+    const all = getSettings().map((s) => ({
+      ...s,
+      section: tr(s.section, lang),
+      items: s.items.map((i) => ({ ...i, label: tr(i.label, lang) })),
+    }));
     res.json(
       isOwner(res.locals.userId)
         ? all
@@ -61,7 +68,7 @@ export function adminRoutes(client?: Client): Router {
   r.get("/api/oled", (_req: Request, res: Response) => {
     res.json({
       ...getOledConfig(),
-      pages: OLED_PAGES.map((p) => ({ id: p, label: OLED_PAGE_LABELS[p] })),
+      pages: OLED_PAGES.map((p) => ({ id: p, label: tr(OLED_PAGE_LABELS[p], res.locals.lang) })),
     });
   });
 

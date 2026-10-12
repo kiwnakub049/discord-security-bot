@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 
@@ -37,7 +38,7 @@ export function useFetch<T>(path: string | null, intervalMs?: number): Fetched<T
       setError(null);
     } catch (err) {
       if (!alive.current || mine !== seq.current) return;
-      setError(err instanceof Error ? err.message : "โหลดข้อมูลไม่สำเร็จ");
+      setError(err instanceof Error ? err.message : t("โหลดข้อมูลไม่สำเร็จ"));
     } finally {
       if (alive.current && mine === seq.current) setLoading(false);
     }

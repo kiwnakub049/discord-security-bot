@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { api, ApiError } from "../lib/api";
 import { useToast } from "../components/Toast";
@@ -38,19 +39,19 @@ type Proposal = Extract<ChatItem, { kind: "proposal" }>;
 const ASK_TIMEOUT_MS = 180_000;
 
 const ACTION_LABEL: Record<string, string> = {
-  warn: "เตือน",
+  warn: t("เตือน"),
   timeout: "timeout",
-  untimeout: "ปลด timeout",
-  kick: "เตะออก",
-  ban: "แบน",
+  untimeout: t("ปลด timeout"),
+  kick: t("เตะออก"),
+  ban: t("แบน"),
 };
 const DANGEROUS = new Set(["kick", "ban"]);
 
 const SUGGESTIONS = [
-  "สรุปเหตุการณ์ในเซิร์ฟ 24 ชั่วโมงที่ผ่านมา",
-  "สัปดาห์นี้ใครโดนเตือนบ่อยที่สุด มีใครควรจับตาไหม",
-  "มีอะไรค้างในคิวที่ควรจัดการก่อน",
-  "AI mod จับผิดบ่อยไหม ควรปรับเกณฑ์ยังไง",
+  t("สรุปเหตุการณ์ในเซิร์ฟ 24 ชั่วโมงที่ผ่านมา"),
+  t("สัปดาห์นี้ใครโดนเตือนบ่อยที่สุด มีใครควรจับตาไหม"),
+  t("มีอะไรค้างในคิวที่ควรจัดการก่อน"),
+  t("AI mod จับผิดบ่อยไหม ควรปรับเกณฑ์ยังไง"),
 ];
 
 /** **ตัวหนา** อย่างเดียว — ไม่ใช้ innerHTML กันข้อความใน log แทรก HTML */
@@ -103,7 +104,7 @@ function ProposalCard({
   const [armed, setArmed] = useState(false);
   const label = ACTION_LABEL[item.action] ?? item.action;
   const dangerous = DANGEROUS.has(item.action);
-  const what = item.action === "timeout" && item.minutes ? `${label} ${item.minutes} นาที` : label;
+  const what = item.action === "timeout" && item.minutes ? t("{action} {n} นาที", { action: label, n: item.minutes }) : label;
 
   async function record(status: "done" | "dismissed", result: string | null) {
     await api.post(`/api/chat/threads/${threadId}/actions/${encodeURIComponent(item.toolUseId)}`, { status, result });
@@ -126,7 +127,7 @@ function ProposalCard({
       toast(r.message, r.ok ? "ok" : "error");
       if (r.ok) await record("done", r.message);
     } catch (e) {
-      toast(e instanceof Error ? e.message : "ทำรายการไม่สำเร็จ", "error");
+      toast(e instanceof Error ? e.message : t("ทำรายการไม่สำเร็จ"), "error");
     } finally {
       setBusy(false);
       setArmed(false);
@@ -138,7 +139,7 @@ function ProposalCard({
     try {
       await record("dismissed", null);
     } catch (e) {
-      toast(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ", "error");
+      toast(e instanceof Error ? e.message : t("บันทึกไม่สำเร็จ"), "error");
     } finally {
       setBusy(false);
     }
@@ -148,25 +149,25 @@ function ProposalCard({
     <div className={`rounded-md border p-3 ${dangerous ? "border-alert/40" : "border-line"} bg-surface`}>
       <div className="mb-1 flex items-center gap-2 text-sm font-semibold">
         <Icon name={dangerous ? "ban" : "warn"} className={`size-4 ${dangerous ? "text-alert" : "text-warn"}`} />
-        Claude เสนอ: {what}
+        {t("Claude เสนอ: {what}", { what })}
       </div>
       <div className="text-sm">
-        {item.userName ?? "ไม่ทราบชื่อ"} <span className="text-muted">({item.userId})</span>
+        {item.userName ?? t("ไม่ทราบชื่อ")} <span className="text-muted">({item.userId})</span>
       </div>
-      <div className="mt-1 text-sm text-muted">เหตุผล: {item.reason}</div>
+      <div className="mt-1 text-sm text-muted">{t("เหตุผล: {reason}", { reason: item.reason })}</div>
       {item.status === "pending" ? (
         <div className="mt-3 flex gap-2">
           <Button variant={dangerous ? "danger" : "accent"} disabled={busy} onClick={() => void confirm()}>
             {busy ? <Spinner className="size-4" /> : null}
-            {armed ? `กดอีกครั้งเพื่อ${label}` : `ยืนยัน${label}`}
+            {armed ? t("กดอีกครั้งเพื่อ{action}", { action: label }) : t("ยืนยัน{action}", { action: label })}
           </Button>
           <Button variant="ghost" disabled={busy} onClick={() => void dismiss()}>
-            ไม่ทำ
+            {t("ไม่ทำ")}
           </Button>
         </div>
       ) : (
         <div className={`mt-2 text-sm ${item.status === "done" ? "text-ok" : "text-muted"}`}>
-          {item.status === "done" ? `✓ ทำแล้ว${item.result ? ` — ${item.result}` : ""}` : "ไม่ได้ทำ"}
+          {item.status === "done" ? `✓ ${t("ทำแล้ว")}${item.result ? ` — ${item.result}` : ""}` : t("ไม่ได้ทำ")}
         </div>
       )}
     </div>
@@ -205,7 +206,7 @@ export function Assistant() {
       const r = await api.get<{ items: ChatItem[] }>(`/api/chat/threads/${id}`);
       setItems(r.items);
     } catch (e) {
-      toast(e instanceof Error ? e.message : "เปิดแชทไม่ได้", "error");
+      toast(e instanceof Error ? e.message : t("เปิดแชทไม่ได้"), "error");
     } finally {
       setLoading(false);
     }
@@ -218,25 +219,25 @@ export function Assistant() {
   }
 
   async function send(text: string) {
-    const t = text.trim();
-    if (!t || sending) return;
-    setSending(t);
+    const msg = text.trim();
+    if (!msg || sending) return;
+    setSending(msg);
     setInput("");
     try {
       const r =
         activeId === null
-          ? await api.post<{ thread: Thread; items: ChatItem[] }>("/api/chat/threads", { text: t }, ASK_TIMEOUT_MS)
+          ? await api.post<{ thread: Thread; items: ChatItem[] }>("/api/chat/threads", { text: msg }, ASK_TIMEOUT_MS)
           : await api.post<{ thread: Thread; items: ChatItem[] }>(
               `/api/chat/threads/${activeId}/messages`,
-              { text: t },
+              { text: msg },
               ASK_TIMEOUT_MS,
             );
       setActiveId(r.thread.id);
       setItems(r.items);
       void loadThreads();
     } catch (e) {
-      toast(e instanceof Error ? e.message : "ส่งไม่สำเร็จ", "error");
-      setInput(t); // คืนข้อความให้กดส่งใหม่ได้ ไม่ต้องพิมพ์ซ้ำ
+      toast(e instanceof Error ? e.message : t("ส่งไม่สำเร็จ"), "error");
+      setInput(msg); // คืนข้อความให้กดส่งใหม่ได้ ไม่ต้องพิมพ์ซ้ำ
       if (e instanceof ApiError && e.status === 0 && activeId !== null) void open(activeId);
     } finally {
       setSending(null);
@@ -244,13 +245,13 @@ export function Assistant() {
   }
 
   async function remove(id: number) {
-    if (!window.confirm("ลบแชทนี้?")) return;
+    if (!window.confirm(t("ลบแชทนี้?"))) return;
     try {
       await api.del(`/api/chat/threads/${id}`);
       if (activeId === id) startNew();
       void loadThreads();
     } catch (e) {
-      toast(e instanceof Error ? e.message : "ลบไม่สำเร็จ", "error");
+      toast(e instanceof Error ? e.message : t("ลบไม่สำเร็จ"), "error");
     }
   }
 
@@ -263,33 +264,33 @@ export function Assistant() {
       <Card className="h-fit p-2">
         <Button full variant="accent" disabled={!!sending} onClick={startNew}>
           <Icon name="message" className="size-4" />
-          แชทใหม่
+          {t("แชทใหม่")}
         </Button>
         <div className="mt-2 flex max-h-40 flex-col gap-0.5 overflow-y-auto md:max-h-[60vh]">
-          {threads.map((t) => (
+          {threads.map((th) => (
             <div
-              key={t.id}
-              className={`group flex items-center rounded-md ${activeId === t.id ? "bg-raised" : "hover:bg-raised"}`}
+              key={th.id}
+              className={`group flex items-center rounded-md ${activeId === th.id ? "bg-raised" : "hover:bg-raised"}`}
             >
               <button
                 type="button"
-                onClick={() => void open(t.id)}
+                onClick={() => void open(th.id)}
                 className="min-w-0 flex-1 truncate px-2.5 py-2 text-left text-sm"
-                title={t.title}
+                title={th.title}
               >
-                {t.title}
+                {th.title}
               </button>
               <button
                 type="button"
-                onClick={() => void remove(t.id)}
+                onClick={() => void remove(th.id)}
                 className="px-2 text-muted opacity-60 hover:text-alert group-hover:opacity-100"
-                aria-label="ลบแชท"
+                aria-label={t("ลบแชท")}
               >
                 <Icon name="trash" className="size-4" />
               </button>
             </div>
           ))}
-          {threads.length === 0 && <div className="px-2.5 py-2 text-sm text-muted">ยังไม่มีแชท</div>}
+          {threads.length === 0 && <div className="px-2.5 py-2 text-sm text-muted">{t("ยังไม่มีแชท")}</div>}
         </div>
       </Card>
 
@@ -302,7 +303,7 @@ export function Assistant() {
             </div>
           ) : items.length === 0 && !sending ? (
             <div className="py-6">
-              <Empty icon="bot">ถาม Claude เรื่องเซิร์ฟได้เลย — ดึงข้อมูล log, สมาชิก, คิว และเสนอการลงโทษให้กดยืนยัน</Empty>
+              <Empty icon="bot">{t("ถาม Claude เรื่องเซิร์ฟได้เลย — ดึงข้อมูล log, สมาชิก, คิว และเสนอการลงโทษให้กดยืนยัน")}</Empty>
               <div className="mt-4 grid gap-2 sm:grid-cols-2">
                 {SUGGESTIONS.map((s) => (
                   <button
@@ -350,7 +351,7 @@ export function Assistant() {
               </div>
               <div className="flex items-center gap-2 text-sm text-muted">
                 <Spinner className="size-4" />
-                Claude กำลังค้นข้อมูลและคิด…
+                {t("Claude กำลังค้นข้อมูลและคิด…")}
               </div>
             </>
           )}
@@ -376,12 +377,12 @@ export function Assistant() {
             }}
             rows={2}
             maxLength={4000}
-            placeholder="ถามเรื่องเซิร์ฟ… (Enter ส่ง, Shift+Enter ขึ้นบรรทัด)"
+            placeholder={t("ถามเรื่องเซิร์ฟ… (Enter ส่ง, Shift+Enter ขึ้นบรรทัด)")}
             className="min-h-10 flex-1 resize-none rounded-md border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
           />
           <Button type="submit" variant="accent" disabled={!!sending || !input.trim()}>
             <Icon name="chevron" className="size-4" />
-            ส่ง
+            {t("ส่ง")}
           </Button>
         </form>
       </Card>

@@ -18,6 +18,7 @@ import {
 } from "../../store/chatStore.js";
 import { AssistantError, runAssistantTurn, titleFrom } from "../../modules/serverAssistant.js";
 import { resolveNames } from "../userNames.js";
+import { tr, type Lang } from "../i18n.js";
 
 const TEXT_MAX = 4000;
 
@@ -49,7 +50,12 @@ type ChatItem =
     };
 
 /** ข้อความดิบจาก API → รายการที่หน้าเว็บวาด (ซ่อน thinking / tool_result / fallback) */
-async function present(client: Client | undefined, threadId: number, messages: ChatMessageParam[]): Promise<ChatItem[]> {
+async function present(
+  client: Client | undefined,
+  threadId: number,
+  messages: ChatMessageParam[],
+  lang: Lang = "th",
+): Promise<ChatItem[]> {
   const actions = getActions(threadId);
   const items: ChatItem[] = [];
   for (const m of messages) {
@@ -79,7 +85,7 @@ async function present(client: Client | undefined, threadId: number, messages: C
           });
         } else {
           const detail = [input.query, input.user_id].find((v) => typeof v === "string" && v) as string | undefined;
-          items.push({ kind: "tool", label: TOOL_LABEL[b.name] ?? b.name, detail: detail ?? null });
+          items.push({ kind: "tool", label: TOOL_LABEL[b.name] ? tr(TOOL_LABEL[b.name]!, lang) : b.name, detail: detail ?? null });
         }
       }
     }
@@ -155,7 +161,7 @@ export function chatRoutes(client?: Client): Router {
       deleteThread(thread.id, owner(res));
       return;
     }
-    res.json({ ok: true, thread, items: await present(client, thread.id, getMessages(thread.id)) });
+    res.json({ ok: true, thread, items: await present(client, thread.id, getMessages(thread.id), res.locals.lang) });
   });
 
   r.get("/api/chat/threads/:id", async (req: Request, res: Response) => {
@@ -167,7 +173,7 @@ export function chatRoutes(client?: Client): Router {
     res.json({
       thread,
       busy: busy.has(thread.id),
-      items: await present(client, thread.id, getMessages(thread.id)),
+      items: await present(client, thread.id, getMessages(thread.id), res.locals.lang),
     });
   });
 
@@ -183,7 +189,7 @@ export function chatRoutes(client?: Client): Router {
       return;
     }
     if (!(await ask(thread.id, text, res))) return;
-    res.json({ ok: true, thread, items: await present(client, thread.id, getMessages(thread.id)) });
+    res.json({ ok: true, thread, items: await present(client, thread.id, getMessages(thread.id), res.locals.lang) });
   });
 
   r.delete("/api/chat/threads/:id", (req: Request, res: Response) => {

@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { useEffect, useRef, useState } from "react";
 import { useFetch } from "../hooks/useFetch";
 import { api } from "../lib/api";
@@ -18,11 +19,11 @@ const REPLY_MAX = 1500;
  */
 export function TicketThread({ id, onSent }: { id: number; onSent: () => void }) {
   const toast = useToast();
-  const t = useFetch<TicketThreadData>(`/api/tickets/${id}/messages`, 5_000);
+  const thread = useFetch<TicketThreadData>(`/api/tickets/${id}/messages`, 5_000);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const end = useRef<HTMLDivElement>(null);
-  const count = t.data?.messages.length ?? 0;
+  const count = thread.data?.messages.length ?? 0;
 
   // มีข้อความใหม่ → เลื่อนไปข้อความล่าสุด (แบบแชททั่วไป)
   useEffect(() => {
@@ -40,19 +41,19 @@ export function TicketThread({ id, onSent }: { id: number; onSent: () => void })
       );
       toast(r.message, r.delivered ? "ok" : "error");
       setText("");
-      t.reload();
+      thread.reload();
       onSent();
     } catch (e) {
-      toast(e instanceof Error ? e.message : "ส่งไม่สำเร็จ", "error");
+      toast(e instanceof Error ? e.message : t("ส่งไม่สำเร็จ"), "error");
     } finally {
       setSending(false);
     }
   }
 
-  if (!t.data) {
+  if (!thread.data) {
     return (
       <div className="flex justify-center py-6 text-muted">
-        {t.error ? <p className="text-sm text-alert">{t.error}</p> : <Spinner />}
+        {thread.error ? <p className="text-sm text-alert">{thread.error}</p> : <Spinner />}
       </div>
     );
   }
@@ -60,13 +61,13 @@ export function TicketThread({ id, onSent }: { id: number; onSent: () => void })
   return (
     <div className="mt-3 rounded-md border border-line bg-raised p-3">
       <ol className="max-h-80 space-y-2.5 overflow-y-auto pr-1">
-        {t.data.messages.map((m) => {
+        {thread.data.messages.map((m) => {
           const mine = m.from === "admin";
           return (
             <li key={m.id} className={`flex flex-col ${mine ? "items-end" : "items-start"}`}>
               <span className={`mb-0.5 flex items-center gap-1.5 text-xs text-faint ${mine ? "flex-row-reverse" : ""}`}>
                 <Avatar id={m.userId} name={m.name} size="xs" />
-                {mine ? `แอดมิน ${m.name}` : `ตำรวจ ${m.name}`} · {fmtDateTime(m.at)}
+                {mine ? t("แอดมิน {name}", { name: m.name }) : t("ตำรวจ {name}", { name: m.name })} · {fmtDateTime(m.at)}
               </span>
               <p
                 className={`max-w-[85%] whitespace-pre-wrap break-words rounded-md border px-3 py-2 text-sm ${
@@ -83,11 +84,11 @@ export function TicketThread({ id, onSent }: { id: number; onSent: () => void })
                   rel="noreferrer"
                   className="mt-0.5 max-w-[85%] truncate text-xs text-info underline"
                 >
-                  ไฟล์แนบ
+                  {t("ไฟล์แนบ")}
                 </a>
               ))}
               {m.delivered === false && (
-                <span className="mt-0.5 text-xs text-alert">ส่ง DM ไม่ถึง — ตำรวจอาจปิด DM</span>
+                <span className="mt-0.5 text-xs text-alert">{t("ส่ง DM ไม่ถึง — ตำรวจอาจปิด DM")}</span>
               )}
             </li>
           );
@@ -95,7 +96,7 @@ export function TicketThread({ id, onSent }: { id: number; onSent: () => void })
         <div ref={end} />
       </ol>
 
-      {t.data.open ? (
+      {thread.data.open ? (
         <form
           className="mt-3 flex items-end gap-2"
           onSubmit={(e) => {
@@ -104,14 +105,14 @@ export function TicketThread({ id, onSent }: { id: number; onSent: () => void })
           }}
         >
           <label className="sr-only" htmlFor={`reply-${id}`}>
-            ตอบตำรวจ
+            {t("ตอบตำรวจ")}
           </label>
           <textarea
             id={`reply-${id}`}
             rows={2}
             maxLength={REPLY_MAX}
             value={text}
-            placeholder="พิมพ์ตอบ — บอทจะส่งทาง DM ให้ตำรวจ"
+            placeholder={t("พิมพ์ตอบ — บอทจะส่งทาง DM ให้ตำรวจ")}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               // Ctrl/⌘+Enter = ส่ง · Enter เฉย ๆ = ขึ้นบรรทัดใหม่ (ข้อความหลายบรรทัดเป็นเรื่องปกติ)
@@ -127,11 +128,11 @@ export function TicketThread({ id, onSent }: { id: number; onSent: () => void })
             disabled={sending || !text.trim()}
             className="press min-h-10 shrink-0 rounded-md border border-accent bg-accent px-3.5 text-sm font-medium text-surface disabled:opacity-40"
           >
-            {sending ? "กำลังส่ง…" : "ส่ง"}
+            {sending ? t("กำลังส่ง…") : t("ส่ง")}
           </button>
         </form>
       ) : (
-        <p className="mt-3 text-center text-xs text-faint">ticket นี้ปิดแล้ว</p>
+        <p className="mt-3 text-center text-xs text-faint">{t("ticket นี้ปิดแล้ว")}</p>
       )}
     </div>
   );

@@ -1,3 +1,4 @@
+import { lang, t } from "../lib/i18n";
 import { useEffect, useRef, useState } from "react";
 import { useFetch } from "../hooks/useFetch";
 import { api, ApiError } from "../lib/api";
@@ -24,6 +25,9 @@ import { Avatar } from "./Avatar";
 /** มือถือโชว์ 3 กองแรก ที่เหลือพับไว้ (จอใหญ่โชว์หมด) */
 const MOBILE_VISIBLE = 3;
 
+/** หน่วยจาก server เป็นพหูพจน์ ("tickets") — อังกฤษ 1 รายการตัด s ทิ้ง (ไทยไม่มีพหูพจน์) */
+const unitFor = (unit: string, n: number): string => (lang === "en" && n === 1 ? unit.replace(/s$/, "") : unit);
+
 const waitText = (since: number, now: number): string =>
   fmtDuration(Math.max(0, (now - since) / 1000));
 
@@ -38,7 +42,7 @@ export function PriorityQueue() {
   if (q.loading && !q.data) {
     return (
       <section aria-labelledby="queue-h" className="flex h-32 items-center justify-center text-muted">
-        <h2 id="queue-h" className="sr-only">รอดำเนินการ</h2>
+        <h2 id="queue-h" className="sr-only">{t("รอดำเนินการ")}</h2>
         <Spinner />
       </section>
     );
@@ -46,8 +50,8 @@ export function PriorityQueue() {
   if (!q.data) {
     return (
       <section aria-labelledby="queue-h" className="rule-l rule-warn rounded-md border border-line bg-surface p-4">
-        <h2 id="queue-h" className="text-sm font-semibold">โหลดคิวรอดำเนินการไม่ได้</h2>
-        <p className="text-sm text-muted">{q.error} — ระบบจะลองใหม่เองทุก 15 วินาที</p>
+        <h2 id="queue-h" className="text-sm font-semibold">{t("โหลดคิวรอดำเนินการไม่ได้")}</h2>
+        <p className="text-sm text-muted">{q.error} — {t("ระบบจะลองใหม่เองทุก 15 วินาที")}</p>
       </section>
     );
   }
@@ -61,12 +65,12 @@ export function PriorityQueue() {
     <section aria-labelledby="queue-h">
       <div className="mb-3 flex items-baseline justify-between gap-3">
         <h2 id="queue-h" className="text-xl font-semibold">
-          รอดำเนินการ
+          {t("รอดำเนินการ")}
         </h2>
         {total > 0 && (
           <p className="text-sm text-muted">
-            <span className="tnum font-semibold text-text">{fmtNum(total)}</span> เรื่อง ใน{" "}
-            {stacks.length} หมวด
+            <span className="tnum font-semibold text-text">{fmtNum(total)}</span>{" "}
+            {t("เรื่อง ใน {n} หมวด", { n: stacks.length })}
           </p>
         )}
       </div>
@@ -75,9 +79,9 @@ export function PriorityQueue() {
         <div className="rule-l rule-info flex items-center gap-3 rounded-md border border-line bg-surface px-4 py-5">
           <Icon name="shield-check" className="size-6 shrink-0 text-accent" />
           <div>
-            <p className="font-semibold">ไม่มีงานค้าง</p>
+            <p className="font-semibold">{t("ไม่มีงานค้าง")}</p>
             <p className="text-sm text-muted">
-              ทุกคิวว่างอยู่ เรื่องใหม่จะขึ้นที่นี่ทันทีที่บอทส่งเข้ามา
+              {t("ทุกคิวว่างอยู่ เรื่องใหม่จะขึ้นที่นี่ทันทีที่บอทส่งเข้ามา")}
             </p>
           </div>
         </div>
@@ -97,7 +101,7 @@ export function PriorityQueue() {
               onClick={() => setExpanded(true)}
               className="press rounded-md border border-dashed border-line py-3 text-sm font-medium text-accent sm:hidden"
             >
-              ดูอีก {stacks.length - MOBILE_VISIBLE} หมวด
+              {t("ดูอีก {n} หมวด", { n: stacks.length - MOBILE_VISIBLE })}
             </button>
           )}
         </div>
@@ -106,7 +110,7 @@ export function PriorityQueue() {
       {stacks.length > 0 && idle.length > 0 && (
         <p className="mt-3 flex items-center gap-1.5 text-sm text-faint">
           <Icon name="check" className="size-4 shrink-0" />
-          ไม่มีอะไรค้าง: {idle.map((c) => c.label).join(", ")}
+          {t("ไม่มีอะไรค้าง:")} {idle.map((c) => c.label).join(", ")}
         </p>
       )}
 
@@ -155,7 +159,7 @@ function Deck({ stack, now, onOpen }: { stack: QueueStack; now: number; onOpen: 
           <div className="min-w-0">
             <h3 className="font-semibold leading-snug">{stack.label}</h3>
             <p className={`text-sm ${overdue ? "font-medium text-alert" : "text-faint"}`}>
-              {overdue ? "เกินกำหนด · " : ""}รอนานสุด {waitText(stack.oldestAt, now)}
+              {overdue ? t("เกินกำหนด · ") : ""}{t("รอนานสุด {d}", { d: waitText(stack.oldestAt, now) })}
             </p>
           </div>
           <span className="tnum text-4xl font-semibold leading-none tracking-tight">
@@ -177,11 +181,11 @@ function Deck({ stack, now, onOpen }: { stack: QueueStack; now: number; onOpen: 
 
         <div className="mt-3 flex items-center justify-between gap-2 text-sm">
           <span className="font-semibold text-accent">
-            {stack.verb} {fmtNum(stack.count)} {stack.unit}
+            {stack.verb} {fmtNum(stack.count)} {unitFor(stack.unit, stack.count)}
           </span>
           {rest > 0 && (
             <span className="text-faint">
-              อีก {fmtNum(rest)} {stack.unit}ข้างใต้
+              {t("อีก {n} {unit}ข้างใต้", { n: fmtNum(rest), unit: unitFor(stack.unit, rest) })}
             </span>
           )}
         </div>
@@ -228,7 +232,7 @@ function QueueSheet({
     api
       .get<{ items: QueueItem[] }>(`/api/queue/${category.key}`)
       .then((r) => alive && setItems(r.items))
-      .catch((e: unknown) => alive && setError(e instanceof Error ? e.message : "โหลดไม่สำเร็จ"));
+      .catch((e: unknown) => alive && setError(e instanceof Error ? e.message : t("โหลดไม่สำเร็จ")));
     return () => {
       alive = false;
     };
@@ -259,7 +263,7 @@ function QueueSheet({
       setLeaving((s) => new Set(s).add(item.id));
       onChanged();
     } catch (e) {
-      toast(e instanceof Error ? e.message : "ทำรายการไม่สำเร็จ", "error");
+      toast(e instanceof Error ? e.message : t("ทำรายการไม่สำเร็จ"), "error");
       // 409 = คนอื่นตัดสินไปแล้ว — เอาออกจากรายการเหมือนกัน ไม่ต้องให้กดซ้ำ
       if (e instanceof ApiError && e.status === 409) {
         setLeaving((s) => new Set(s).add(item.id));
@@ -279,7 +283,7 @@ function QueueSheet({
           {category.label}
           {items && (
             <span className="ml-2 font-normal text-muted">
-              {fmtNum(remaining.length)} {category.unit}
+              {fmtNum(remaining.length)} {unitFor(category.unit, remaining.length)}
             </span>
           )}
         </span>
@@ -294,9 +298,9 @@ function QueueSheet({
       ) : remaining.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-10 text-center">
           <Icon name="shield-check" className="size-8 text-accent" />
-          <p className="font-semibold">หมวดนี้ว่างแล้ว</p>
+          <p className="font-semibold">{t("หมวดนี้ว่างแล้ว")}</p>
           <button type="button" onClick={onClose} className="press text-sm font-medium text-accent">
-            กลับหน้าแรก
+            {t("กลับหน้าแรก")}
           </button>
         </div>
       ) : (
@@ -322,7 +326,7 @@ function QueueSheet({
                   <span
                     className={`shrink-0 text-xs ${overdue ? "font-medium text-alert" : "text-faint"}`}
                   >
-                    รอ {waitText(item.createdAt, now)}
+                    {t("รอ {d}", { d: waitText(item.createdAt, now) })}
                   </span>
                 </div>
                 {item.subjectName && item.subjectName !== item.title && (
@@ -334,7 +338,7 @@ function QueueSheet({
                 )}
                 {item.hits > 1 && (
                   <p className="text-xs font-medium text-warn">
-                    โดนจับรวม {fmtNum(item.hits)} ครั้ง — ดูทุกข้อความได้ในหน้า Logs
+                    {t("โดนจับรวม {n} ครั้ง — ดูทุกข้อความได้ในหน้า Logs", { n: fmtNum(item.hits) })}
                   </p>
                 )}
                 {item.subjectId && (
@@ -347,8 +351,8 @@ function QueueSheet({
                     value={notes[item.id] ?? ""}
                     onChange={(e) => setNotes((n) => ({ ...n, [item.id]: e.target.value }))}
                     maxLength={300}
-                    placeholder="หมายเหตุ (ไม่บังคับ) — ส่งถึงสมาชิกเป็นเหตุผลถ้าเตือน/timeout"
-                    aria-label={`หมายเหตุสำหรับ ${item.subjectName ?? item.title}`}
+                    placeholder={t("หมายเหตุ (ไม่บังคับ) — ส่งถึงสมาชิกเป็นเหตุผลถ้าเตือน/timeout")}
+                    aria-label={t("หมายเหตุสำหรับ {name}", { name: item.subjectName ?? item.title })}
                     className="mt-2 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm placeholder:text-faint focus:border-accent focus:outline-none"
                   />
                 )}
@@ -363,7 +367,7 @@ function QueueSheet({
                         className="press inline-flex min-h-9 items-center gap-1.5 rounded-md border border-line px-3 text-sm font-medium"
                       >
                         <Icon name="message" className="size-4" />
-                        {chatOpen === item.id ? "ซ่อนบทสนทนา" : "เปิดบทสนทนา"}
+                        {chatOpen === item.id ? t("ซ่อนบทสนทนา") : t("เปิดบทสนทนา")}
                         {item.thread && (
                           <span className="text-muted">({fmtNum(item.thread.count)})</span>
                         )}
@@ -371,11 +375,11 @@ function QueueSheet({
                       {/* ตำรวจพูดล่าสุด = รอแอดมินตอบ — เด่นกว่าเรื่องที่แอดมินตอบไปแล้ว */}
                       {item.thread?.lastFrom === "police" && item.thread.count > 1 && (
                         <span className="rounded-md bg-info-soft px-2 py-0.5 text-xs font-medium text-info">
-                          ตำรวจตอบมา {waitText(item.thread.lastAt, now)}ที่แล้ว
+                          {t("ตำรวจตอบมา {d}ที่แล้ว", { d: waitText(item.thread.lastAt, now) })}
                         </span>
                       )}
                       {item.thread?.lastFrom === "admin" && (
-                        <span className="text-xs text-faint">รอตำรวจตอบ</span>
+                        <span className="text-xs text-faint">{t("รอตำรวจตอบ")}</span>
                       )}
                     </div>
                     {chatOpen === item.id && <TicketThread id={item.id} onSent={onChanged} />}
@@ -402,7 +406,7 @@ function QueueSheet({
                         onClick={() => void decide(item, o.key, dangerous)}
                         className={`press min-h-10 rounded-md border px-3.5 text-sm font-medium disabled:opacity-40 ${cls}`}
                       >
-                        {isArmed ? `กดอีกครั้งเพื่อ${o.label}` : o.label}
+                        {isArmed ? t("กดอีกครั้งเพื่อ{label}", { label: o.label }) : o.label}
                       </button>
                     );
                   })}

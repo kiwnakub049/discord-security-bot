@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { useState } from "react";
 import type { History } from "../lib/types";
 import { fmtDay, fmtNum } from "../lib/format";
@@ -13,9 +14,9 @@ import { fmtDay, fmtNum } from "../lib/format";
  */
 
 const LEVELS = [
-  { key: "info", label: "ปกติ", fill: "var(--c-info)", op: 0.45 },
-  { key: "warn", label: "เตือน", fill: "var(--c-warn)", op: 0.85 },
-  { key: "alert", label: "แจ้งเตือน", fill: "var(--c-alert)", op: 1 },
+  { key: "info", label: t("ปกติ"), fill: "var(--c-info)", op: 0.45 },
+  { key: "warn", label: t("เตือน@@level"), fill: "var(--c-warn)", op: 0.85 },
+  { key: "alert", label: t("แจ้งเตือน@@level"), fill: "var(--c-alert)", op: 1 },
 ] as const;
 
 const H = 120; // ความสูงพื้นที่วาด (หน่วยพิกัดใน viewBox)
@@ -32,8 +33,8 @@ export function HistoryChart({ history }: { history: History }) {
   const active = hover !== null ? points[hover] : null;
   const isHour = history.bucket === "hour";
 
-  const labelFor = (t: number) =>
-    isHour ? `${new Date(t).getHours()}:00` : fmtDay(t);
+  const labelFor = (ts: number) =>
+    isHour ? `${new Date(ts).getHours()}:00` : fmtDay(ts);
 
   return (
     <div>
@@ -41,16 +42,16 @@ export function HistoryChart({ history }: { history: History }) {
         <div className="tnum text-2xl font-semibold">
           {fmtNum(points.reduce((s, p) => s + p.total, 0))}
           <span className="ml-1.5 text-sm font-normal text-muted">
-            เหตุการณ์ใน {isHour ? "24 ชม." : `${n} วัน`}
+            {isHour ? t("เหตุการณ์ใน 24 ชม.") : t("เหตุการณ์ใน {n} วัน", { n })}
           </span>
         </div>
         {active && (
           <div className="tnum text-right text-xs text-muted">
             <div className="font-medium text-text">{labelFor(active.t)}</div>
             <div>
-              {active.total} รายการ
+              {t("{n} รายการ", { n: active.total })}
               {active.alert > 0 && (
-                <span className="text-alert"> · {active.alert} แจ้งเตือน</span>
+                <span className="text-alert"> · {t("{n} แจ้งเตือน", { n: active.alert })}</span>
               )}
             </div>
           </div>
@@ -62,7 +63,7 @@ export function HistoryChart({ history }: { history: History }) {
         preserveAspectRatio="none"
         className="h-32 w-full touch-pan-y"
         role="img"
-        aria-label={`กราฟเหตุการณ์ย้อนหลัง ${n} ช่วง สูงสุด ${max} รายการ`}
+        aria-label={t("กราฟเหตุการณ์ย้อนหลัง {n} ช่วง สูงสุด {max} รายการ", { n, max })}
         onMouseLeave={() => setHover(null)}
       >
         {/* เส้นอ้างอิงแนวนอน — ครึ่งหนึ่งและยอดสูงสุด */}
@@ -122,7 +123,7 @@ export function HistoryChart({ history }: { history: History }) {
       <div className="mt-1.5 flex justify-between text-xs text-faint">
         <span>{labelFor(points[0]!.t)}</span>
         {n > 6 && <span>{labelFor(points[Math.floor(n / 2)]!.t)}</span>}
-        <span>{isHour ? "ตอนนี้" : "วันนี้"}</span>
+        <span>{isHour ? t("ตอนนี้") : t("วันนี้")}</span>
       </div>
 
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">

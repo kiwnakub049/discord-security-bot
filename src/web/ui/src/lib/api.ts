@@ -102,6 +102,7 @@ function putBlob(path: string, blob: Blob, onProgress?: (loaded: number) => void
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", path);
     xhr.setRequestHeader("Content-Type", "application/octet-stream");
+    xhr.setRequestHeader("X-Lang", lang);
     xhr.upload.onprogress = (e) => onProgress?.(e.loaded);
     xhr.onload = () => {
       if (xhr.status === 401) {
@@ -116,9 +117,9 @@ function putBlob(path: string, blob: Blob, onProgress?: (loaded: number) => void
         /* ไม่ใช่ JSON */
       }
       if (xhr.status >= 200 && xhr.status < 300) resolve(body);
-      else reject(new ApiError(body.error ?? `ส่งไม่สำเร็จ (${xhr.status})`, xhr.status));
+      else reject(new ApiError(body.error ?? t("ส่งไม่สำเร็จ ({status})", { status: xhr.status }), xhr.status));
     };
-    xhr.onerror = () => reject(new ApiError("เชื่อมต่อไม่ได้ระหว่างอัปโหลด", 0));
+    xhr.onerror = () => reject(new ApiError(t("เชื่อมต่อไม่ได้ระหว่างอัปโหลด"), 0));
     xhr.send(blob);
   });
 }
@@ -131,7 +132,7 @@ export async function uploadMod(
     "/api/beammp/mods/begin",
     { name: file.name },
   );
-  if (!begin.ok) throw new ApiError(begin.error ?? "เริ่มอัปโหลดไม่ได้", 400);
+  if (!begin.ok) throw new ApiError(begin.error ?? t("เริ่มอัปโหลดไม่ได้"), 400);
 
   const size = begin.chunkBytes;
   try {
@@ -168,7 +169,7 @@ export async function uploadTeamFile(
   const r = (await putBlob(`/api/team/files?${q}`, file, (loaded) =>
     onProgress?.(file.size ? Math.min(1, loaded / file.size) : 1),
   )) as { ok?: boolean; id?: string; size?: number; error?: string };
-  if (!r.ok || !r.id) throw new ApiError(r.error ?? "อัปโหลดไม่สำเร็จ", 400);
+  if (!r.ok || !r.id) throw new ApiError(r.error ?? t("อัปโหลดไม่สำเร็จ"), 400);
   return { id: r.id, size: r.size ?? file.size };
 }
 

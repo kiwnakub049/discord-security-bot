@@ -15,6 +15,7 @@
 import type { IconName } from "../components/Icon";
 import type { LogCategory, LogLevel } from "./types";
 import { CATEGORY_ICON, CATEGORY_LABEL } from "./categories";
+import { t } from "./i18n";
 
 export interface TreeLeaf {
   /** ใช้เป็นคีย์และเก็บใน URL — ต้องไม่ซ้ำกันทั้งต้นไม้ */
@@ -43,40 +44,40 @@ export const LOG_TREE: TreeNode[] = [
   node("security", [
     // ตรวจข้อความด้วย Claude แล้ว — ชื่อ event ยังเป็น security_ai เดิม log เก่าจะได้ขึ้นกิ่งเดียวกัน
     { id: "ai", label: "Logs Claude", icon: "message", events: ["security_ai"] },
-    { id: "warn", label: "เตือนสมาชิก", icon: "warn", events: ["security_warn"] },
+    { id: "warn", label: t("เตือนสมาชิก"), icon: "warn", events: ["security_warn"] },
   ]),
   node("member", [
     {
       id: "join-leave",
-      label: "เข้า-ออกเซิร์ฟเวอร์",
+      label: t("เข้า-ออกเซิร์ฟเวอร์"),
       icon: "logout",
       events: ["member_join", "member_leave"],
     },
-    { id: "card", label: "สร้างบัตรสมาชิก", icon: "user", events: ["member_register"] },
+    { id: "card", label: t("สร้างบัตรสมาชิก"), icon: "user", events: ["member_register"] },
   ]),
   node("voice", [
     {
       id: "room",
-      label: "เข้า-ออกห้อง",
+      label: t("เข้า-ออกห้อง"),
       icon: "volume",
       events: ["voice_join", "voice_leave"],
     },
-    { id: "move", label: "ย้ายห้อง", icon: "refresh", events: ["voice_move"] },
+    { id: "move", label: t("ย้ายห้อง"), icon: "refresh", events: ["voice_move"] },
     // เฉพาะ "ขาปิด" เท่านั้น — ขาเปิดอยู่ voice_mute_off / voice_deafen_off
-    { id: "mic", label: "ไมค์แดง", icon: "mic-off", events: ["voice_mute_on"] },
-    { id: "deaf", label: "หูแดง", icon: "headphone-off", events: ["voice_deafen_on"] },
+    { id: "mic", label: t("ไมค์แดง"), icon: "mic-off", events: ["voice_mute_on"] },
+    { id: "deaf", label: t("หูแดง"), icon: "headphone-off", events: ["voice_deafen_on"] },
   ]),
   node("audit", [
     {
       id: "ban",
-      label: "แบน-หมดเวลา",
+      label: t("แบน-หมดเวลา"),
       icon: "ban",
       events: ["audit_ban", "audit_unban", "audit_timeout", "audit_kick"],
     },
-    { id: "role", label: "จัดการยศ (บทบาท)", icon: "key", events: ["audit_role"] },
+    { id: "role", label: t("จัดการยศ (บทบาท)"), icon: "key", events: ["audit_role"] },
     {
       id: "channel-del",
-      label: "ลบห้อง",
+      label: t("ลบห้อง"),
       icon: "x",
       events: ["audit_channel_delete"],
     },

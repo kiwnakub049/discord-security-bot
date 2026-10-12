@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { useState } from "react";
 import { api } from "../lib/api";
 import { useFetch } from "../hooks/useFetch";
@@ -50,19 +51,18 @@ function SkinPicker() {
   const skin = useSkin();
   return (
     <section className="hidden md:block">
-      <SectionTitle>หน้าตาบนจอคอม</SectionTitle>
+      <SectionTitle>{t("หน้าตาบนจอคอม")}</SectionTitle>
       <Card className="p-4">
-        <div className="flex flex-wrap gap-2" role="group" aria-label="หน้าตาของเว็บ">
+        <div className="flex flex-wrap gap-2" role="group" aria-label={t("หน้าตาของเว็บ")}>
           <Chip active={skin === "duty"} onClick={() => setSkin("duty")}>
-            สมุดเวรยาม
+            {t("สมุดเวรยาม")}
           </Chip>
           <Chip active={skin === "mac"} onClick={() => setSkin("mac")}>
             macOS
           </Chip>
         </div>
         <p className="mt-3 text-xs text-faint">
-          ใช้เฉพาะจอกว้าง มือถือยังเป็นสมุดเวรยามเสมอ · ธีมสว่าง/มืดยังเลือกจากปุ่มบนหัวเว็บได้เหมือนเดิม
-          · เก็บไว้ในเครื่องนี้เท่านั้น
+          {t("ใช้เฉพาะจอกว้าง มือถือยังเป็นสมุดเวรยามเสมอ · ธีมสว่าง/มืดยังเลือกจากปุ่มบนหัวเว็บได้เหมือนเดิม · เก็บไว้ในเครื่องนี้เท่านั้น")}
         </p>
       </Card>
     </section>
@@ -76,26 +76,26 @@ function LinkTargetPicker() {
 
   return (
     <section>
-      <SectionTitle>ลิงก์ใน log</SectionTitle>
+      <SectionTitle>{t("ลิงก์ใน log")}</SectionTitle>
       <Card className="p-4">
         <p className="mb-3 text-xs text-muted">
-          กดชื่อห้องหรือ ID คนใน log แล้วให้เปิดที่ไหน
+          {t("กดชื่อห้องหรือ ID คนใน log แล้วให้เปิดที่ไหน")}
         </p>
         <div className="flex flex-wrap gap-2">
           <Chip active={target === "browser"} onClick={() => setLinkTarget("browser")}>
-            เบราว์เซอร์
+            {t("เบราว์เซอร์")}
           </Chip>
           <Chip active={target === "app"} onClick={() => setLinkTarget("app")}>
-            เด้งเข้าแอป Discord
+            {t("เด้งเข้าแอป Discord")}
           </Chip>
         </div>
         <p className="mt-3 text-xs text-faint">
           {target === "app"
-            ? "เครื่องที่ไม่ได้ติดตั้งแอป Discord จะกดแล้วไม่เกิดอะไรขึ้น — สลับกลับเป็นเบราว์เซอร์ได้ตลอด"
-            : "เปิดหน้าเว็บของ Discord ในแท็บใหม่ ใช้ได้ทุกเครื่องแม้ไม่ได้ติดตั้งแอป"}
+            ? t("เครื่องที่ไม่ได้ติดตั้งแอป Discord จะกดแล้วไม่เกิดอะไรขึ้น — สลับกลับเป็นเบราว์เซอร์ได้ตลอด")
+            : t("เปิดหน้าเว็บของ Discord ในแท็บใหม่ ใช้ได้ทุกเครื่องแม้ไม่ได้ติดตั้งแอป")}
         </p>
         <p className="mt-1.5 text-xs text-faint">
-          ตั้งค่านี้เก็บไว้ในเครื่องนี้เท่านั้น ไม่ได้ใช้ร่วมกับ mod คนอื่น
+          {t("ตั้งค่านี้เก็บไว้ในเครื่องนี้เท่านั้น ไม่ได้ใช้ร่วมกับ mod คนอื่น")}
         </p>
       </Card>
     </section>
@@ -116,7 +116,7 @@ function Devices() {
       toast(r.message, r.ok ? "ok" : "error");
       reload();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "ทำรายการไม่สำเร็จ", "error");
+      toast(err instanceof Error ? err.message : t("ทำรายการไม่สำเร็จ"), "error");
     } finally {
       setBusy(false);
     }
@@ -126,10 +126,10 @@ function Devices() {
 
   return (
     <section>
-      <SectionTitle>อุปกรณ์ที่เข้าสู่ระบบอยู่</SectionTitle>
+      <SectionTitle>{t("อุปกรณ์ที่เข้าสู่ระบบอยู่")}</SectionTitle>
       <Card className="divide-y divide-line">
         {data?.length === 0 && (
-          <p className="p-4 text-sm text-faint">ยังไม่มีข้อมูล</p>
+          <p className="p-4 text-sm text-faint">{t("ยังไม่มีข้อมูล")}</p>
         )}
         {data?.map((d) => (
           <div key={d.id} className="flex items-center gap-3 px-4 py-3">
@@ -142,10 +142,10 @@ function Devices() {
                 <span className="font-medium">
                   {d.device} · {d.browser}
                 </span>
-                {d.current && <Badge tone="ok">เครื่องนี้</Badge>}
+                {d.current && <Badge tone="ok">{t("เครื่องนี้")}</Badge>}
               </div>
               <div className="mt-0.5 text-xs text-faint">
-                ใช้ล่าสุด {fmtAgo(d.lastSeen)}
+                {t("ใช้ล่าสุด {ago}", { ago: fmtAgo(d.lastSeen) })}
                 {d.ip && ` · ${d.ip}`}
               </div>
             </div>
@@ -154,8 +154,8 @@ function Devices() {
                 type="button"
                 disabled={busy}
                 onClick={() => void call("/api/sessions/revoke", { id: d.id })}
-                aria-label="เตะเครื่องนี้ออก"
-                title="เตะเครื่องนี้ออก"
+                aria-label={t("เตะเครื่องนี้ออก")}
+                title={t("เตะเครื่องนี้ออก")}
                 className="press rounded-lg p-2 text-alert disabled:opacity-40"
               >
                 <Icon name="x" className="size-4" />
@@ -166,7 +166,7 @@ function Devices() {
 
         <div className="space-y-2 p-4">
           <p className="text-xs text-muted">
-            จำเครื่องไว้ 30 วันนับจากครั้งล่าสุดที่ใช้
+            {t("จำเครื่องไว้ 30 วันนับจากครั้งล่าสุดที่ใช้")}
           </p>
           {others > 0 && (
             <Button
@@ -176,7 +176,7 @@ function Devices() {
               onClick={() => void call("/api/sessions/revoke-others")}
             >
               <Icon name="logout" className="size-4" />
-              ออกจากระบบเครื่องอื่นทั้งหมด ({others})
+              {t("ออกจากระบบเครื่องอื่นทั้งหมด ({n})", { n: others })}
             </Button>
           )}
         </div>
@@ -205,7 +205,7 @@ function BotSettings() {
       setDirty({});
       reload();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "บันทึกไม่สำเร็จ", "error");
+      toast(err instanceof Error ? err.message : t("บันทึกไม่สำเร็จ"), "error");
     } finally {
       setSaving(false);
     }
@@ -221,7 +221,7 @@ function BotSettings() {
 
   return (
     <section>
-      <SectionTitle>ตั้งค่าบอท</SectionTitle>
+      <SectionTitle>{t("ตั้งค่าบอท")}</SectionTitle>
       <div className="stagger space-y-2">
         {data?.map((sec) => {
           const open = openSection === sec.section;
@@ -237,7 +237,7 @@ function BotSettings() {
                 <span className="flex-1 text-sm font-medium">{sec.section}</span>
                 {changed > 0 && (
                   <span className="rounded-md bg-accent-soft px-1.5 py-0.5 text-[11px] font-medium text-accent">
-                    แก้ {changed}
+                    {t("แก้ {n}", { n: changed })}
                   </span>
                 )}
                 <Icon
@@ -270,13 +270,13 @@ function BotSettings() {
       */}
       {count > 0 && (
         <div className="glass-strong rise sticky bottom-24 z-20 mt-3 flex items-center gap-3 rounded-md !border-accent/40 px-4 py-3 md:bottom-4">
-          <span className="flex-1 text-sm">แก้ไว้ {count} รายการ</span>
+          <span className="flex-1 text-sm">{t("แก้ไว้ {n} รายการ", { n: count })}</span>
           <Button variant="ghost" onClick={() => setDirty({})} disabled={saving}>
-            ยกเลิก
+            {t("ยกเลิก")}
           </Button>
           <Button variant="accent" onClick={() => void save()} disabled={saving}>
             {saving ? <Spinner className="size-4" /> : <Icon name="check" className="size-4" />}
-            บันทึก
+            {t("บันทึก")}
           </Button>
         </div>
       )}
@@ -341,7 +341,7 @@ function Field({
       <div>
         <label className="mb-1.5 block text-sm" htmlFor={item.key}>
           {item.label}
-          <span className="ml-1.5 text-xs text-faint">(บรรทัดละหนึ่งค่า)</span>
+          <span className="ml-1.5 text-xs text-faint">{t("(บรรทัดละหนึ่งค่า)")}</span>
         </label>
         <textarea
           id={item.key}
@@ -393,7 +393,7 @@ function OledPicker() {
       toast(r.message, "ok");
       reload();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "เปลี่ยนหน้าจอไม่สำเร็จ", "error");
+      toast(err instanceof Error ? err.message : t("เปลี่ยนหน้าจอไม่สำเร็จ"), "error");
     } finally {
       setBusy(false);
     }
@@ -403,10 +403,10 @@ function OledPicker() {
 
   return (
     <section>
-      <SectionTitle>จอเล็กบนตัวเครื่อง</SectionTitle>
+      <SectionTitle>{t("จอเล็กบนตัวเครื่อง")}</SectionTitle>
       <Card className="p-4">
         <p className="mb-3 text-xs text-muted">
-          เลือกว่าจะให้จอ OLED ค้างอยู่ที่หน้าไหน
+          {t("เลือกว่าจะให้จอ OLED ค้างอยู่ที่หน้าไหน")}
         </p>
         <div className="flex flex-wrap gap-2">
           {data.pages.map((p) => (
@@ -437,7 +437,7 @@ function ServerLock() {
       const r = await api.post<ActionResult>(path);
       toast(r.message, r.ok ? "ok" : "error");
     } catch (err) {
-      toast(err instanceof Error ? err.message : "ทำรายการไม่สำเร็จ", "error");
+      toast(err instanceof Error ? err.message : t("ทำรายการไม่สำเร็จ"), "error");
     } finally {
       setBusy(false);
       setConfirming(false);
@@ -446,10 +446,10 @@ function ServerLock() {
 
   return (
     <section>
-      <SectionTitle>ควบคุมเซิร์ฟเวอร์</SectionTitle>
+      <SectionTitle>{t("ควบคุมเซิร์ฟเวอร์")}</SectionTitle>
       <Card className="space-y-2 p-4">
         <p className="text-xs text-muted">
-          ล็อก = ปิดสิทธิ์ส่งข้อความทุกห้องพร้อมกัน ใช้ตอนโดนบุก
+          {t("ล็อก = ปิดสิทธิ์ส่งข้อความทุกห้องพร้อมกัน ใช้ตอนโดนบุก")}
         </p>
         <div className="grid grid-cols-2 gap-2">
           <Button
@@ -460,11 +460,11 @@ function ServerLock() {
             }
           >
             <Icon name="lock" className="size-4" />
-            {confirming ? "ยืนยันล็อก" : "ล็อก"}
+            {confirming ? t("ยืนยันล็อก") : t("ล็อก")}
           </Button>
           <Button disabled={busy} onClick={() => void run("/api/action/unlock")}>
             <Icon name="unlock" className="size-4" />
-            ปลดล็อก
+            {t("ปลดล็อก")}
           </Button>
         </div>
       </Card>
@@ -493,13 +493,13 @@ interface ClaudeTestResult {
 }
 
 const ACTION_TEXT: Record<NonNullable<ClaudeTestResult["action"]>, { text: string; tone: string }> = {
-  ignore: { text: "ปล่อยผ่าน ไม่ทำอะไร", tone: "text-ok" },
-  review: { text: "ขึ้นการ์ดหน้าแรกให้ mod ตัดสิน (ข้อความยังอยู่)", tone: "text-warn" },
-  "review-delete": { text: "ลบข้อความ แต่ไม่เตือน", tone: "text-warn" },
-  auto: { text: "ลบข้อความ + เตือนสมาชิกอัตโนมัติ", tone: "text-alert" },
+  ignore: { text: t("ปล่อยผ่าน ไม่ทำอะไร"), tone: "text-ok" },
+  review: { text: t("ขึ้นการ์ดหน้าแรกให้ mod ตัดสิน (ข้อความยังอยู่)"), tone: "text-warn" },
+  "review-delete": { text: t("ลบข้อความ แต่ไม่เตือน"), tone: "text-warn" },
+  auto: { text: t("ลบข้อความ + เตือนสมาชิกอัตโนมัติ"), tone: "text-alert" },
 };
 
-const SPAM_TEXT = { scam: "หลอกลวง/scam", advert: "โฆษณา/ขายของ", evasion: "เลี่ยงฟิลเตอร์", none: "ไม่ใช่ spam" };
+const SPAM_TEXT = { scam: t("หลอกลวง/scam"), advert: t("โฆษณา/ขายของ"), evasion: t("เลี่ยงฟิลเตอร์"), none: t("ไม่ใช่ spam") };
 
 function ScoreBar({ label, value }: { label: string; value: number }) {
   const tone = value >= 0.9 ? "bg-alert" : value >= 0.5 ? "bg-warn" : "bg-ok";
@@ -535,7 +535,7 @@ function ClaudeTest() {
       setOut(await api.post<ClaudeTestResult>("/api/ai/test", { text, context }));
     } catch (err) {
       setOut(null);
-      setError(err instanceof Error ? err.message : "ทดสอบไม่สำเร็จ");
+      setError(err instanceof Error ? err.message : t("ทดสอบไม่สำเร็จ"));
     } finally {
       setBusy(false);
     }
@@ -544,26 +544,25 @@ function ClaudeTest() {
   const r = out?.ok ? out.result : null;
   return (
     <section>
-      <SectionTitle>ทดสอบ Claude</SectionTitle>
+      <SectionTitle>{t("ทดสอบ Claude")}</SectionTitle>
       <Card className="space-y-3 p-4">
         <p className="text-xs text-muted">
-          ลองพิมพ์ข้อความ แล้วดูว่า Claude ให้คะแนนเท่าไร และบอทจะทำอะไรถ้ามีคนพิมพ์แบบนี้ในเซิร์ฟ
-          — แค่ทดสอบ ไม่ลบ ไม่เตือน ไม่ขึ้น log
+          {t("ลองพิมพ์ข้อความ แล้วดูว่า Claude ให้คะแนนเท่าไร และบอทจะทำอะไรถ้ามีคนพิมพ์แบบนี้ในเซิร์ฟ — แค่ทดสอบ ไม่ลบ ไม่เตือน ไม่ขึ้น log")}
         </p>
         <label className="block space-y-1">
           <span className="text-xs font-medium text-muted">
-            บริบทก่อนหน้า (ไม่บังคับ) — บรรทัดละข้อความ แบบ <code>ชื่อ: ข้อความ</code>
+            {t("บริบทก่อนหน้า (ไม่บังคับ) — บรรทัดละข้อความ แบบ")} <code>{t("ชื่อ: ข้อความ")}</code>
           </span>
           <textarea
             value={context}
             onChange={(e) => setContext(e.target.value)}
             maxLength={3000}
             rows={3}
-            placeholder={"เอ: เมื่อกี้ใครเล่นแพ้วะ\nบี: ก็มึงไง 555"}
+            placeholder={t("เอ: เมื่อกี้ใครเล่นแพ้วะ\nบี: ก็มึงไง 555")}
             className="w-full resize-y rounded-md border border-line bg-surface px-3 py-2 text-sm outline-none placeholder:text-faint focus:border-accent"
           />
         </label>
-        <span className="block text-xs font-medium text-muted">ข้อความที่จะให้ Claude ตัดสิน</span>
+        <span className="block text-xs font-medium text-muted">{t("ข้อความที่จะให้ Claude ตัดสิน")}</span>
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -572,19 +571,19 @@ function ClaudeTest() {
           }}
           maxLength={1000}
           rows={3}
-          placeholder="เช่น แจก Nitro ฟรี ทักแชทมารับ"
+          placeholder={t("เช่น แจก Nitro ฟรี ทักแชทมารับ")}
           className="w-full resize-y rounded-md border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
         />
         <Button variant="accent" full disabled={busy || !text.trim()} onClick={() => void run()}>
           {busy ? <Spinner className="size-4" /> : <Icon name="bot" className="size-4" />}
-          {busy ? "Claude กำลังตัดสิน…" : "ส่งให้ Claude ตัดสิน"}
+          {busy ? t("Claude กำลังตัดสิน…") : t("ส่งให้ Claude ตัดสิน")}
         </Button>
 
         {error && <p className="text-sm text-alert">{error}</p>}
 
         {out && !out.ok && (
           <p className="text-sm text-alert">
-            เรียก Claude ไม่ได้: {out.error} — ตอนนี้ข้อความจริงในเซิร์ฟจะถูกปล่อยผ่านหมด
+            {t("เรียก Claude ไม่ได้: {error} — ตอนนี้ข้อความจริงในเซิร์ฟจะถูกปล่อยผ่านหมด", { error: out.error ?? "" })}
           </p>
         )}
 
@@ -594,29 +593,29 @@ function ClaudeTest() {
               <>
                 <ScoreBar label="toxic" value={r.score} />
                 <ScoreBar label={`spam · ${SPAM_TEXT[r.spamType ?? "none"]}`} value={r.spamScore ?? 0} />
-                {r.target && r.target !== "ไม่มี" && (
+                {r.target && r.target !== "ไม่มี" /* i18n-ignore: ค่าจาก Claude */ && (
                   <p className="text-sm">
-                    <span className="text-muted">ด่า/แซะใคร:</span> <b>{r.target}</b>
+                    <span className="text-muted">{t("ด่า/แซะใคร:")}</span> <b>{r.target}</b>
                   </p>
                 )}
                 {r.reason && <p className="text-sm">“{r.reason}”</p>}
               </>
             ) : (
-              <p className="text-sm text-muted">Claude ไม่ยอมตัดสินข้อความนี้ — ของจริงจะปล่อยผ่าน</p>
+              <p className="text-sm text-muted">{t("Claude ไม่ยอมตัดสินข้อความนี้ — ของจริงจะปล่อยผ่าน")}</p>
             )}
             <div className="space-y-0.5 border-t border-line pt-2 text-sm">
               <div>
-                บอทจะ:{" "}
+                {t("บอทจะ:")}{" "}
                 <b className={ACTION_TEXT[out.action ?? "ignore"].tone}>
-                  {ACTION_TEXT[out.action ?? "ignore"].text}
+                  {t(ACTION_TEXT[out.action ?? "ignore"].text)}
                 </b>
               </div>
-              {out.spamCard && <div className="text-warn">+ ส่งการ์ด spam เข้าคิวให้ mod</div>}
+              {out.spamCard && <div className="text-warn">{t("+ ส่งการ์ด spam เข้าคิวให้ mod")}</div>}
               {out.enabled === false && (
-                <div className="text-alert">แต่ตอนนี้ปิด AI mod อยู่ ของจริงจะไม่ทำอะไร</div>
+                <div className="text-alert">{t("แต่ตอนนี้ปิด AI mod อยู่ ของจริงจะไม่ทำอะไร")}</div>
               )}
               <div className="tnum text-xs text-faint">
-                {out.model} · {((out.ms ?? 0) / 1000).toFixed(1)} วิ
+                {out.model} · {t("{s} วิ", { s: ((out.ms ?? 0) / 1000).toFixed(1) })}
               </div>
             </div>
           </div>
@@ -642,11 +641,10 @@ function AccessPeople({ me }: { me: string }) {
 
   return (
     <section>
-      <SectionTitle>ใครเข้า dashboard ได้</SectionTitle>
+      <SectionTitle>{t("ใครเข้า dashboard ได้")}</SectionTitle>
       <Card className="divide-y divide-line">
         <p className="p-4 text-sm text-muted">
-          เข้าได้ด้วยบัญชี Discord ที่มียศตามที่ตั้งไว้ในหัวข้อ "สิทธิ์เข้า dashboard" ของตั้งค่าบอท
-          คนที่มีสิทธิ์ Administrator ในเซิร์ฟเป็น admin เสมอ — ถอดยศใน Discord แล้วหลุดจากเว็บทันที
+          {t("เข้าได้ด้วยบัญชี Discord ที่มียศตามที่ตั้งไว้ในหัวข้อ \"สิทธิ์เข้า dashboard\" ของตั้งค่าบอท คนที่มีสิทธิ์ Administrator ในเซิร์ฟเป็น admin เสมอ — ถอดยศใน Discord แล้วหลุดจากเว็บทันที")}
         </p>
         {!data ? (
           <div className="flex justify-center p-6 text-muted">
@@ -658,20 +656,20 @@ function AccessPeople({ me }: { me: string }) {
               <div className="flex flex-wrap gap-1.5 px-4 py-3">
                 {data.roles.map((r) => (
                   <Badge key={`${r.role}-${r.id}`} tone={r.role === "admin" ? "accent" : "plain"}>
-                    {r.role === "admin" ? "admin" : "mod"}: {r.name ?? `ไม่พบยศ ${r.id}`}
+                    {r.role === "admin" ? "admin" : "mod"}: {r.name ?? t("ไม่พบยศ {id}", { id: r.id })}
                   </Badge>
                 ))}
               </div>
             )}
             {data.people.length === 0 ? (
-              <p className="p-4 text-sm text-faint">ยังไม่มีข้อมูล (บอทไม่ได้ต่อ Discord)</p>
+              <p className="p-4 text-sm text-faint">{t("ยังไม่มีข้อมูล (บอทไม่ได้ต่อ Discord)")}</p>
             ) : (
               data.people.map((p) => (
                 <div key={p.id} className="flex items-center gap-3 px-4 py-3">
                   <Avatar id={p.id} name={p.name} size="md" />
                   <span className="min-w-0 flex-1 truncate text-sm font-medium">
                     {p.name}
-                    {p.name === me && <span className="ml-1.5 text-xs text-faint">(คุณ)</span>}
+                    {p.name === me && <span className="ml-1.5 text-xs text-faint">{t("(คุณ)")}</span>}
                   </span>
                   <Badge tone={p.role === "admin" ? "accent" : "plain"}>{p.role}</Badge>
                 </div>
@@ -692,13 +690,13 @@ function SignOut({ username, userId }: { username: string; userId: string }) {
       <Card className="flex items-center gap-3 p-4">
         <Avatar id={userId} name={username} size="md" />
         <span className="min-w-0 flex-1 truncate text-sm">
-          เข้าใช้งานในชื่อ <b>{username}</b>
+          {t("เข้าใช้งานในชื่อ")} <b>{username}</b>
         </span>
         {/* ใช้ form POST จริง ๆ ไม่ใช่ fetch — ปลายทางตอบด้วย redirect ให้เบราว์เซอร์เดินตาม */}
         <form method="post" action="/logout">
           <Button type="submit" variant="danger">
             <Icon name="logout" className="size-4" />
-            ออกจากระบบ
+            {t("ออกจากระบบ")}
           </Button>
         </form>
       </Card>

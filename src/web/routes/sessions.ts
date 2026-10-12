@@ -7,6 +7,7 @@ import {
   revokeSession,
 } from "../../auth/session.js";
 import { logEvent } from "../../utils/logger.js";
+import { tr, type Lang } from "../i18n.js";
 
 /**
  * แปลง User-Agent เป็นชื่อที่คนอ่านออก
@@ -17,6 +18,11 @@ import { logEvent } from "../../utils/logger.js";
  * ลำดับการเช็คสำคัญ — Edge/Chrome ใส่คำว่า "Safari" ใน UA ด้วย
  * ถ้าเช็ค Safari ก่อนจะกลายเป็น Safari ทั้งหมด
  */
+/** "ไม่ทราบ" ฯลฯ เป็นป้ายหน้าเว็บ — ชื่อ OS/เบราว์เซอร์อังกฤษอยู่แล้วก็ผ่านไปเฉย ๆ */
+function localDevice(d: { device: string; browser: string }, lang: Lang) {
+  return { device: tr(d.device, lang), browser: tr(d.browser, lang) };
+}
+
 export function describeDevice(ua: string): { device: string; browser: string } {
   const device = /iPhone/i.test(ua)
     ? "iPhone"
@@ -64,7 +70,7 @@ export function sessionRoutes(client?: Client): Router {
         lastSeen: s.last_seen,
         expires: s.expires,
         ip: s.ip,
-        ...describeDevice(s.user_agent),
+        ...localDevice(describeDevice(s.user_agent), res.locals.lang),
       })),
     );
   });

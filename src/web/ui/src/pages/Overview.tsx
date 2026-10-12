@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { useState } from "react";
 import { useFetch } from "../hooks/useFetch";
 import type { History, Stats, SystemInfo } from "../lib/types";
@@ -49,9 +50,9 @@ export function Overview({
         <div role="status" className="rule-l rule-warn flex items-start gap-2.5 rounded-md border border-line bg-surface px-4 py-2.5 text-sm">
           <Icon name="warn" className="mt-0.5 size-4 shrink-0 text-warn" />
           <p className="min-w-0">
-            <span className="font-semibold">การป้องกันไม่ครบ</span>
+            <span className="font-semibold">{t("การป้องกันไม่ครบ")}</span>
             <span className="text-muted">
-              {" "}— Discord ยังไม่อนุมัติสิทธิ์อ่านข้อความและรายชื่อสมาชิก ที่ปิดอยู่: {sys.data.degraded.join(" / ")}
+              {" "}— {t("Discord ยังไม่อนุมัติสิทธิ์อ่านข้อความและรายชื่อสมาชิก ที่ปิดอยู่:")} {sys.data.degraded.join(" / ")}
             </span>
           </p>
         </div>
@@ -66,22 +67,22 @@ export function Overview({
       {/* ---- ตัวเลขประกอบของวันนี้ ---- */}
       {s && (
         <section>
-          <SectionTitle>วันนี้</SectionTitle>
+          <SectionTitle>{t("วันนี้")}</SectionTitle>
           <StatStrip
             items={[
-              { label: "เหตุการณ์", value: fmtNum(s.logs.today), sub: `ทั้งหมด ${fmtNum(s.logs.total)}` },
+              { label: t("เหตุการณ์"), value: fmtNum(s.logs.today), sub: t("ทั้งหมด {n}", { n: fmtNum(s.logs.total) }) },
               {
-                label: "แจ้งเตือน",
+                label: t("แจ้งเตือน"),
                 value: fmtNum(s.logs.todayByLevel.alert),
-                sub: s.logs.todayByLevel.warn > 0 ? `เตือนอีก ${fmtNum(s.logs.todayByLevel.warn)}` : "ไม่มีเตือน",
+                sub: s.logs.todayByLevel.warn > 0 ? t("เตือนอีก {n}", { n: fmtNum(s.logs.todayByLevel.warn) }) : t("ไม่มีเตือน"),
                 tone: s.logs.todayByLevel.alert > 0 ? "alert" : "plain",
               },
               {
-                label: "อยู่ในห้องเสียง",
+                label: t("อยู่ในห้องเสียง"),
                 value: fmtNum(s.voice.count),
-                sub: s.voice.count ? s.voice.users[0]?.channel : "ห้องว่าง",
+                sub: s.voice.count ? s.voice.users[0]?.channel : t("ห้องว่าง"),
               },
-              { label: "สมาชิกมีบัตร", value: fmtNum(s.members), sub: `เตือนสะสม ${fmtNum(s.warnings)} ครั้ง` },
+              { label: t("สมาชิกมีบัตร"), value: fmtNum(s.members), sub: t("เตือนสะสม {n} ครั้ง", { n: fmtNum(s.warnings) }) },
             ]}
           />
         </section>
@@ -92,11 +93,11 @@ export function Overview({
         <section className="lg:col-span-3">
           <SectionTitle
             action={
-              <div className="flex gap-1.5" role="group" aria-label="ช่วงเวลาของกราฟ">
+              <div className="flex gap-1.5" role="group" aria-label={t("ช่วงเวลาของกราฟ")}>
                 {[
-                  { d: 1, label: "24 ชม." },
-                  { d: 7, label: "7 วัน" },
-                  { d: 30, label: "30 วัน" },
+                  { d: 1, label: t("24 ชม.") },
+                  { d: 7, label: t("7 วัน") },
+                  { d: 30, label: t("30 วัน") },
                 ].map((o) => (
                   <Chip key={o.d} active={days === o.d} onClick={() => setDays(o.d)}>
                     {o.label}
@@ -105,7 +106,7 @@ export function Overview({
               </div>
             }
           >
-            ความเคลื่อนไหว
+            {t("ความเคลื่อนไหว")}
           </SectionTitle>
           <Card level="glass" className="p-4">
             {history.data ? (
@@ -127,11 +128,11 @@ export function Overview({
                 onClick={() => go("/logs")}
                 className="press rounded-md px-2 py-1 text-sm font-medium text-accent hover:bg-accent-soft"
               >
-                เปิด Logs
+                {t("เปิด Logs")}
               </button>
             }
           >
-            แจ้งเตือนล่าสุด
+            {t("แจ้งเตือนล่าสุด")}
           </SectionTitle>
           {s && s.alerts.length > 0 ? (
             <ol className="rule-l rule-alert divide-y divide-line rounded-md border border-line bg-surface">
@@ -156,7 +157,7 @@ export function Overview({
           ) : (
             <div className="flex items-center gap-2 rounded-md border border-line bg-surface px-4 py-3 text-sm text-muted">
               <Icon name="shield-check" className="size-5 text-accent" />
-              ยังไม่มีแจ้งเตือน
+              {t("ยังไม่มีแจ้งเตือน")}
             </div>
           )}
         </section>
@@ -165,7 +166,7 @@ export function Overview({
       {/* ---- ใครอยู่ในห้องเสียง ---- */}
       {s && s.voice.count > 0 && (
         <section>
-          <SectionTitle>ในห้องเสียงตอนนี้</SectionTitle>
+          <SectionTitle>{t("ในห้องเสียงตอนนี้")}</SectionTitle>
           <Card className="divide-y divide-line">
             {s.voice.users.map((v) => (
               <div key={v.userId} className="flex items-center gap-3 px-4 py-3">
@@ -187,7 +188,7 @@ export function Overview({
       {/* ---- สถานะเครื่อง (admin ที่ไม่ใช่เจ้าของไม่เห็น) ---- */}
       {seesSystem && (
         <section>
-          <SectionTitle>สถานะเครื่อง</SectionTitle>
+          <SectionTitle>{t("สถานะเครื่อง")}</SectionTitle>
           {sys.data ? (
             <SystemCard sys={sys.data} />
           ) : (

@@ -7,6 +7,7 @@ import { iconOf, labelOf } from "../lib/categories";
 import { linkifyField } from "../lib/discordLinks";
 import { useLinkTarget } from "../lib/linkTarget";
 import { Avatar, idFromLabel } from "./Avatar";
+import { t } from "../lib/i18n";
 
 /**
  * ระดับของ log บอกด้วยเส้นซ้ายสีเดียวกับการ์ดคิว — ปกติเป็นเส้นสีฟอร์ม (ไม่แย่งสายตา)
@@ -14,15 +15,15 @@ import { Avatar, idFromLabel } from "./Avatar";
  */
 /** ต้องตรงกับ aiDeleted ใน src/web/routes/ai.ts */
 function aiDeleted(entry: LogEntry): boolean {
-  const f = entry.fields.find((x) => x.name === "ลบข้อความ")?.value;
-  if (f) return f === "ลบแล้ว";
-  return entry.title.includes("ลบข้อความแล้ว") || entry.title.includes("จัดการอัตโนมัติ");
+  const f = entry.fields.find((x) => x.name === "ลบข้อความ")?.value; // i18n-ignore
+  if (f) return f === "ลบแล้ว"; // i18n-ignore
+  return entry.title.includes("ลบข้อความแล้ว") || entry.title.includes("จัดการอัตโนมัติ"); // i18n-ignore
 }
 
 const LEVEL: Record<LogLevel, { rule: string; name: string }> = {
-  info: { rule: "rule-none", name: "ปกติ" },
-  warn: { rule: "rule-warn", name: "เตือน" },
-  alert: { rule: "rule-alert", name: "แจ้งเตือน" },
+  info: { rule: "rule-none", name: t("ปกติ") },
+  warn: { rule: "rule-warn", name: t("เตือน@@level") },
+  alert: { rule: "rule-alert", name: t("แจ้งเตือน@@level") },
 };
 
 /**
@@ -62,7 +63,7 @@ export function LogRow({
   const partnerName =
     entry.category === "partner"
       ? (entry.fields
-          .find((f) => f.name === "ผู้ทำ")
+          .find((f) => f.name === "ผู้ทำ") // i18n-ignore
           ?.value.replace(/\s*\(\d+\)\s*$/, "") ?? null)
       : null;
 
@@ -71,7 +72,7 @@ export function LogRow({
    * ใช้โชว์รูปโปรไฟล์หน้าหัวข้อ ให้กวาดตาดูแล้วรู้ว่าเรื่องของใครโดยไม่ต้องกดขยาย
    */
   const subject = entry.fields
-    .filter((f) => ["User", "เป้าหมาย", "สมาชิก", "ผู้ทำ"].includes(f.name))
+    .filter((f) => ["User", "เป้าหมาย", "สมาชิก", "ผู้ทำ"].includes(f.name)) // i18n-ignore
     .map((f) => ({ id: idFromLabel(f.value), name: f.value.replace(/\s*\(\d+\)\s*$/, "") }))
     .find((x) => x.id);
 
@@ -114,8 +115,8 @@ export function LogRow({
               และให้โปรแกรมอ่านหน้าจอออกเสียงได้ ไม่ใช่ไอคอนลอย ๆ ที่ไม่มีความหมาย
             */}
             <span
-              title={`หมวด: ${labelOf(entry.category)}`}
-              aria-label={`หมวด: ${labelOf(entry.category)}`}
+              title={t("หมวด: {c}", { c: labelOf(entry.category) })}
+              aria-label={t("หมวด: {c}", { c: labelOf(entry.category) })}
               className="inline-flex items-center rounded-md bg-raised p-1 text-muted"
             >
               <Icon
@@ -131,8 +132,8 @@ export function LogRow({
             )}
             {verdict && (
               <Badge tone={verdict === "toxic" ? "ok" : "alert"}>
-                {verdict === "toxic" ? "AI ถูก" : "AI ผิด"}
-                {comment ? " · มีหมายเหตุ" : ""}
+                {verdict === "toxic" ? t("AI ถูก") : t("AI ผิด")}
+                {comment ? ` · ${t("มีหมายเหตุ")}` : ""}
               </Badge>
             )}
             {entry.fields.length > 0 && (
@@ -141,7 +142,7 @@ export function LogRow({
                   name="chevron"
                   className={`size-3 transition-transform ${open ? "rotate-90" : ""}`}
                 />
-                {entry.fields.length} รายละเอียด
+                {t("{n} รายละเอียด", { n: entry.fields.length })}
               </span>
             )}
           </div>
@@ -164,7 +165,7 @@ export function LogRow({
               </div>
             ))}
             <div className="flex gap-2 pt-1 text-faint">
-              <dt className="w-24 shrink-0">เวลา</dt>
+              <dt className="w-24 shrink-0">{t("เวลา")}</dt>
               <dd>{fmtDateTime(entry.timestamp)}</dd>
             </div>
           </dl>
@@ -199,20 +200,20 @@ function AiVerdict({
   const dirty = draft.trim() !== comment;
   return (
     <div className="mt-3 space-y-2 border-t border-line pt-3">
-      <p className="text-xs text-faint">บอทลบข้อความนี้ — Claude ตัดสินถูกไหม?</p>
+      <p className="text-xs text-faint">{t("บอทลบข้อความนี้ — Claude ตัดสินถูกไหม?")}</p>
       <div className="flex gap-2">
         <VerdictButton
           active={verdict === "toxic"}
           tone="ok"
           icon="check"
-          label="ถูก"
+          label={t("ถูก")}
           onClick={() => onVerdict(verdict === "toxic" ? null : "toxic", draft.trim())}
         />
         <VerdictButton
           active={verdict === "ok"}
           tone="alert"
           icon="x"
-          label="ผิด"
+          label={t("ผิด")}
           onClick={() => onVerdict(verdict === "ok" ? null : "ok", draft.trim())}
         />
       </div>
@@ -225,7 +226,7 @@ function AiVerdict({
               if (e.key === "Enter" && dirty) onVerdict(verdict, draft.trim());
             }}
             maxLength={500}
-            placeholder="หมายเหตุ (ไม่บังคับ) เช่น พูดเล่นกับเพื่อน"
+            placeholder={t("หมายเหตุ (ไม่บังคับ) เช่น พูดเล่นกับเพื่อน")}
             className="min-w-0 flex-1 rounded-md border border-line bg-surface px-2.5 py-1.5 text-xs outline-none focus:border-accent"
           />
           {dirty && (
@@ -234,7 +235,7 @@ function AiVerdict({
               onClick={() => onVerdict(verdict, draft.trim())}
               className="press shrink-0 rounded-md bg-accent px-3 text-xs font-medium text-surface"
             >
-              บันทึก
+              {t("บันทึก")}
             </button>
           )}
         </div>

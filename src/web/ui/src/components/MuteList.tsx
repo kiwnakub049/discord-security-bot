@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { useState } from "react";
 import { useFetch } from "../hooks/useFetch";
 import { api } from "../lib/api";
@@ -29,7 +30,7 @@ export function MuteList() {
       toast(r.message, r.ok ? "ok" : "error");
       q.reload();
     } catch (e) {
-      toast(e instanceof Error ? e.message : "ปลดไม่สำเร็จ", "error");
+      toast(e instanceof Error ? e.message : t("ปลดไม่สำเร็จ"), "error");
     } finally {
       setBusy(null);
     }
@@ -37,7 +38,7 @@ export function MuteList() {
 
   return (
     <section>
-      <SectionTitle>ไมค์แดงจากระบบเตือน</SectionTitle>
+      <SectionTitle>{t("ไมค์แดงจากระบบเตือน")}</SectionTitle>
       <Card className="divide-y divide-line">
         {mutes.map((m) => (
           <div key={m.userId} className="flex items-center gap-3 px-4 py-3">
@@ -52,16 +53,16 @@ export function MuteList() {
               <div className="truncate text-sm font-medium">{m.name}</div>
               <div className="text-xs text-muted">
                 {m.pending || m.until == null
-                  ? "ครบเวลาแล้ว — ปลดให้ตอนกลับเข้าห้องเสียง"
-                  : `ปลดเองในอีก ${fmtDuration(Math.max(0, (m.until - now) / 1000))}`}
+                  ? t("ครบเวลาแล้ว — ปลดให้ตอนกลับเข้าห้องเสียง")
+                  : t("ปลดเองในอีก {time}", { time: fmtDuration(Math.max(0, (m.until - now) / 1000)) })}
                 {" · "}
-                {m.inVoice ? "อยู่ในห้องเสียง" : "ไม่อยู่ในห้องเสียง"}
+                {m.inVoice ? t("อยู่ในห้องเสียง") : t("ไม่อยู่ในห้องเสียง")}
                 {m.reason && ` · ${m.reason}`}
               </div>
             </div>
             <Button disabled={busy === m.userId} onClick={() => void release(m)}>
               <Icon name="unlock" className="size-4" />
-              ปลดทันที
+              {t("ปลดทันที")}
             </Button>
           </div>
         ))}

@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { useEffect, type ReactNode } from "react";
 import { Icon } from "./Icon";
 
@@ -39,7 +40,7 @@ export function Sheet({
     <div className="fixed inset-0 z-40 flex items-end justify-center md:items-center">
       <button
         type="button"
-        aria-label="ปิด"
+        aria-label={t("ปิด")}
         onClick={onClose}
         className="fade-in absolute inset-0 bg-[var(--c-backdrop)]"
       />
@@ -55,7 +56,7 @@ export function Sheet({
           <button
             type="button"
             onClick={onClose}
-            aria-label="ปิด"
+            aria-label={t("ปิด")}
             className="press rounded-md border border-line bg-surface p-2 text-muted"
           >
             <Icon name="x" className="size-5" />

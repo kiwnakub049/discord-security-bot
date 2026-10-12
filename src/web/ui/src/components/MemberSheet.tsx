@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import type { ActionResult, Member, RankEntry, Warning } from "../lib/types";
@@ -57,7 +58,7 @@ export function MemberSheet({
         onClose();
       }
     } catch (err) {
-      toast(err instanceof Error ? err.message : "ทำรายการไม่สำเร็จ", "error");
+      toast(err instanceof Error ? err.message : t("ทำรายการไม่สำเร็จ"), "error");
     } finally {
       setBusy(false);
       setConfirming(null);
@@ -75,23 +76,23 @@ export function MemberSheet({
         {/* ---- บัตรประจำตัว ---- */}
         <img
           src={`/api/members/${member.id}/card.png`}
-          alt={`บัตรของ ${member.username}`}
+          alt={t("บัตรของ {name}", { name: member.username })}
           loading="lazy"
           className="w-full rounded-md border border-line bg-raised"
         />
 
         {/* ---- ข้อมูลย่อ ---- */}
         <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm">
-          <Info label="เลขสมาชิก" value={`#${member.member_number}`} />
-          <Info label="เข้าร่วม" value={member.join_date} />
-          <Info label="ไบแอส" value={member.bias || "-"} />
-          <Info label="สถานะ" value={member.status || "-"} />
+          <Info label={t("เลขสมาชิก")} value={`#${member.member_number}`} />
+          <Info label={t("เข้าร่วม")} value={member.join_date} />
+          <Info label={t("ไบแอส")} value={member.bias || "-"} />
+          <Info label={t("สถานะ")} value={member.status || "-"} />
         </div>
 
         {/* ---- เลเวล ---- */}
         <div>
           <div className="mb-1.5 flex items-baseline justify-between text-sm">
-            <span className="font-medium">เลเวล {member.level}</span>
+            <span className="font-medium">{t("เลเวล {n}", { n: member.level })}</span>
             <span className="tnum text-xs text-muted">
               {activity
                 ? `${fmtNum(activity.xpIntoLevel)} / ${fmtNum(activity.xpForNext)} XP`
@@ -101,8 +102,8 @@ export function MemberSheet({
           <Meter pct={activity?.pct ?? 0} tone="accent" />
           {activity && (
             <div className="mt-1.5 flex gap-4 text-xs text-faint">
-              <span>{fmtNum(activity.messages)} ข้อความ</span>
-              <span>ห้องเสียง {fmtDuration(activity.voiceSeconds)}</span>
+              <span>{t("{n} ข้อความ", { n: fmtNum(activity.messages) })}</span>
+              <span>{t("ห้องเสียง {d}", { d: fmtDuration(activity.voiceSeconds) })}</span>
             </div>
           )}
         </div>
@@ -110,7 +111,7 @@ export function MemberSheet({
         {member.voice && (
           <div className="flex items-center gap-2 rounded-md bg-info-soft px-3 py-2.5 text-sm text-info">
             <Icon name="volume" className="size-4 shrink-0" />
-            อยู่ใน {member.voice.channelName}
+            {t("อยู่ใน {channel}", { channel: member.voice.channelName })}
           </div>
         )}
 
@@ -118,7 +119,7 @@ export function MemberSheet({
         <div>
           <div className="mb-2 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-muted">
-              ประวัติการเตือน
+              {t("ประวัติการเตือน")}
               {warnings && warnings.length > 0 && ` (${warnings.length})`}
             </h3>
             {warnings && warnings.length > 0 && (
@@ -128,7 +129,7 @@ export function MemberSheet({
                 onClick={() => void run("/api/action/clearwarnings", { userId: member.id })}
                 className="text-xs font-medium text-accent disabled:opacity-40"
               >
-                ล้างทั้งหมด
+                {t("ล้างทั้งหมด")}
               </button>
             )}
           </div>
@@ -137,7 +138,7 @@ export function MemberSheet({
               <Spinner className="size-4" />
             </div>
           ) : warnings.length === 0 ? (
-            <p className="text-sm text-faint">ยังไม่เคยถูกเตือน</p>
+            <p className="text-sm text-faint">{t("ยังไม่เคยถูกเตือน")}</p>
           ) : (
             <ul className="space-y-1.5">
               {warnings.map((w) => (
@@ -157,7 +158,7 @@ export function MemberSheet({
           <input
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="เหตุผล (ไม่ใส่ก็ได้)"
+            placeholder={t("เหตุผล (ไม่ใส่ก็ได้)")}
             className="w-full rounded-md border border-line bg-surface px-3 py-2.5 text-base outline-none placeholder:text-faint focus:border-accent"
           />
 
@@ -168,7 +169,7 @@ export function MemberSheet({
             onClick={() => void run("/api/action/warn", payload())}
           >
             <Icon name="warn" className="size-4" />
-            เตือน
+            {t("เตือน")}
           </Button>
 
           <div className="grid grid-cols-3 gap-2">
@@ -178,7 +179,7 @@ export function MemberSheet({
                 disabled={busy}
                 onClick={() => void run("/api/action/timeout", { ...payload(), minutes: m })}
               >
-                {m >= 60 ? `${m / 60} ชม.` : `${m} นาที`}
+                {m >= 60 ? t("{n} ชม.", { n: m / 60 }) : t("{m} นาที", { m })}
               </Button>
             ))}
           </div>
@@ -189,7 +190,7 @@ export function MemberSheet({
             onClick={() => void run("/api/action/untimeout", payload())}
           >
             <Icon name="unlock" className="size-4" />
-            ปลด timeout
+            {t("ปลด timeout")}
           </Button>
 
           {/*
@@ -210,10 +211,10 @@ export function MemberSheet({
               >
                 <Icon name={act === "ban" ? "ban" : "logout"} className="size-4" />
                 {confirming === act
-                  ? "กดอีกครั้งเพื่อยืนยัน"
+                  ? t("กดอีกครั้งเพื่อยืนยัน")
                   : act === "ban"
-                    ? "แบน"
-                    : "เตะออก"}
+                    ? t("แบน")
+                    : t("เตะออก")}
               </Button>
             ))}
           </div>
@@ -224,7 +225,7 @@ export function MemberSheet({
               onClick={() => setConfirming(null)}
               className="w-full py-1 text-center text-xs text-muted"
             >
-              ยกเลิก
+              {t("ยกเลิก")}
             </button>
           )}
         </div>

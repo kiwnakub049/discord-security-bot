@@ -19,6 +19,7 @@ import {
 import { getLogById } from "../../store/logStore.js";
 import { warnMember } from "../../modules/warnAction.js";
 import { recordAiVerdict } from "./ai.js";
+import { tr, type Lang } from "../i18n.js";
 import { deleteMessageRefs } from "../../modules/deleteRefs.js";
 import { dmAction } from "../../modules/dmNotice.js";
 import { notifyTicketClosed, replyToTicket, TICKET_CATEGORY } from "../../modules/ticket.js";
@@ -60,15 +61,16 @@ export function queueRoutes(client?: Client): Router {
     }));
   }
 
-  const meta = (d: QueueCategoryDef) => ({
+  // ป้าย/ปุ่มของหมวดเป็นหน้าตาเว็บ ไม่ใช่ข้อมูล — แปลตามภาษาที่เลือก
+  const meta = (d: QueueCategoryDef, lang: Lang) => ({
     key: d.key,
-    label: d.label,
+    label: tr(d.label, lang),
     severity: d.severity,
     overdueAfterMin: d.overdueAfterMin,
-    verb: d.verb,
-    unit: d.unit,
+    verb: tr(d.verb, lang),
+    unit: tr(d.unit, lang),
     note: !!d.note,
-    outcomes: d.outcomes.map(({ key, label, tone }) => ({ key, label, tone })),
+    outcomes: d.outcomes.map(({ key, label, tone }) => ({ key, label: tr(label, lang), tone })),
   });
 
   r.get("/api/queue", async (_req: Request, res: Response) => {
@@ -79,11 +81,11 @@ export function queueRoutes(client?: Client): Router {
     for (const def of QUEUE_CATEGORIES) {
       const s = counts.get(def.key);
       if (!s || s.count === 0) {
-        idle.push({ key: def.key, label: def.label });
+        idle.push({ key: def.key, label: tr(def.label, res.locals.lang) });
         continue;
       }
       stacks.push({
-        ...meta(def),
+        ...meta(def, res.locals.lang),
         count: s.count,
         oldestAt: s.oldestAt,
         items: await present(listOpen(def.key, PREVIEW)),
@@ -99,7 +101,7 @@ export function queueRoutes(client?: Client): Router {
       res.status(404).json({ ok: false, message: "ไม่มีหมวดนี้" });
       return;
     }
-    res.json({ category: meta(def), items: await present(listOpen(def.key)) });
+    res.json({ category: meta(def, res.locals.lang), items: await present(listOpen(def.key)) });
   });
 
   /** เรื่อง ticket จาก id ใน URL — ไม่ใช่ ticket หรือไม่มีจริง = undefined */
@@ -254,7 +256,12 @@ export function queueRoutes(client?: Client): Router {
       res.status(409).json({ ok: false, message: "เรื่องนี้ถูกตัดสินไปแล้ว" });
       return;
     }
-    res.json({ ok: true, message: `${outcome.doneText}${actionNote}${deleteNote}: ${item.title}` });
+    // ประกอบทีละชิ้นแล้วแปลแยก — หัวข้อเรื่องเป็นข้อมูล ไม่แปล
+    const lang: Lang = res.locals.lang;
+    res.json({
+      ok: true,
+      message: `${tr(outcome.doneText, lang)}${tr(actionNote, lang)}${tr(deleteNote, lang)}: ${item.title}`,
+    });
 
     // ถูก/ผิดของ Claude ย้อนไปติดที่ log ต้นทางทุกอัน — ไม่ต้องไปกดซ้ำในหน้า Logs
     if (outcome.verdict) {

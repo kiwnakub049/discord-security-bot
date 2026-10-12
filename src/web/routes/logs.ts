@@ -13,6 +13,7 @@ import {
   type LogLevel,
 } from "../../store/logStore.js";
 import { PARTNER_BOTS } from "../../partners.js";
+import { tr } from "../i18n.js";
 
 const LEVELS = new Set(["info", "warn", "alert"]);
 // สร้างจาก LOG_CATEGORIES เพื่อไม่ให้ลืมอัปเดตตอนเพิ่มหมวดใหม่
@@ -102,9 +103,9 @@ export function logRoutes(access: AccessResolver): Router {
   r.get("/api/logs/export.csv", (req: Request, res: Response) => {
     const rows = getLogs({ ...filtersFrom(req.query), limit: 5000 });
     const csv = toCsv(
-      ["เวลา", "ระดับ", "หมวด", "เหตุการณ์", "หัวข้อ", "รายละเอียด", "ข้อมูลเพิ่มเติม"],
+      ["เวลา", "ระดับ", "หมวด", "เหตุการณ์", "หัวข้อ", "รายละเอียด", "ข้อมูลเพิ่มเติม"].map((h) => tr(h, res.locals.lang)),
       rows.map((e) => [
-        new Date(e.timestamp).toLocaleString("th-TH", { hour12: false }),
+        new Date(e.timestamp).toLocaleString(res.locals.lang === "en" ? "en-GB" : "th-TH", { hour12: false }),
         e.level,
         e.category,
         e.event,
