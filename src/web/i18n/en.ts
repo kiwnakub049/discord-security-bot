@@ -6,6 +6,7 @@
  * ชื่อคน/หัวข้อเรื่อง/ข้อความจาก Discord ที่ปนมาในข้อความ = ข้อมูล ไม่แปล
  */
 export const EXACT: Record<string, string> = {
+  "ไม่พบข้อความที่จะตอบกลับ": "The message you're replying to wasn't found",
   /* ---------- ทั่วไป ---------- */
   "ข้อมูลไม่ครบ": "Missing information",
   "ข้อมูลไม่ถูกต้อง": "Invalid data",

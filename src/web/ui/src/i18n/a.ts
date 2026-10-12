@@ -138,4 +138,13 @@ export const a: Record<string, string> = {
   "เชื่อมต่อไม่ได้ระหว่างอัปโหลด": "Connection lost during upload",
   "เริ่มอัปโหลดไม่ได้": "Couldn't start the upload",
   "อัปโหลดไม่สำเร็จ": "Upload failed",
+  // ตอบกลับในแชททีม
+  "ข้อความนี้เก่ากว่าที่โหลดไว้ — กด \"โหลดข้อความเก่ากว่านี้\" ด้านบน": "This message is older than what's loaded — tap \"Load older messages\" above",
+  "ไม่พบข้อความต้นทางแล้ว": "The original message is no longer available",
+  "ไปที่ข้อความต้นทาง": "Go to original message",
+  "ข้อความต้นทางถูกลบไปแล้ว": "Original message was deleted",
+  "📎 ไฟล์แนบ {n} ไฟล์": "📎 {n} attachment(s)",
+  "ตอบกลับ {name}": "Reply to {name}",
+  "ตอบกลับ": "Reply",
+  "ยกเลิกการตอบกลับ": "Cancel reply",
 };

@@ -504,7 +504,7 @@ function Conversation({
   function jumpTo(id: number) {
     const el = document.getElementById(`team-msg-${id}`);
     if (!el) {
-      toast(hasOlder ? "ข้อความนี้เก่ากว่าที่โหลดไว้ — กด \"โหลดข้อความเก่ากว่านี้\" ด้านบน" : "ไม่พบข้อความต้นทางแล้ว", "error");
+      toast(hasOlder ? t("ข้อความนี้เก่ากว่าที่โหลดไว้ — กด \"โหลดข้อความเก่ากว่านี้\" ด้านบน") : t("ไม่พบข้อความต้นทางแล้ว"), "error");
       return;
     }
     el.scrollIntoView({ block: "center", behavior: "smooth" });
@@ -608,21 +608,21 @@ function Conversation({
                         type="button"
                         onClick={() => m.replyTo && !m.replyTo.gone && jumpTo(m.replyTo.id)}
                         disabled={m.replyTo.gone}
-                        title={m.replyTo.gone ? undefined : "ไปที่ข้อความต้นทาง"}
+                        title={m.replyTo.gone ? undefined : t("ไปที่ข้อความต้นทาง")}
                         className={`flex max-w-full items-center gap-1.5 rounded-md border-l-2 border-accent/60 bg-raised/60 px-2 py-1 text-left text-xs text-muted ${
                           m.replyTo.gone ? "" : "press hover:bg-raised"
                         }`}
                       >
                         <Icon name="reply" className="size-3 shrink-0" />
                         {m.replyTo.gone ? (
-                          <span className="italic">ข้อความต้นทางถูกลบไปแล้ว</span>
+                          <span className="italic">{t("ข้อความต้นทางถูกลบไปแล้ว")}</span>
                         ) : (
                           <>
                             <span className="shrink-0 font-semibold text-text">
                               {(m.replyTo.authorId && byId.get(m.replyTo.authorId)?.name) ?? m.replyTo.authorName}
                             </span>
                             <span className="min-w-0 truncate">
-                              {m.replyTo.excerpt || (m.replyTo.files ? `📎 ไฟล์แนบ ${m.replyTo.files} ไฟล์` : "")}
+                              {m.replyTo.excerpt || (m.replyTo.files ? t("📎 ไฟล์แนบ {n} ไฟล์", { n: m.replyTo.files }) : "")}
                             </span>
                           </>
                         )}
@@ -649,8 +649,8 @@ function Conversation({
                   <button
                     type="button"
                     onClick={() => startReply(m)}
-                    aria-label={`ตอบกลับ ${nameOf(m)}`}
-                    title="ตอบกลับ"
+                    aria-label={t("ตอบกลับ {name}", { name: nameOf(m) })}
+                    title={t("ตอบกลับ")}
                     className="press self-center rounded-md p-1.5 text-faint opacity-60 hover:bg-raised hover:text-text focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100"
                   >
                     <Icon name="reply" className="size-4" />
@@ -695,17 +695,17 @@ function Conversation({
           <div className="mb-2 flex items-center gap-2 rounded-md border-l-2 border-accent bg-raised/60 px-2.5 py-1.5 text-xs">
             <Icon name="reply" className="size-3.5 shrink-0 text-accent" />
             <span className="min-w-0 flex-1 truncate">
-              <span className="text-muted">ตอบกลับ </span>
+              <span className="text-muted">{t("ตอบกลับ")} </span>
               <span className="font-semibold">{nameOf(replying)}</span>
               <span className="text-muted">
                 {" · "}
-                {replying.body || (replying.files.length ? `📎 ไฟล์แนบ ${replying.files.length} ไฟล์` : "")}
+                {replying.body || (replying.files.length ? t("📎 ไฟล์แนบ {n} ไฟล์", { n: replying.files.length }) : "")}
               </span>
             </span>
             <button
               type="button"
               onClick={() => setReplying(null)}
-              aria-label="ยกเลิกการตอบกลับ"
+              aria-label={t("ยกเลิกการตอบกลับ")}
               className="press shrink-0 rounded p-0.5 text-faint hover:text-text"
             >
               <Icon name="x" className="size-3.5" />
