@@ -142,7 +142,14 @@ export function getLogById(id: number): LogEntry | null {
  */
 export function getLogs(opts: {
   level?: LogLevel;
+  /** หลายระดับพร้อมกัน (ติ๊กหลายช่องบนหน้าเว็บ) — ใช้ร่วมกับ level ได้ */
+  levels?: LogLevel[];
   category?: LogCategory;
+  /**
+   * หลายหมวดพร้อมกัน — หมวดกับ events เป็น "หรือ" กัน:
+   * ติ๊กทั้งหมวดห้องเสียง + กิ่ง "เตือนสมาชิก" = เห็นทุกอย่างของห้องเสียง และการเตือน
+   */
+  categories?: LogCategory[];
   limit?: number;
   search?: string;
   /**
@@ -159,26 +166,31 @@ export function getLogs(opts: {
   const where: string[] = [];
   const params: Record<string, unknown> = {};
 
-  if (opts.level) {
-    where.push("level = @level");
-    params.level = opts.level;
-  }
-  if (opts.category) {
-    where.push("category = @category");
-    params.category = opts.category;
-  }
+  // better-sqlite3 ไม่ขยาย array ให้เอง — สร้าง placeholder ตามจำนวนจริง (p0, p1, …)
+  let n = 0;
+  const inList = (column: string, values: string[]) => {
+    const names = values.map((v) => {
+      const key = `p${n++}`;
+      params[key] = v;
+      return `@${key}`;
+    });
+    return `${column} IN (${names.join(", ")})`;
+  };
+
+  const levels = [...new Set([...(opts.levels ?? []), ...(opts.level ? [opts.level] : [])])];
+  if (levels.length) where.push(inList("level", levels));
+
+  const categories = [
+    ...new Set([...(opts.categories ?? []), ...(opts.category ? [opts.category] : [])]),
+  ];
+  const scope: string[] = [];
+  if (categories.length) scope.push(inList("category", categories));
+  if (opts.events?.length) scope.push(inList("event", opts.events));
+  if (scope.length) where.push(`(${scope.join(" OR ")})`);
+
   if (opts.search) {
     where.push("(title LIKE @q OR description LIKE @q OR fields LIKE @q)");
     params.q = `%${opts.search}%`;
-  }
-  if (opts.events?.length) {
-    // ต้องสร้าง placeholder ตามจำนวนจริง — better-sqlite3 ไม่ขยาย array ให้เอง
-    // ชื่อพารามิเตอร์เลยเป็น ev0, ev1, … แทนที่จะยัดทั้งก้อนเป็นค่าเดียว
-    const names = opts.events.map((_, i) => `@ev${i}`);
-    where.push(`event IN (${names.join(", ")})`);
-    opts.events.forEach((e, i) => {
-      params[`ev${i}`] = e;
-    });
   }
   if (opts.beforeId && Number.isFinite(opts.beforeId)) {
     where.push("id < @beforeId");

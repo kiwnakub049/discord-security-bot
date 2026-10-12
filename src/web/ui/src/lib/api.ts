@@ -6,6 +6,8 @@
  * โดยไม่รู้ว่าต้อง login ใหม่
  */
 
+import { lang, t } from "./i18n";
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -19,9 +21,9 @@ export class ApiError extends Error {
 // เพื่อให้หน้าเว็บโชว์ปุ่มลองใหม่/ข้อความ แทนที่จะหมุน spinner ไปเรื่อย ๆ
 const REQUEST_TIMEOUT_MS = 20_000;
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
   const ctrl = new AbortController();
-  const timer = window.setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+  const timer = window.setTimeout(() => ctrl.abort(), timeoutMs);
   let res: Response;
   try {
     res = await fetch(path, {
@@ -29,14 +31,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       signal: ctrl.signal,
       headers: {
         ...(init?.body ? { "Content-Type": "application/json" } : {}),
+        // server แปลข้อความตอบกลับ (message/error) ตามภาษานี้
+        "X-Lang": lang,
         ...init?.headers,
       },
     });
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") {
-      throw new ApiError("เซิร์ฟเวอร์ไม่ตอบ (หมดเวลา) — ลองใหม่อีกครั้ง", 0);
+      throw new ApiError(t("เซิร์ฟเวอร์ไม่ตอบ (หมดเวลา) — ลองใหม่อีกครั้ง"), 0);
     }
-    throw new ApiError("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — เช็คเน็ตแล้วลองใหม่", 0);
+    throw new ApiError(t("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — เช็คเน็ตแล้วลองใหม่"), 0);
   } finally {
     window.clearTimeout(timer);
   }
@@ -44,12 +48,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (res.status === 401) {
     // session หมดอายุระหว่างเปิดหน้าค้างไว้ — พากลับไป login เลย ไม่ต้องให้เดา
     window.location.href = "/login";
-    throw new ApiError("ต้องเข้าสู่ระบบใหม่", 401);
+    throw new ApiError(t("ต้องเข้าสู่ระบบใหม่"), 401);
   }
 
   if (!res.ok) {
     // API ตอบ JSON เสมอเวลาพลาด แต่เผื่อกรณีที่ proxy ขวางแล้วส่ง HTML มาแทน
-    let message = `คำขอไม่สำเร็จ (${res.status})`;
+    let message = t("คำขอไม่สำเร็จ ({status})", { status: res.status });
     try {
       const body = (await res.json()) as { message?: string; error?: string };
       message = body.message || body.error || message;
@@ -64,11 +68,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   get: <T>(path: string): Promise<T> => request<T>(path),
-  post: <T>(path: string, body?: unknown): Promise<T> =>
-    request<T>(path, {
-      method: "POST",
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    }),
+  /** timeoutMs: งานที่รู้ว่านาน (เช่นแชทกับ Claude ที่วนค้นข้อมูลหลายรอบ) ขยายเวลารอได้ */
+  post: <T>(path: string, body?: unknown, timeoutMs?: number): Promise<T> =>
+    request<T>(
+      path,
+      {
+        method: "POST",
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      },
+      timeoutMs,
+    ),
   put: <T>(path: string, body?: unknown): Promise<T> =>
     request<T>(path, {
       method: "PUT",
@@ -93,11 +102,12 @@ function putBlob(path: string, blob: Blob, onProgress?: (loaded: number) => void
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", path);
     xhr.setRequestHeader("Content-Type", "application/octet-stream");
+    xhr.setRequestHeader("X-Lang", lang);
     xhr.upload.onprogress = (e) => onProgress?.(e.loaded);
     xhr.onload = () => {
       if (xhr.status === 401) {
         window.location.href = "/login";
-        reject(new ApiError("ต้องเข้าสู่ระบบใหม่", 401));
+        reject(new ApiError(t("ต้องเข้าสู่ระบบใหม่"), 401));
         return;
       }
       let body: { error?: string } = {};
@@ -107,9 +117,9 @@ function putBlob(path: string, blob: Blob, onProgress?: (loaded: number) => void
         /* ไม่ใช่ JSON */
       }
       if (xhr.status >= 200 && xhr.status < 300) resolve(body);
-      else reject(new ApiError(body.error ?? `ส่งไม่สำเร็จ (${xhr.status})`, xhr.status));
+      else reject(new ApiError(body.error ?? t("ส่งไม่สำเร็จ ({status})", { status: xhr.status }), xhr.status));
     };
-    xhr.onerror = () => reject(new ApiError("เชื่อมต่อไม่ได้ระหว่างอัปโหลด", 0));
+    xhr.onerror = () => reject(new ApiError(t("เชื่อมต่อไม่ได้ระหว่างอัปโหลด"), 0));
     xhr.send(blob);
   });
 }
@@ -122,7 +132,7 @@ export async function uploadMod(
     "/api/beammp/mods/begin",
     { name: file.name },
   );
-  if (!begin.ok) throw new ApiError(begin.error ?? "เริ่มอัปโหลดไม่ได้", 400);
+  if (!begin.ok) throw new ApiError(begin.error ?? t("เริ่มอัปโหลดไม่ได้"), 400);
 
   const size = begin.chunkBytes;
   try {
@@ -145,6 +155,22 @@ export async function uploadMod(
     void api.post("/api/beammp/mods/abort", { id: begin.id }).catch(() => {});
     throw err;
   }
+}
+
+/**
+ * อัปไฟล์แนบของแชททีม — ส่งรวดเดียว (ไฟล์ไม่เกิน 100 MB ต่ำกว่าเพดานของ Cloudflare)
+ * ได้ id กลับไปแนบตอนส่งข้อความ
+ */
+export async function uploadTeamFile(
+  file: File,
+  onProgress?: (fraction: number) => void,
+): Promise<{ id: string; size: number }> {
+  const q = new URLSearchParams({ name: file.name, type: file.type || "application/octet-stream" });
+  const r = (await putBlob(`/api/team/files?${q}`, file, (loaded) =>
+    onProgress?.(file.size ? Math.min(1, loaded / file.size) : 1),
+  )) as { ok?: boolean; id?: string; size?: number; error?: string };
+  if (!r.ok || !r.id) throw new ApiError(r.error ?? t("อัปโหลดไม่สำเร็จ"), 400);
+  return { id: r.id, size: r.size ?? file.size };
 }
 
 /** ต่อ query string โดยข้ามค่าที่ว่าง — ให้ URL สั้นและ cache ตรงกันเวลาเงื่อนไขเหมือนกัน */

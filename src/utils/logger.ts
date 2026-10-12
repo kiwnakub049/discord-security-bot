@@ -57,19 +57,19 @@ export async function logEvent(
   title: string,
   fields: { name: string; value: string }[] = [],
   description?: string,
-): Promise<void> {
-  // 1) log store (สำหรับเว็บ + persist)
-  await addLog(level, category, event, title, fields, description);
+): Promise<number> {
+  // 1) log store (สำหรับเว็บ + persist) — คืน id ให้คนเรียกผูกเรื่องอื่นเข้ากับ log นี้ได้ (เช่นการ์ดในคิว)
+  const { id } = await addLog(level, category, event, title, fields, description);
 
   // 2) console — มีประโยชน์ตอน dev
   const fieldStr = fields.map((f) => `${f.name}=${f.value}`).join(" ");
   console.log(`${EMOJI[level]} [${level.toUpperCase()}] ${title} ${fieldStr}`);
 
   // 3) Discord
-  if (!config.logChannelId) return;
+  if (!config.logChannelId) return id;
   try {
     const channel = await client.channels.fetch(config.logChannelId);
-    if (!channel || !channel.isTextBased()) return;
+    if (!channel || !channel.isTextBased()) return id;
 
     const embed = new EmbedBuilder()
       .setColor(COLORS[level])
@@ -102,4 +102,5 @@ export async function logEvent(
   } catch (err) {
     console.error("ส่ง log ไปห้อง log ไม่สำเร็จ:", err);
   }
+  return id;
 }

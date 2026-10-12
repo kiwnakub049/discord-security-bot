@@ -54,10 +54,14 @@ export const SECTIONS: { section: string; items: Item[] }[] = [
     section: "AI Mod (toxic classifier)",
     items: [
       { key: "aiMod.enabled", label: "เปิดใช้งาน", type: "bool" },
-      { key: "aiMod.timeoutMs", label: "timeout เรียก service (ms)", type: "int" },
+      { key: "aiMod.reviewScore", label: "คะแนนเริ่มโซน review (0–1)", type: "float" },
+      { key: "aiMod.autoScore", label: "คะแนนเริ่มโซน auto — ลบ+เตือน (0–1)", type: "float" },
+      { key: "aiMod.timeoutMs", label: "timeout เรียก API (ms)", type: "int" },
       { key: "aiMod.deleteOnAuto", label: "ลบข้อความโซน auto ทันที", type: "bool" },
       { key: "aiMod.reviewDeleteScore", label: "คะแนนที่ลบเลย (0–1, 0=ปิด)", type: "float" },
       { key: "aiMod.minLength", label: "ความยาวขั้นต่ำที่ส่งตรวจ (ตัวอักษร)", type: "int" },
+      { key: "aiMod.spamEnabled", label: "จับ spam (scam/โฆษณา/เลี่ยงฟิลเตอร์) ส่งเข้าคิว", type: "bool" },
+      { key: "aiMod.spamReviewScore", label: "คะแนน spam ที่ส่งเข้าคิว (0–1)", type: "float" },
     ],
   },
   {
@@ -79,8 +83,22 @@ export const SECTIONS: { section: string; items: Item[] }[] = [
     ],
   },
   {
+    section: "สิทธิ์เข้า dashboard",
+    items: [
+      { key: "dashboard.adminRoleIds", label: "ยศที่เป็น admin (role ID) — คนมีสิทธิ์ Administrator เป็น admin เสมอ", type: "idlist" },
+      { key: "dashboard.modRoleIds", label: "ยศที่เป็น mod (role ID)", type: "idlist" },
+    ],
+  },
+  {
+    section: "Ticket",
+    items: [{ key: "ticket.policeRoleId", label: "ยศตำรวจที่เปิด ticket ได้ (role ID)", type: "id" }],
+  },
+  {
     section: "Warnings",
-    items: [{ key: "warnings.enabled", label: "เปิดระบบเตือน", type: "bool" }],
+    items: [
+      { key: "warnings.enabled", label: "เปิดระบบเตือน", type: "bool" },
+      { key: "warnings.banRequiresApproval", label: "เตือนครบแล้วรอ mod ยืนยันก่อนแบน", type: "bool" },
+    ],
   },
   {
     section: "Activity / XP",

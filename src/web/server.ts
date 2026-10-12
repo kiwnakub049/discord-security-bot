@@ -7,6 +7,7 @@
  *   security headers → CSRF → body parser → เส้นทางสาธารณะ → ด่าน login → ที่เหลือ
  * ถ้าเอาด่าน login ขึ้นก่อนเส้นทางสาธารณะ จะ login ไม่ได้เลยเพราะโดนเด้งวนหน้า /login
  */
+import { i18nMiddleware } from "./i18n.js";
 import express, { type Request, type Response } from "express";
 import type { Client } from "discord.js";
 import type { Server } from "node:http";
@@ -17,6 +18,7 @@ import { config } from "../config.js";
 import { csrfGuard, securityHeaders } from "./middleware/security.js";
 import { rateLimit } from "./middleware/rateLimit.js";
 import { requireAuth } from "./middleware/auth.js";
+import { discordAccess, guildOf, noAccess, type AccessResolver } from "../auth/access.js";
 import { notifySecurity } from "../modules/securityAlerts.js";
 import { meRoutes, publicAuthRoutes } from "./routes/auth.js";
 import { overviewRoutes } from "./routes/overview.js";
@@ -27,6 +29,9 @@ import { actionRoutes } from "./routes/actions.js";
 import { adminRoutes } from "./routes/admin.js";
 import { sessionRoutes } from "./routes/sessions.js";
 import { aiRoutes } from "./routes/ai.js";
+import { teamRoutes } from "./routes/team.js";
+import { chatRoutes } from "./routes/chat.js";
+import { queueRoutes } from "./routes/queue.js";
 import { beammpRoutes } from "./routes/beammp.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -36,7 +41,17 @@ const publicDir = join(__dirname, "public");
 /** หน้าเว็บที่ Vite build แล้ว — ต้อง login ก่อนถึงจะเห็น */
 const uiDir = join(__dirname, "ui", "dist");
 
-export function startWebServer(client?: Client): Server | undefined {
+/**
+ * opts.access — ตัดสินว่า Discord user ID ไหนเข้าได้ด้วยสิทธิ์อะไร
+ *   ค่าเริ่มต้น: มี client = ดูจากยศในเซิร์ฟ (discordAccess) · ไม่มี client = ไม่มีใครเข้าได้
+ *   เทส/npm run web ใส่ตัวอื่นเข้ามาแทนได้
+ * opts.fetchImpl — ใช้แทน fetch ตอนคุยกับ Discord OAuth (เทสใส่ของปลอม)
+ */
+export function startWebServer(
+  client?: Client,
+  opts: { access?: AccessResolver; fetchImpl?: typeof fetch } = {},
+): Server | undefined {
+  const access = opts.access ?? (client ? discordAccess(client) : noAccess);
   if (!config.web.enabled) return undefined;
   if (!process.env.SESSION_SECRET) {
     console.error(
@@ -59,21 +74,25 @@ export function startWebServer(client?: Client): Server | undefined {
   app.disable("x-powered-by"); // ไม่บอกว่าใช้ Express (กันสแกนหาช่องโหว่)
 
   app.use(securityHeaders);
+  // ก่อนทุกอย่างที่ตอบ JSON (รวม csrfGuard/rate limit) — แปลข้อความตอบกลับตามภาษาที่เลือก
+  app.use(i18nMiddleware);
   // ปฏิเสธคำขอข้ามเว็บ "ก่อน" อ่าน body — ไม่มีเหตุผลให้เสียแรงแกะ JSON 16kb
   // ของคำขอที่จะโดนตีกลับอยู่ดี
   app.use(csrfGuard);
-  app.use(express.urlencoded({ extended: false, limit: "16kb" })); // ฟอร์ม login
+  app.use(express.urlencoded({ extended: false, limit: "16kb" }));
   app.use(express.json({ limit: "16kb" })); // body ของ API
 
   // ---------- rate limit (กัน botnet ยิงถล่ม) ----------
-  // /login: backstop เหนือ lockout (5 ครั้ง/15 นาที) — จับการยิงรัวก่อนเสียแรง scrypt
-  // เพดาน 20 สูงกว่า lockout จงใจ: lockout คือตัวคุมหลัก อันนี้กันน้ำท่วมเฉย ๆ
-  app.post(
-    "/login",
-    rateLimit("login", 20, 15 * 60_000, (ip) =>
-      void notifySecurity("rate limit /login", `IP ${ip} ยิง POST /login เกิน 20 ครั้ง/15 นาที`),
+  // ขากลับจาก Discord: แต่ละครั้งยิง Discord API สองรอบ (แลก code + ถามตัวตน)
+  // คนปกติ login วันละไม่กี่ครั้ง 20 ครั้ง/15 นาทีเหลือเฟือ เกินนี้คือมีคนยิงเล่น
+  app.get(
+    "/auth/discord/callback",
+    rateLimit("oauth", 20, 15 * 60_000, (ip) =>
+      void notifySecurity("rate limit login", `IP ${ip} ยิงขากลับ login เกิน 20 ครั้ง/15 นาที`),
     ),
   );
+  // ลิงก์ login จาก /dashboard — token สุ่ม 256 บิต เดาไม่ได้อยู่แล้ว แต่กันยิงรัวไว้อีกชั้น
+  app.use("/auth/link", rateLimit("login-link", 20, 15 * 60_000));
   // API ทั้งหมด: 240 ครั้ง/นาที/IP — ยกเว้น /api/stream (SSE เชื่อมต่อยาว 1 ครั้ง
   // แต่ตอน deploy/เน็ตสะดุด client จะ reconnect วน ถ้านับรวมจะเผาโควตาตัวเอง)
   const apiLimiter = rateLimit("api", 240, 60_000, (ip) =>
@@ -87,24 +106,47 @@ export function startWebServer(client?: Client): Server | undefined {
   app.get("/api/logs/export.csv", rateLimit("export", 10, 5 * 60_000));
 
   // ---------- ก่อน login ----------
+  // Open Sans ของหน้า login ภาษาอังกฤษ (หน้าเว็บหลักฝังฟอนต์มากับ build อยู่แล้ว)
+  app.use(
+    "/fonts",
+    express.static(join(__dirname, "../../node_modules/@fontsource/open-sans/files"), {
+      maxAge: "30d",
+      immutable: true,
+      fallthrough: false,
+      index: false,
+    }),
+  );
   app.get("/icon.svg", (_req: Request, res: Response) => {
     res.sendFile(join(publicDir, "icon.svg"));
   });
-  app.use(publicAuthRoutes(client));
+  /**
+   * ไอคอนเว็บ = รูปของเซิร์ฟ Discord (ก่อน login ด้วย เพราะหน้า login/favicon ใช้)
+   * เซิร์ฟไม่มีรูป / บอทยังไม่ต่อ Discord → ใช้ icon.svg เดิม
+   * รูปเซิร์ฟเป็นของสาธารณะอยู่แล้ว เปิดให้ดูก่อน login ไม่ได้รั่วอะไร
+   */
+  app.get("/server-icon", (_req: Request, res: Response) => {
+    const url = client ? guildOf(client)?.iconURL({ extension: "png", size: 256 }) : null;
+    res.set("Cache-Control", "public, max-age=3600");
+    res.redirect(302, url ?? "/icon.svg");
+  });
+  app.use(publicAuthRoutes(client, access, opts.fetchImpl));
 
   // ---------- ด่านตรวจ ----------
-  app.use(requireAuth);
+  app.use(requireAuth(access));
 
   // ---------- หลัง login ----------
   app.use(meRoutes(client));
   app.use(overviewRoutes(client));
+  app.use(queueRoutes(client));
   app.use(systemRoutes());
-  app.use(logRoutes());
+  app.use(logRoutes(access));
   app.use(memberRoutes(client));
   app.use(actionRoutes(client));
   app.use(adminRoutes(client));
   app.use(sessionRoutes(client));
   app.use(aiRoutes());
+  app.use(teamRoutes(client, access)); // แชททีม admin/mod
+  app.use(chatRoutes(client)); // เฉพาะ admin (requireAdmin อยู่ในนั้น)
   app.use(beammpRoutes(client)); // เห็นเฉพาะเจ้าของเครื่อง (requireOwner อยู่ในนั้น)
 
   // API ที่ไม่มีจริง ต้องได้ 404 เป็น JSON — ไม่ใช่ index.html ของหน้าเว็บ

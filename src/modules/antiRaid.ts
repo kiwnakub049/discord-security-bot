@@ -3,6 +3,10 @@ import { config } from "../config.js";
 import { logEvent } from "../utils/logger.js";
 import { isExempt } from "../utils/exempt.js";
 import { setGuildLock } from "./lockdown.js";
+import { enqueue, resolveOpenFor } from "../store/queueStore.js";
+
+/** หมวดคิวของบัญชีใหม่ที่รอ mod ดู — ต้องตรงกับ key ใน queueCategories */
+const QUEUE_CATEGORY = "suspicious-member";
 
 // เก็บผู้เข้าล่าสุดของแต่ละเซิร์ฟเวอร์ (member + เวลา) ไว้จัดการทั้ง batch ตอน raid
 const recentJoins = new Map<string, { member: GuildMember; at: number }[]>();
@@ -23,6 +27,9 @@ async function actOnMember(member: GuildMember): Promise<boolean> {
     } else {
       await member.kick("Anti-raid: account ใหม่เข้าช่วง raid");
     }
+    // คนนี้อาจเข้าคิวไปแล้วตอนที่ยังไม่นับว่าเป็น raid (คนต้น ๆ ของ batch)
+    // บอทจัดการเองแล้ว ปิดเรื่องด้วยผลจริงเลย ไม่ต้องรอ guildMemberRemove มาปิดเป็น "left"
+    resolveOpenFor(QUEUE_CATEGORY, member.id, config.antiRaid.action, "system");
     return true;
   } catch (err) {
     console.error("ดำเนินการ raid response ไม่สำเร็จ:", err);
@@ -42,12 +49,12 @@ export async function handleMemberJoin(member: GuildMember): Promise<void> {
   const guildId = member.guild.id;
   const now = Date.now();
   const newAccount = isNewAccount(member);
+  const days = Math.floor(
+    (now - member.user.createdTimestamp) / (24 * 60 * 60 * 1000),
+  );
 
   // --- เช็คอายุ account ---
   if (newAccount) {
-    const days = Math.floor(
-      (now - member.user.createdTimestamp) / (24 * 60 * 60 * 1000),
-    );
     await logEvent(member.client, "warn", "security", "security_newaccount", "Account ใหม่เข้าเซิร์ฟเวอร์", [
       { name: "User", value: `${member.user.tag} (${member.id})` },
       { name: "อายุ account", value: `${days} วัน` },
@@ -75,7 +82,33 @@ export async function handleMemberJoin(member: GuildMember): Promise<void> {
     // จะได้ไม่ค้าง raidActive ถาวร (ไม่งั้นทุกคนที่เข้ามาหลังจากนั้นโดน auto-kick ไม่จบ)
     setTimeout(() => raidActive.delete(guildId), config.antiRaid.joinWindowMs * 3);
     await triggerRaidResponse(member, recent);
+    return;
   }
+
+  // --- ช่วงปกติ: account ใหม่ = รอ mod ดู ---
+  // ไม่ส่งเข้าคิวช่วง raid ทุกโหมด (รวม lockdown ที่บอทไม่ได้เตะใคร) — ตอนนั้นคนเข้ามาเป็นสิบ
+  // การ์ดทีละบัญชีช่วยอะไรไม่ได้ mod ต้องดูภาพรวมจาก log ของ raid แทน
+  // ข้ามคนที่ยกเว้น (mod/บอท) เพราะยังไงก็ไม่มีใครกดแบนคนพวกนี้จากคิวอยู่แล้ว
+  if (newAccount && !isExempt(member)) {
+    const together =
+      recent.length > 1
+        ? ` · เข้ามาพร้อมกัน ${recent.length} คนใน ${config.antiRaid.joinWindowMs / 1000} วินาที`
+        : "";
+    enqueue({
+      category: QUEUE_CATEGORY,
+      subjectId: member.id,
+      title: member.user.tag,
+      detail: `อายุบัญชี ${days} วัน${together}`,
+    });
+  }
+}
+
+/**
+ * สมาชิกออกจากเซิร์ฟก่อนที่ mod จะตัดสิน → ปิดเรื่องให้เอง
+ * (ไม่มีอะไรให้ตัดสินแล้ว และกดแบนคนที่ออกไปแล้วก็ไม่ใช่สิ่งที่การ์ดนี้ตั้งใจให้ทำ)
+ */
+export function closeSuspiciousOnLeave(userId: string): void {
+  resolveOpenFor(QUEUE_CATEGORY, userId, "left", "system");
 }
 
 async function triggerRaidResponse(

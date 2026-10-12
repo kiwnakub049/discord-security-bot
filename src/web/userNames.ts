@@ -31,6 +31,31 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   ]);
 }
 
+/**
+ * หา User จาก id — cache ก่อน ไม่เจอค่อย fetch (มี timeout + จำคนที่หาไม่เจอ)
+ * คืน null ถ้าหาไม่เจอ/ค้าง (ผู้เรียก fallback เอง)
+ */
+async function lookupUser(client: Client, id: string, now: number) {
+  // 1) อ่านจาก cache ของ discord.js ก่อน (synchronous ไม่ยิงเน็ต)
+  //    สำคัญ: fetch ที่เรา race-timeout ไป discord.js ยังทำต่อจนเสร็จแล้ว cache ไว้ให้
+  //    รอบถัดมาเลยได้จากตรงนี้ทันที ไม่ต้อง fetch ซ้ำ (และไม่ติดกับดัก miss)
+  const cached = client.users.cache.get(id);
+  if (cached) return cached;
+  // 2) ข้ามคนที่เพิ่งจำว่า "หาไม่เจอ" (ยังไม่หมดอายุ)
+  const m = misses.get(id);
+  if (m && now - m.at < m.ttl) return null;
+  if (m) misses.delete(id);
+  // 3) ไม่มีใน cache จริง ๆ → fetch พร้อม timeout
+  try {
+    return await withTimeout(client.users.fetch(id), FETCH_TIMEOUT_MS);
+  } catch (err) {
+    // timeout จำสั้น (60 วิ) เคสถาวรจำยาว (10 นาที) — กันทั้งยิงซ้ำทุกรอบ และ id ที่ค้างตลอด
+    const ttl = err instanceof FetchTimeout ? TIMEOUT_MISS_TTL : MISS_TTL;
+    misses.set(id, { at: now, ttl });
+    return null;
+  }
+}
+
 /** คืน map ของ id -> ชื่อ (id ที่หาไม่เจอจะไม่มีคีย์ ให้ผู้เรียก fallback เอง) */
 export async function resolveNames(
   client: Client | undefined,
@@ -38,37 +63,31 @@ export async function resolveNames(
 ): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
   if (!client) return out;
-
   const now = Date.now();
-  const wanted: string[] = [];
-  for (const id of new Set(ids)) {
-    // 1) อ่านจาก cache ของ discord.js ก่อน (synchronous ไม่ยิงเน็ต)
-    //    สำคัญ: fetch ที่เรา race-timeout ไป discord.js ยังทำต่อจนเสร็จแล้ว cache ไว้ให้
-    //    รอบถัดมาเลยได้ชื่อจากตรงนี้ทันที ไม่ต้อง fetch ซ้ำ (และไม่ติดกับดัก miss)
-    const cached = client.users.cache.get(id);
-    if (cached) {
-      out[id] = cached.username;
-      continue;
-    }
-    // 2) ข้ามคนที่เพิ่งจำว่า "หาไม่เจอ" (ยังไม่หมดอายุ)
-    const m = misses.get(id);
-    if (m && now - m.at < m.ttl) continue;
-    if (m) misses.delete(id);
-    wanted.push(id);
-  }
-
-  // 3) เหลือเฉพาะคนที่ไม่มีใน cache จริง ๆ → fetch พร้อม timeout ต่อคน
-  //    allSettled: คนที่ค้าง/พังถูกข้าม ไม่ลากทั้ง endpoint ค้าง (ผู้เรียก fallback เป็น id เอง)
+  // allSettled: คนที่ค้าง/พังถูกข้าม ไม่ลากทั้ง endpoint ค้าง (ผู้เรียก fallback เป็น id เอง)
   await Promise.allSettled(
-    wanted.map(async (id) => {
-      try {
-        out[id] = (await withTimeout(client.users.fetch(id), FETCH_TIMEOUT_MS)).username;
-      } catch (err) {
-        // timeout จำสั้น (60 วิ) เคสถาวรจำยาว (10 นาที) — กันทั้งยิงซ้ำทุกรอบ และ id ที่ค้างตลอด
-        const ttl = err instanceof FetchTimeout ? TIMEOUT_MISS_TTL : MISS_TTL;
-        misses.set(id, { at: now, ttl });
-      }
+    [...new Set(ids)].map(async (id) => {
+      const u = await lookupUser(client, id, now);
+      if (u) out[id] = u.username;
     }),
   );
   return out;
+}
+
+/**
+ * ลิงก์รูปโปรไฟล์ของ id บน CDN ของ Discord — null = หาคนไม่เจอ
+ * ใช้รูปประจำเซิร์ฟถ้าตั้งไว้ (คนในเซิร์ฟเห็นรูปนั้นกันอยู่แล้ว) ไม่งั้นรูปบัญชี/รูปเริ่มต้นของ Discord
+ */
+export async function avatarUrlOf(
+  client: Client | undefined,
+  id: string,
+  size: 64 | 128 = 64,
+): Promise<string | null> {
+  if (!client || !/^\d{15,21}$/.test(id)) return null;
+  for (const g of client.guilds.cache.values()) {
+    const member = g.members.cache.get(id);
+    if (member) return member.displayAvatarURL({ size, extension: "webp" });
+  }
+  const user = await lookupUser(client, id, Date.now());
+  return user ? user.displayAvatarURL({ size, extension: "webp" }) : null;
 }

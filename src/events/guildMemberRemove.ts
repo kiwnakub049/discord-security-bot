@@ -1,6 +1,7 @@
 import { Events, type GuildMember, type PartialGuildMember } from "discord.js";
 import { config } from "../config.js";
 import { logMemberLeave } from "../modules/serverLog.js";
+import { closeSuspiciousOnLeave } from "../modules/antiRaid.js";
 import {
   moderationHoldReason,
   purgeUserData,
@@ -14,6 +15,8 @@ export async function execute(
   member: GuildMember | PartialGuildMember,
 ): Promise<void> {
   await logMemberLeave(member);
+  // ทำก่อนเช็ค purgeOnLeave — การ์ดค้างต้องปิดเสมอ ไม่ว่าจะลบข้อมูลหรือไม่
+  closeSuspiciousOnLeave(member.id);
 
   // ออกจากเซิร์ฟเวอร์ → ลบข้อมูลของคนนั้นทิ้ง (ถ้าเปิดไว้)
   if (!config.privacy.purgeOnLeave) return;

@@ -12,13 +12,28 @@ import {
   type Activity,
 } from "../../store/activityStore.js";
 import { getWarnings } from "../../modules/warningStore.js";
-import { resolveNames } from "../userNames.js";
+import { avatarUrlOf, resolveNames } from "../userNames.js";
 
 type Filter = "" | "voice" | "mute" | "deaf" | "offline";
 const FILTERS = new Set<Filter>(["", "voice", "mute", "deaf", "offline"]);
 
 export function memberRoutes(client?: Client): Router {
   const r = Router();
+
+  /**
+   * รูปโปรไฟล์ของ Discord user id — ส่งต่อ (302) ไป CDN ของ Discord
+   * หน้าเว็บใส่ <img src="/api/avatar/<id>"> ได้ทุกที่ที่มี id โดยไม่ต้องให้ทุก API ส่งลิงก์รูปมาด้วย
+   * เบราว์เซอร์จำ redirect ไว้ 1 ชม. — หน้า log ที่ poll ทุก 10 วิ ไม่ยิงซ้ำทุกรอบ
+   */
+  r.get("/api/avatar/:id", async (req: Request, res: Response) => {
+    const url = await avatarUrlOf(client, String(req.params.id));
+    if (!url) {
+      res.status(404).end(); // หน้าเว็บจะแสดงอักษรตัวแรกของชื่อแทน
+      return;
+    }
+    res.set("Cache-Control", "private, max-age=3600");
+    res.redirect(302, url);
+  });
 
   /**
    * รายชื่อสมาชิก — กรอง/ค้นหา/แบ่งหน้าฝั่ง server

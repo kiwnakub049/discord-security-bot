@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 
@@ -16,8 +17,10 @@ export interface Fetched<T> {
  *  - หยุดดึงเมื่อผู้ใช้สลับแท็บ/ปิดจอ (visibilitychange) — บนมือถือคือเรื่องแบตล้วน ๆ
  *    ไม่มีประโยชน์ที่จะ poll ทุก 5 วิ ตอนหน้าเว็บอยู่หลังแอปอื่น
  *  - ระหว่างดึงซ้ำ ยังโชว์ข้อมูลเดิมไว้ ไม่กระพริบเป็นหน้าโหลดทุกครั้ง
+ *
+ * path = null → ไม่ดึงเลย (เช่นคนนั้นไม่มีสิทธิ์ดูข้อมูลชุดนี้ ไม่ต้องยิงไปโดน 403 ทุก 10 วิ)
  */
-export function useFetch<T>(path: string, intervalMs?: number): Fetched<T> {
+export function useFetch<T>(path: string | null, intervalMs?: number): Fetched<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -26,6 +29,7 @@ export function useFetch<T>(path: string, intervalMs?: number): Fetched<T> {
   const alive = useRef(true);
 
   const load = useCallback(async () => {
+    if (!path) return;
     const mine = ++seq.current;
     try {
       const result = await api.get<T>(path);
@@ -34,7 +38,7 @@ export function useFetch<T>(path: string, intervalMs?: number): Fetched<T> {
       setError(null);
     } catch (err) {
       if (!alive.current || mine !== seq.current) return;
-      setError(err instanceof Error ? err.message : "โหลดข้อมูลไม่สำเร็จ");
+      setError(err instanceof Error ? err.message : t("โหลดข้อมูลไม่สำเร็จ"));
     } finally {
       if (alive.current && mine === seq.current) setLoading(false);
     }
@@ -42,6 +46,10 @@ export function useFetch<T>(path: string, intervalMs?: number): Fetched<T> {
 
   useEffect(() => {
     alive.current = true;
+    if (!path) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     void load();
 
@@ -76,7 +84,7 @@ export function useFetch<T>(path: string, intervalMs?: number): Fetched<T> {
       stop();
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [load, intervalMs]);
+  }, [load, intervalMs, path]);
 
   return { data, error, loading, reload: () => void load() };
 }

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { channelUrl, userUrl, type LinkTarget } from "./linkTarget";
+import { locale, t } from "./i18n";
 
 /**
  * ทำให้ค่าใน log กดได้ — ชื่อห้องกระโดดไปห้องนั้น, id คนกระโดดไปโปรไฟล์
@@ -23,11 +24,11 @@ function relThai(ms: number): string {
   const abs = Math.abs(s);
   let v: number;
   let unit: string;
-  if (abs < 60) [v, unit] = [abs, "วินาที"];
-  else if (abs < 3600) [v, unit] = [Math.round(abs / 60), "นาที"];
-  else if (abs < 86400) [v, unit] = [Math.round(abs / 3600), "ชั่วโมง"];
-  else [v, unit] = [Math.round(abs / 86400), "วัน"];
-  return s >= 0 ? `อีก ${v} ${unit}` : `${v} ${unit}ที่แล้ว`;
+  if (abs < 60) [v, unit] = [abs, t("วินาที")];
+  else if (abs < 3600) [v, unit] = [Math.round(abs / 60), t("นาที")];
+  else if (abs < 86400) [v, unit] = [Math.round(abs / 3600), t("ชั่วโมง")];
+  else [v, unit] = [Math.round(abs / 86400), t("วัน")];
+  return s >= 0 ? t("อีก {v} {unit}", { v, unit }) : t("{v} {unit}ที่แล้ว", { v, unit });
 }
 
 /**
@@ -41,13 +42,13 @@ export function humanizeTimestamps(value: string): string {
     if (style === "R") return relThai(ms - Date.now());
     const d = new Date(ms);
     return style === "t" || style === "T"
-      ? d.toLocaleTimeString("th-TH", { hour12: false })
-      : d.toLocaleString("th-TH", { hour12: false });
+      ? d.toLocaleTimeString(locale, { hour12: false })
+      : d.toLocaleString(locale, { hour12: false });
   });
 }
 
 /** ช่องที่ค่าข้างในเป็น "ห้อง" ไม่ใช่ "คน" — ต้องตรงกับ CHANNEL_FIELDS ใน logger.ts */
-const CHANNEL_FIELDS = new Set(["ห้อง", "จาก", "ไป", "ห้องเสียง"]);
+const CHANNEL_FIELDS = new Set(["ห้อง", "จาก", "ไป", "ห้องเสียง"]); // i18n-ignore
 
 function Link({
   href,

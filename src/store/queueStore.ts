@@ -1,0 +1,172 @@
+import { db } from "./db.js";
+
+/**
+ * คิวงานที่รอ mod ตัดสินใจ
+ *
+ * ใครจะส่งเรื่องเข้าคิวก็เรียก enqueue() — เช่น anti-raid เจอบัญชีน่าสงสัย,
+ * คำสั่ง /ticket ของสมาชิก, หรือโมดูลที่อยากให้คนกดยืนยันก่อนแบนจริง
+ * หน้าแรกของ dashboard อ่านจากตารางนี้ตารางเดียว
+ */
+
+export interface QueueRow {
+  id: number;
+  category: string;
+  subject_id: string | null;
+  title: string;
+  detail: string | null;
+  created_at: number;
+  resolved_at: number | null;
+  resolved_by: string | null;
+  outcome: string | null;
+  /** JSON array ของ "channelId/messageId" — อ่านผ่าน itemRefs() */
+  refs: string | null;
+  /** JSON array ของ logs.id ที่เรื่องนี้มาจาก — อ่านผ่าน itemLogIds() */
+  log_ids: string | null;
+  /** หมายเหตุของคนตัดสิน (ไม่บังคับ) */
+  note: string | null;
+}
+
+/** ข้อความที่ผูกกับเรื่องหนึ่งได้มากสุด — spam รัว ๆ ไม่ควรทำให้แถวโตไม่จบ */
+const MAX_REFS = 50;
+
+const findOpen = db.prepare(
+  `SELECT * FROM queue_items
+    WHERE resolved_at IS NULL AND category = ? AND subject_id = ?`,
+);
+const insert = db.prepare(
+  `INSERT INTO queue_items (category, subject_id, title, detail, created_at, refs, log_ids)
+   VALUES (@category, @subject_id, @title, @detail, @created_at, @refs, @log_ids)`,
+);
+const setRefs = db.prepare("UPDATE queue_items SET refs = ? WHERE id = ?");
+const setLogIds = db.prepare("UPDATE queue_items SET log_ids = ? WHERE id = ?");
+
+/** ข้อความ ("channelId/messageId") ที่เรื่องนี้ชี้ถึง */
+export function itemRefs(row: Pick<QueueRow, "refs">): string[] {
+  if (!row.refs) return [];
+  try {
+    const v = JSON.parse(row.refs) as unknown;
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+/** log ที่เรื่องนี้มาจาก */
+export function itemLogIds(row: Pick<QueueRow, "log_ids">): number[] {
+  if (!row.log_ids) return [];
+  try {
+    const v = JSON.parse(row.log_ids) as unknown;
+    return Array.isArray(v) ? v.filter((x): x is number => Number.isInteger(x)) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * ส่งเรื่องเข้าคิว — คืน id ของแถว
+ *
+ * ถ้ามีเรื่องที่ยังค้างอยู่ในหมวดเดียวกันของคนเดียวกันแล้ว จะไม่สร้างซ้ำ
+ * (anti-raid อาจจับบัญชีเดิมได้หลายรอบ ไม่ควรกลายเป็นการ์ดซ้อนกันห้าใบของคนคนเดียว)
+ *
+ * ref = ข้อความที่เรื่องนี้ชี้ถึง ("channelId/messageId") — ถ้าเรื่องเดิมค้างอยู่ จะต่อท้ายเข้าเรื่องเดิม
+ * (AI จับ spam คนเดิม 5 ข้อความ = การ์ดใบเดียวที่กดลบได้ทั้ง 5)
+ */
+export function enqueue(item: {
+  category: string;
+  subjectId?: string | null;
+  title: string;
+  detail?: string | null;
+  at?: number;
+  ref?: string;
+  /** log ที่เรื่องนี้มาจาก — เรื่องเดิมค้างอยู่ก็ต่อท้ายเหมือน ref */
+  logId?: number;
+}): number {
+  const subject = item.subjectId ?? null;
+  if (subject) {
+    const open = findOpen.get(item.category, subject) as QueueRow | undefined;
+    if (open) {
+      const refs = itemRefs(open);
+      if (item.ref && !refs.includes(item.ref) && refs.length < MAX_REFS) {
+        setRefs.run(JSON.stringify([...refs, item.ref]), open.id);
+      }
+      const logIds = itemLogIds(open);
+      if (item.logId && !logIds.includes(item.logId) && logIds.length < MAX_REFS) {
+        setLogIds.run(JSON.stringify([...logIds, item.logId]), open.id);
+      }
+      return open.id;
+    }
+  }
+  const info = insert.run({
+    category: item.category,
+    subject_id: subject,
+    title: item.title,
+    detail: item.detail ?? null,
+    created_at: item.at ?? Date.now(),
+    refs: item.ref ? JSON.stringify([item.ref]) : null,
+    log_ids: item.logId ? JSON.stringify([item.logId]) : null,
+  });
+  return Number(info.lastInsertRowid);
+}
+
+/** สรุปต่อหมวด: จำนวนที่ค้าง + เวลาของเรื่องที่รอนานที่สุด */
+export function openSummary(): { category: string; count: number; oldestAt: number }[] {
+  return db
+    .prepare(
+      `SELECT category, COUNT(*) AS count, MIN(created_at) AS oldestAt
+         FROM queue_items WHERE resolved_at IS NULL
+        GROUP BY category`,
+    )
+    .all() as { category: string; count: number; oldestAt: number }[];
+}
+
+/** เรื่องที่ค้างในหมวด เก่าสุดก่อน (คิวคือมาก่อนได้ก่อน) */
+export function listOpen(category: string, limit = 100): QueueRow[] {
+  return db
+    .prepare(
+      `SELECT * FROM queue_items
+        WHERE resolved_at IS NULL AND category = ?
+        ORDER BY created_at ASC, id ASC LIMIT ?`,
+    )
+    .all(category, limit) as QueueRow[];
+}
+
+export function getItem(id: number): QueueRow | undefined {
+  return db.prepare("SELECT * FROM queue_items WHERE id = ?").get(id) as QueueRow | undefined;
+}
+
+/** เรื่องที่ยังค้างของคนคนหนึ่งในหมวดหนึ่ง (ถ้ามี) */
+export function openItemFor(category: string, subjectId: string): QueueRow | undefined {
+  return findOpen.get(category, subjectId) as QueueRow | undefined;
+}
+
+/**
+ * ปิดเรื่องที่ค้างของคนคนหนึ่งในหมวดหนึ่ง (ถ้ามี) — คืน true ถ้ามีเรื่องถูกปิดจริง
+ *
+ * ใช้ตอนที่ระบบรู้ผลเองโดยไม่ต้องรอ mod เช่น สมาชิกออกจากเซิร์ฟไปก่อน
+ * หรือบอทเตะทิ้งไปแล้วตอน raid — ปล่อยไว้ mod จะเปิดมาเจอการ์ดของคนที่ไม่อยู่แล้ว
+ */
+export function resolveOpenFor(
+  category: string,
+  subjectId: string,
+  outcome: string,
+  by: string,
+): boolean {
+  const open = openItemFor(category, subjectId);
+  return open ? resolve(open.id, outcome, by) : false;
+}
+
+/**
+ * ปิดเรื่อง — คืน false ถ้าเรื่องนี้ถูกปิดไปแล้ว
+ *
+ * เช็ค resolved_at IS NULL ใน WHERE เอง เพื่อกันสอง mod กดพร้อมกันแล้วต่างคนต่างคิดว่าตัวเองตัดสิน
+ */
+export function resolve(id: number, outcome: string, by: string, note?: string): boolean {
+  return (
+    db
+      .prepare(
+        `UPDATE queue_items SET resolved_at = ?, resolved_by = ?, outcome = ?, note = ?
+          WHERE id = ? AND resolved_at IS NULL`,
+      )
+      .run(Date.now(), by, outcome, note || null, id).changes > 0
+  );
+}

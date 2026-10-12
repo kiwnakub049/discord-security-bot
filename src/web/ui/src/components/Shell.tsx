@@ -1,44 +1,64 @@
 import type { ReactNode } from "react";
+import { lang, setLang, t } from "../lib/i18n";
 import { Icon, type IconName } from "./Icon";
 import type { StreamState } from "../hooks/useStream";
 import { type Route } from "../hooks/useRoute";
 import { useTheme } from "../hooks/useTheme";
 import { LogTree } from "./LogTree";
-import type { LogFilter } from "../lib/logTree";
+import type { TreePick } from "../lib/logTree";
 import {
   requestNotifyPermission,
   setNotifyEnabled,
   useNotifyEnabled,
 } from "../lib/notify";
+import { Avatar } from "./Avatar";
 
 const TABS: { route: Route; label: string; icon: IconName }[] = [
-  { route: "/", label: "ภาพรวม", icon: "home" },
+  { route: "/", label: t("ภาพรวม"), icon: "home" },
   { route: "/logs", label: "Logs", icon: "list" },
-  { route: "/members", label: "สมาชิก", icon: "users" },
+  { route: "/members", label: t("สมาชิก"), icon: "users" },
+  { route: "/team", label: t("แชททีม"), icon: "message" },
+  { route: "/assistant", label: t("ผู้ช่วย AI"), icon: "bot" },
   { route: "/beamng", label: "BeamNG", icon: "car" },
-  { route: "/settings", label: "ตั้งค่า", icon: "settings" },
+  { route: "/settings", label: t("ตั้งค่า"), icon: "settings" },
 ];
 
 /** แท็บที่มีให้เฉพาะเจ้าของเครื่อง — คนอื่นไม่เห็นแม้แต่ชื่อ */
 const OWNER_ONLY = new Set<Route>(["/beamng"]);
+/** admin ทั่วไป (ไม่ใช่เจ้าของ) ไม่เห็น — mod เห็นตั้งค่าปกติ (ด่านจริงคือ requireSystemView) */
+const SYSTEM_ONLY = new Set<Route>(["/settings", "/assistant"]);
 
 const TITLES: Record<Route, string> = {
-  "/": "ภาพรวม",
+  "/": t("ภาพรวม"),
   "/logs": "Logs",
-  "/members": "สมาชิก",
-  "/beamng": "เซิร์ฟเวอร์ BeamNG",
-  "/settings": "ตั้งค่า",
+  "/members": t("สมาชิก"),
+  "/team": t("แชททีม"),
+  "/assistant": t("ผู้ช่วย AI"),
+  "/beamng": t("เซิร์ฟเวอร์ BeamNG"),
+  "/settings": t("ตั้งค่า"),
 };
+
+function TeamBadge({ badge }: { badge: { unread: number; mentioned: boolean } | null }) {
+  if (!badge || badge.unread === 0) return null;
+  return (
+    <span
+      className="tnum rounded-full bg-alert px-1.5 text-[10px] font-semibold leading-4 text-surface"
+    >
+      {badge.mentioned ? "@" : ""}
+      {badge.unread > 99 ? "99+" : badge.unread}
+    </span>
+  );
+}
 
 function LiveDot({ state }: { state: StreamState }) {
   const tone =
     state === "live" ? "bg-ok" : state === "connecting" ? "bg-warn" : "bg-alert";
   const label =
-    state === "live" ? "สด" : state === "connecting" ? "กำลังต่อ" : "หลุด";
+    state === "live" ? t("สด") : state === "connecting" ? t("กำลังต่อ") : t("หลุด");
   return (
     <span
       className="flex items-center gap-1.5 text-xs text-muted"
-      title={`สถานะสตรีม: ${label}`}
+      title={t("สถานะสตรีม: {label}", { label })}
     >
       <span className="relative flex size-2">
         {state === "live" && (
@@ -63,10 +83,10 @@ function NotifyButton() {
         // ขอสิทธิ์เดสก์ท็อปตอนเปิด (นี่คือ user gesture ที่เบราว์เซอร์ต้องการ)
         if (next) requestNotifyPermission();
       }}
-      title={enabled ? "แจ้งเตือน: เปิด (กดเพื่อปิดเสียง/เดสก์ท็อป)" : "แจ้งเตือน: ปิด"}
-      aria-label={enabled ? "ปิดแจ้งเตือน" : "เปิดแจ้งเตือน"}
+      title={enabled ? t("แจ้งเตือน: เปิด (กดเพื่อปิดเสียง/เดสก์ท็อป)") : t("แจ้งเตือน: ปิด")}
+      aria-label={enabled ? t("ปิดแจ้งเตือน") : t("เปิดแจ้งเตือน")}
       aria-pressed={enabled}
-      className={`press rounded-xl border border-line bg-surface p-2 ${enabled ? "text-accent" : "text-faint"}`}
+      className={`press rounded-md border border-line bg-surface p-2 ${enabled ? "text-accent" : "text-faint"}`}
     >
       {enabled ? (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -85,6 +105,22 @@ function NotifyButton() {
   );
 }
 
+/** สลับไทย/อังกฤษ — ป้ายบอกภาษาที่จะเปลี่ยนไป (reload ทั้งหน้า) */
+function LangButton() {
+  const next = lang === "th" ? "en" : "th";
+  return (
+    <button
+      type="button"
+      onClick={() => setLang(next)}
+      title={next === "en" ? "Switch to English" : "เปลี่ยนเป็นภาษาไทย"} // i18n-ignore
+      aria-label={next === "en" ? "Switch to English" : "เปลี่ยนเป็นภาษาไทย"} // i18n-ignore
+      className="press min-w-10 rounded-md border border-line bg-surface px-2 py-2 text-xs font-semibold text-muted"
+    >
+      {next === "en" ? "EN" : "TH"}
+    </button>
+  );
+}
+
 function ThemeButton() {
   const [theme, setTheme] = useTheme();
   // วนสามค่า: ตามระบบ → สว่าง → มืด แล้ววนกลับ
@@ -92,15 +128,15 @@ function ThemeButton() {
   const icon: IconName =
     theme === "light" ? "sun" : theme === "dark" ? "moon" : "monitor";
   const label =
-    theme === "light" ? "โทนสว่าง" : theme === "dark" ? "โทนมืด" : "ตามเครื่อง";
+    theme === "light" ? t("โทนสว่าง") : theme === "dark" ? t("โทนมืด") : t("ตามเครื่อง");
 
   return (
     <button
       type="button"
       onClick={() => setTheme(next)}
-      title={`ธีม: ${label} (กดเพื่อเปลี่ยน)`}
-      aria-label={`ธีม: ${label}`}
-      className="press rounded-xl border border-line bg-surface p-2 text-muted"
+      title={t("ธีม: {label} (กดเพื่อเปลี่ยน)", { label })}
+      aria-label={t("ธีม: {label}", { label })}
+      className="press rounded-md border border-line bg-surface p-2 text-muted"
     >
       <Icon name={icon} className="size-5" />
     </button>
@@ -113,59 +149,65 @@ function ThemeButton() {
  * มือถือ: หัวเว็บติดบน + แถบแท็บติดล่าง (นิ้วโป้งถึง) เนื้อหาอยู่ตรงกลาง
  * จอใหญ่ (md ขึ้นไป): แถบล่างหายไป กลายเป็นเมนูด้านซ้ายค้างไว้แทน
  *
- * ชั้นล่างสุดคือ .aurora — พื้นไล่สีที่ขยับช้า ๆ ซึ่งเป็นตัวที่ทำให้กระจกทุกชิ้น
- * ข้างบนมีอะไรให้เห็นทะลุ ถ้าเอาออกทั้งเว็บจะกลายเป็นการ์ดโปร่งบนพื้นเรียบ ๆ ทันที
+ * .aurora ตอนนี้เป็นแค่พื้นสีกระดาษทึบ (คงไว้เป็นชั้นล่างสุดเผื่ออยากใส่ลายพื้นทีหลัง)
  */
 export function Shell({
   route,
   go,
   stream,
   username,
+  userId,
   isOwner,
   logFilter,
   onPickLogFilter,
+  teamBadge,
+  seesSystem,
   children,
 }: {
   route: Route;
   go: (r: Route) => void;
   stream: StreamState;
   username: string;
+  /** Discord user ID ของคนที่ login — ใช้แสดงรูปโปรไฟล์ */
+  userId: string;
   /** เจ้าของเครื่องเท่านั้นที่เห็นแท็บบางอัน (ด่านจริงอยู่ฝั่งเซิร์ฟเวอร์) */
   isOwner: boolean;
-  logFilter: LogFilter;
-  onPickLogFilter: (f: LogFilter) => void;
+  logFilter: TreePick;
+  onPickLogFilter: (f: TreePick) => void;
+  /** แชททีม: ข้อความที่ยังไม่อ่าน (แดง) + มีคนแท็กเราไหม (มี @ นำหน้า) */
+  teamBadge: { unread: number; mentioned: boolean } | null;
+  /** false = admin ที่ไม่ใช่เจ้าของ → ไม่เห็นแท็บตั้งค่าและผู้ช่วย AI */
+  seesSystem: boolean;
   children: ReactNode;
 }) {
   /*
    * จำนวนแท็บไม่คงที่อีกต่อไป — เม็ดยาบนแถบล่างจึงต้องคิดจากแท็บ "ที่เห็นจริง"
    * ไม่ใช่จาก ROUTES ทั้งหมด ไม่งั้นตำแหน่งจะเลื่อนผิดไปหนึ่งช่องสำหรับคนที่ไม่ใช่เจ้าของ
    */
-  const tabs = TABS.filter((t) => isOwner || !OWNER_ONLY.has(t.route));
+  const tabs = TABS.filter(
+    (tab) =>
+      (isOwner || !OWNER_ONLY.has(tab.route)) &&
+      (seesSystem || !SYSTEM_ONLY.has(tab.route)),
+  );
   const activeIndex = Math.max(
     0,
-    tabs.findIndex((t) => t.route === route),
+    tabs.findIndex((tab) => tab.route === route),
   );
 
   return (
     <div className="min-h-dvh md:flex">
       <div className="aurora" aria-hidden="true" />
 
-      {/* ---- เมนูซ้าย (เฉพาะจอใหญ่) — แถบ aubergine แบบ Slack ---- */}
-      <aside className="side sticky top-0 hidden h-dvh w-64 shrink-0 flex-col rounded-none px-2.5 py-3 md:flex">
-        <div className="mb-3 flex items-center gap-2.5 border-b border-line px-1.5 pb-3">
-          <div
-            className="flex size-7 shrink-0 items-center justify-center rounded-lg"
-            style={{ background: "#2eb67d" }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0b3d2c" strokeWidth="2.4">
-              <path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6l7-3z" />
-            </svg>
-          </div>
+      {/* ---- เมนูซ้าย (เฉพาะจอใหญ่) — กระดาษแผ่นล่าง ---- */}
+      <aside className="side sticky top-0 hidden h-dvh w-60 shrink-0 flex-col px-3 py-4 md:flex">
+        <div className="mb-4 flex items-center gap-2.5 px-1.5">
+          {/* รูปเซิร์ฟ Discord — ไม่มีรูปเซิร์ฟ server ส่ง icon.svg มาแทน */}
+          <img src="/server-icon" alt="" className="size-8 shrink-0 rounded-md object-cover" />
           <div className="min-w-0">
-            <div className="truncate text-[15px] font-bold text-text leading-tight">Security Bot</div>
-            <div className="flex items-center gap-1.5 text-[11px] text-muted">
-              <span className="size-2 rounded-full" style={{ background: "#2eb67d" }} />
-              ออนไลน์
+            <div className="truncate text-[15px] font-bold text-text leading-tight">Undawn Dashboard</div>
+            <div className="flex items-center gap-1.5 text-xs text-muted">
+              <span className="size-2 rounded-full bg-ok" />
+              {t("บอทออนไลน์")}
             </div>
           </div>
         </div>
@@ -175,25 +217,27 @@ export function Shell({
           ความสูงของแต่ละแถวไม่คงที่อีกต่อไป การคำนวณตำแหน่งจาก index จึงเพี้ยน
           (แถบล่างบนมือถือยังใช้ได้เพราะทุกแท็บกว้างเท่ากันเสมอ)
         */}
-        <nav className="flex flex-col gap-1 overflow-y-auto">
-          {tabs.map((t) => (
-            <div key={t.route}>
+        <nav className="flex flex-col gap-0.5 overflow-y-auto" aria-label={t("เมนูหลัก")}>
+          {tabs.map((tab) => (
+            <div key={tab.route}>
               <button
                 type="button"
-                onClick={() => go(t.route)}
-                aria-current={route === t.route ? "page" : undefined}
-                className={`press flex h-[42px] w-full items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors ${
-                  route === t.route
-                    ? "border border-accent/30 bg-accent-soft text-accent"
-                    : "text-muted hover:text-text"
+                onClick={() => go(tab.route)}
+                aria-current={route === tab.route ? "page" : undefined}
+                // เมนูที่เลือก = เส้นฟ้าด้านซ้ายแบบเดียวกับเส้นระดับบนการ์ด ไม่ใช่เม็ดยาสีทึบ
+                className={`press flex h-10 w-full items-center gap-3 rounded-md border-l-[3px] px-3 text-[15px] transition-colors ${
+                  route === tab.route
+                    ? "border-accent bg-surface font-semibold text-text"
+                    : "border-transparent text-muted hover:bg-raised hover:text-text"
                 }`}
               >
-                <Icon name={t.icon} className="size-5" />
-                {t.label}
+                <Icon name={tab.icon} className="size-5" />
+                <span className="flex-1 text-left">{tab.label}</span>
+                {tab.route === "/team" && <TeamBadge badge={teamBadge} />}
               </button>
 
               {/* ต้นไม้หมวดหมู่ กางอยู่ใต้ Logs เมื่ออยู่หน้านั้น */}
-              {t.route === "/logs" && route === "/logs" && (
+              {tab.route === "/logs" && route === "/logs" && (
                 <div className="fade-in mt-1 border-l border-line pl-2">
                   <LogTree filter={logFilter} onPick={onPickLogFilter} compact />
                 </div>
@@ -203,14 +247,14 @@ export function Shell({
         </nav>
 
         <div className="mt-auto flex items-center gap-2 border-t border-line px-2 pt-3 text-sm">
-          <Icon name="user" className="size-5 text-faint" />
+          <Avatar id={userId} name={username} size="sm" />
           <span className="min-w-0 flex-1 truncate text-muted">{username}</span>
           <form method="post" action="/logout">
             <button
               type="submit"
-              aria-label="ออกจากระบบ"
-              title="ออกจากระบบ"
-              className="press rounded-lg p-2 text-muted hover:text-alert"
+              aria-label={t("ออกจากระบบ")}
+              title={t("ออกจากระบบ")}
+              className="press rounded-md p-2 text-muted hover:bg-raised hover:text-text"
             >
               <Icon name="logout" className="size-4" />
             </button>
@@ -220,25 +264,39 @@ export function Shell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* ---- หัวเว็บ ---- */}
-        <header className="glass sticky top-0 z-30 rounded-none border-x-0 border-t-0 pt-safe">
-          <div className="mx-auto flex h-14 w-full max-w-4xl items-center gap-3 px-4">
-            <img src="/icon.svg" alt="" className="size-6 md:hidden" />
-            <h1 className="min-w-0 flex-1 truncate text-lg font-bold">
+        <header className="sticky top-0 z-30 border-b border-line bg-bg/90 pt-safe backdrop-blur-sm">
+          <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-3 px-4 md:px-8">
+            <img src="/server-icon" alt="" className="size-6 rounded-md object-cover md:hidden" />
+            <h1 className="min-w-0 flex-1 truncate text-lg font-semibold">
               {TITLES[route]}
             </h1>
             <LiveDot state={stream} />
             <NotifyButton />
+            <LangButton />
             <ThemeButton />
+            {/* ไม่มีหน้าตั้งค่า = ไม่มีปุ่มออกจากระบบบนมือถือ — ใส่ไว้บนหัวแทน */}
+            {!seesSystem && (
+              <form method="post" action="/logout" className="md:hidden">
+                <button
+                  type="submit"
+                  aria-label={t("ออกจากระบบ")}
+                  title={t("ออกจากระบบ")}
+                  className="press rounded-md border border-line bg-surface p-2 text-muted"
+                >
+                  <Icon name="logout" className="size-5" />
+                </button>
+              </form>
+            )}
           </div>
         </header>
 
         {/* pb-28 บนมือถือ = เผื่อที่ให้แถบแท็บล่าง ไม่ให้ทับเนื้อหาบรรทัดสุดท้าย */}
-        <main className="mx-auto w-full max-w-4xl flex-1 px-4 pb-28 pt-4 md:pb-10">
+        <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-28 pt-5 md:px-8 md:pb-12 md:pt-7">
           {children}
         </main>
 
         {/* ---- แถบแท็บล่าง (เฉพาะมือถือ) ---- */}
-        <nav className="glass fixed inset-x-0 bottom-0 z-30 rounded-none border-x-0 border-b-0 pb-safe md:hidden">
+        <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface pb-safe md:hidden" aria-label={t("เมนูหลัก")}>
           <div className="relative flex">
             {/*
               เม็ดยาเลื่อนตามแท็บ — คำนวณจาก index เป็นเปอร์เซ็นต์ของความกว้างตัวเอง
@@ -246,7 +304,7 @@ export function Shell({
             */}
             <span
               aria-hidden="true"
-              className="absolute bottom-1 top-1 rounded-2xl bg-accent-soft transition-transform duration-[350ms] [transition-timing-function:var(--ease-spring)]"
+              className="absolute bottom-1 top-1 rounded-md bg-accent-soft transition-transform duration-[350ms] [transition-timing-function:var(--ease-spring)]"
               style={{
                 width: `${100 / tabs.length}%`,
                 transform: `translateX(${activeIndex * 100}%)`,
@@ -266,7 +324,14 @@ export function Shell({
                     active ? "text-accent" : "text-faint"
                   }`}
                 >
-                  <Icon name={tab.icon} className="size-[22px]" />
+                  <span className="relative">
+                    <Icon name={tab.icon} className="size-[22px]" />
+                    {r === "/team" && (
+                      <span className="absolute -right-2.5 -top-1.5">
+                        <TeamBadge badge={teamBadge} />
+                      </span>
+                    )}
+                  </span>
                   {tab.label}
                 </button>
               );

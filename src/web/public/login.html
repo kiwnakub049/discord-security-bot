@@ -3,61 +3,65 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f5efe6" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#070a10" />
-    <title>เข้าสู่ระบบ — Security Bot</title>
+    <link rel="icon" href="/server-icon" />
+    <link rel="apple-touch-icon" href="/server-icon" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#eef1f4" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0f1726" />
+    <title>เข้าสู่ระบบ — Undawn Dashboard</title>
     <!--
       หน้านี้จงใจไม่ใช้ React/Vite เหมือนหน้าอื่น
-      เพราะต้องเข้าถึงได้ "ก่อน" login และเป็น form POST จริง ๆ ที่เบราว์เซอร์ส่งเอง
-      (เพื่อให้ตัวจัดการรหัสผ่านของเครื่องจำรหัสให้ได้ตามปกติ)
+      เพราะต้องเข้าถึงได้ "ก่อน" login — มีแค่ปุ่มเดียวที่เป็นลิงก์ธรรมดาไป /auth/discord
+      (login ด้วย Discord อย่างเดียว ไม่มีรหัสผ่านแล้ว)
       สีเลยต้องก็อปชุดเดียวกับ ui/src/index.css มาไว้ที่นี่ — ถ้าแก้ธีม แก้ทั้งสองที่
 
       ⚠️ ห้ามมี <script> ในไฟล์นี้ — CSP ตั้ง script-src 'self' ไว้ จะถูกบล็อกเงียบ ๆ
          animation ทุกอย่างจึงต้องเป็น CSS ล้วน (test/loginpage.test.ts คุมข้อนี้อยู่)
     -->
     <style>
-      /* ── โทนสว่าง: ครีม/เบจ ── */
+      /*
+       * ── โทนสว่าง: กระดาษกับหมึก ── (ชุดเดียวกับ dashboard — src/web/ui/src/index.css)
+       * พื้นหลังก้อนสีเดิม (blob) ปิดไว้ด้วยการตั้งเป็นโปร่งใส ไม่ต้องรื้อ markup
+       */
       :root {
         color-scheme: light;
-        --bg: #f5efe6;
-        --blob-1: rgba(255, 186, 140, 0.5);
-        --blob-2: rgba(240, 200, 120, 0.44);
-        --blob-3: rgba(238, 170, 175, 0.38);
-        --blob-4: rgba(190, 205, 160, 0.36);
-        --glass: rgba(255, 252, 247, 0.72);
-        --edge: rgba(255, 255, 255, 0.85);
-        --spec: rgba(255, 255, 255, 0.95);
-        --shade: rgba(92, 62, 32, 0.16);
-        --field: rgba(255, 252, 247, 0.55);
-        --text: #2a2118;
-        --muted: #6b5942;
-        --accent: #9a5410;
-        --accent-contrast: #fffaf3;
-        --alert: #b0203f;
-        --alert-soft: rgba(210, 50, 85, 0.14);
+        --bg: #eef1f4;
+        --blob-1: transparent;
+        --blob-2: transparent;
+        --blob-3: transparent;
+        --blob-4: transparent;
+        --glass: #fbfcfd;
+        --edge: #c9d2dc;
+        --spec: transparent;
+        --shade: rgba(20, 33, 61, 0.12);
+        --field: #fbfcfd;
+        --text: #14213d;
+        --muted: #44526b;
+        --accent: #2f5d8a;
+        --accent-contrast: #fbfcfd;
+        --alert: #c8102e;
+        --alert-soft: rgba(200, 16, 46, 0.09);
       }
 
-      /* ── โทนมืด ── */
+      /* ── โทนมืด: เวรกลางคืน ── */
       @media (prefers-color-scheme: dark) {
         :root {
           color-scheme: dark;
-          --bg: #070a10;
-          --blob-1: rgba(40, 110, 220, 0.36);
-          --blob-2: rgba(125, 70, 225, 0.3);
-          --blob-3: rgba(20, 165, 165, 0.24);
-          --blob-4: rgba(205, 60, 125, 0.2);
-          --glass: rgba(150, 182, 226, 0.11);
-          --edge: rgba(180, 208, 245, 0.17);
-          --spec: rgba(222, 238, 255, 0.3);
-          --shade: rgba(0, 0, 0, 0.55);
-          --field: rgba(150, 182, 226, 0.09);
-          --text: #e9f0fa;
-          --muted: #a3b6ce;
-          --accent: #5cc8ff;
-          --accent-contrast: #04121c;
-          --alert: #ff8098;
-          --alert-soft: rgba(255, 128, 152, 0.17);
+          --bg: #0f1726;
+          --blob-1: transparent;
+          --blob-2: transparent;
+          --blob-3: transparent;
+          --blob-4: transparent;
+          --glass: #152036;
+          --edge: #283653;
+          --spec: transparent;
+          --shade: rgba(0, 0, 0, 0.5);
+          --field: #1c2a44;
+          --text: #dce3ea;
+          --muted: #a8b4c6;
+          --accent: #8db3da;
+          --accent-contrast: #0f1726;
+          --alert: #ff6b7d;
+          --alert-soft: rgba(255, 107, 125, 0.13);
         }
       }
 
@@ -101,7 +105,7 @@
         will-change: transform;
       }
 
-      form {
+      .card {
         width: 100%;
         max-width: 380px;
         padding: 30px 26px;
@@ -118,8 +122,10 @@
       }
 
       .logo {
-        width: 48px;
-        height: 48px;
+        width: 56px;
+        height: 56px;
+        border-radius: 14px; /* รูปเซิร์ฟเป็นสี่เหลี่ยมเต็ม — มนมุมให้เข้ากับการ์ด */
+        object-fit: cover;
         margin-bottom: 16px;
       }
 
@@ -135,37 +141,16 @@
         margin: 4px 0 24px;
       }
 
-      label {
-        display: block;
-        font-size: 13px;
-        font-weight: 500;
-        color: var(--muted);
-        margin-bottom: 6px;
-      }
-
-      input {
+      /* สีปุ่มของ Discord เอง (Blurple) — คนเห็นแล้วรู้ทันทีว่ากดแล้วไปไหน */
+      .discord {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
         width: 100%;
-        background: var(--field);
-        border: 1px solid var(--edge);
-        border-radius: 14px;
-        color: var(--text);
-        padding: 12px 14px;
-        /* 16px ขึ้นไป — เล็กกว่านี้ Safari บน iOS จะซูมหน้าเข้าเองตอนโฟกัส */
-        font-size: 16px;
-        font-family: inherit;
-        margin-bottom: 16px;
-        box-shadow: inset 0 1px 0 0 var(--spec);
-        transition: border-color 0.25s ease;
-      }
-      input:focus {
-        outline: none;
-        border-color: var(--accent);
-      }
-
-      button {
-        width: 100%;
-        background: var(--accent);
-        color: var(--accent-contrast);
+        background: #5865f2;
+        color: #fff;
+        text-decoration: none;
         border: none;
         border-radius: 14px;
         padding: 14px;
@@ -175,11 +160,34 @@
         cursor: pointer;
         box-shadow:
           inset 0 1px 0 0 rgba(255, 255, 255, 0.3),
-          0 6px 18px -8px var(--accent);
+          0 6px 18px -8px #5865f2;
         transition: transform 0.18s cubic-bezier(0.22, 1.2, 0.36, 1);
       }
-      button:active {
+      .discord:active {
         transform: scale(0.975);
+      }
+
+      .discord svg {
+        width: 22px;
+        height: 22px;
+        flex: none;
+      }
+
+      .note {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.6;
+        margin-top: 16px;
+        text-align: center;
+      }
+
+      /* ลิงก์สลับภาษา (ลิงก์ธรรมดา ไม่มีสคริปต์) */
+      .lang {
+        display: block;
+        margin-top: 14px;
+        text-align: center;
+        font-size: 12px;
+        color: var(--accent);
       }
 
       .error {
@@ -231,34 +239,25 @@
   <body>
     <div class="aurora" aria-hidden="true"></div>
 
-    <form method="POST" action="/login">
-      <img class="logo" src="/icon.svg" alt="" />
-      <h1>Security Bot</h1>
+    <main class="card">
+      <img class="logo" src="/server-icon" alt="" />
+      <h1>Undawn Dashboard</h1>
       <p class="sub">เข้าสู่ระบบเพื่อดูแลเซิร์ฟเวอร์</p>
 
       <!--ERROR-->
 
-      <label for="username">ชื่อผู้ใช้</label>
-      <input
-        id="username"
-        name="username"
-        autocomplete="username"
-        autocapitalize="off"
-        autocorrect="off"
-        autofocus
-        required
-      />
+      <!--ACTION-->
+      <a class="discord" href="/auth/discord">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+          <path d="M20.32 4.37A19.8 19.8 0 0 0 15.4 2.85a13.7 13.7 0 0 0-.63 1.29 18.4 18.4 0 0 0-5.5 0 13.6 13.6 0 0 0-.64-1.29 19.7 19.7 0 0 0-4.93 1.52C.6 9.05-.24 13.6.18 18.1a19.9 19.9 0 0 0 6.04 3.05c.49-.66.92-1.36 1.29-2.1a12.9 12.9 0 0 1-2.03-.97l.5-.39a14.2 14.2 0 0 0 12.06 0l.5.39c-.65.38-1.33.71-2.04.97.37.74.8 1.44 1.29 2.1a19.8 19.8 0 0 0 6.04-3.05c.5-5.2-.84-9.72-3.51-13.73ZM8.02 15.33c-1.18 0-2.16-1.08-2.16-2.42 0-1.33.96-2.42 2.16-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.34-.96 2.42-2.16 2.42Zm7.96 0c-1.18 0-2.15-1.08-2.15-2.42 0-1.33.95-2.42 2.15-2.42 1.22 0 2.18 1.1 2.16 2.42 0 1.34-.94 2.42-2.16 2.42Z" />
+        </svg>
+        เข้าสู่ระบบด้วย Discord
+      </a>
+      <p class="note">หรือพิมพ์ <b>/dashboard</b> ในเซิร์ฟ Discord แล้วกดลิงก์ที่บอทส่งให้</p>
+      <!--/ACTION-->
 
-      <label for="password">รหัสผ่าน</label>
-      <input
-        id="password"
-        name="password"
-        type="password"
-        autocomplete="current-password"
-        required
-      />
-
-      <button type="submit">เข้าสู่ระบบ</button>
-    </form>
+      <p class="note">เข้าได้เฉพาะคนที่มียศแอดมินหรือ mod ในเซิร์ฟเวอร์</p>
+      <!--LANG-->
+    </main>
   </body>
 </html>

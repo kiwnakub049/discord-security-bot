@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { Client, Events, Partials } from "discord.js";
 import { initDb } from "./store/db.js";
 import { initLogStore } from "./store/logStore.js";
+import { pruneTeamChat } from "./store/teamChatStore.js";
 import { applyOverrides } from "./store/settingsStore.js";
 import { startWebServer } from "./web/server.js";
 import { isPermanentLoginError, loginWithRetry } from "./utils/loginRetry.js";
@@ -78,6 +79,15 @@ for (const sig of ["SIGTERM", "SIGINT"] as const) {
 initDb(); // เปิด/สร้างตาราง SQLite ทั้งหมด (ต้องก่อน store อื่น)
 applyOverrides(); // โหลดค่า settings ที่ปรับจากเว็บ (ทับ config ก่อนใช้งาน)
 await initLogStore(); // เตรียม log store
+// แชททีมเก็บ 90 วัน — ล้างตอนเปิดบอทแล้ววันละครั้ง
+{
+  const prune = () => {
+    const r = pruneTeamChat();
+    if (r.messages || r.files) console.log(`🧹 แชททีม: ลบข้อความเก่า ${r.messages} · ไฟล์ ${r.files}`);
+  };
+  prune();
+  setInterval(prune, 24 * 60 * 60 * 1000).unref();
+}
 startWebServer(client); // เปิดเว็บ dashboard (ส่ง client ไว้ดึงข้อมูลสมาชิก/บัตร)
 await loadEvents();
 

@@ -29,13 +29,13 @@ in particular is **not** stored: messages are scored in memory and then dropped.
 
 | Data | Purpose | Retention |
 |---|---|---|
-| Excerpt (first 180 characters) of a message that was **flagged or deleted** by moderation | So staff can review whether the action was correct | **90 days**, then deleted automatically |
+| Excerpt (first 1000 characters) of a message that was **flagged or deleted** by moderation | So staff can review whether the action was correct | **90 days**, then deleted automatically |
 | Moderation records: who was banned, kicked, timed out or warned, by whom, and why | Accountability for staff actions | **90 days**, then deleted automatically |
 | Member join and leave records (user ID, username, account age) | Investigating raids and scam waves after the fact | **90 days**, then deleted automatically |
 | Voice activity records (which channel, mute/deafen state changes) | Moderating voice channels | **90 days**, then deleted automatically |
 | Member profile card data (member number, join date, and self-chosen fields) | The server's member-card feature, which members opt into by registering | Until the member asks for it to be removed |
 | Activity counters (message count, voice minutes, XP) | The server's levelling feature | Until the member asks for it to be removed |
-| Text of a flagged message **that a moderator explicitly labelled** as a correct or incorrect detection | Labelled training data used to improve the Thai-language classifier | **Kept indefinitely** |
+| Text of a flagged message **that a moderator explicitly labelled** as a correct or incorrect detection | Labelled evaluation data used to measure and tune the AI moderation's accuracy | **Kept indefinitely** |
 
 The last row is the only data kept beyond 90 days that the member did not opt
 into. It is created only when a moderator deliberately presses a button in the
@@ -44,9 +44,18 @@ other than improving detection accuracy for this community.
 
 ## What is never done
 
-- Message content is **never sent to any third party.** The text classifier runs
-  on the same machine as the bot, reachable only on `127.0.0.1`. There is no
-  external AI API, no analytics provider, and no advertising.
+- Message content is **sent to one third party only: the Anthropic API (Claude)**,
+  which scores each server message (that is not from an exempt member and meets
+  the minimum length) for toxicity so the bot can act on harassment. Nothing else
+  about the member (no user ID, username, or history) is sent with it. Anthropic
+  processes it under its commercial API terms. There is no analytics provider and
+  no advertising.
+- When a server **admin** uses the dashboard's AI assistant chat, the records the
+  assistant looks up to answer (event logs, member names and IDs, warning
+  history, activity counters) are also sent to the Anthropic API. The assistant
+  cannot take moderation actions itself; it can only suggest them for an admin
+  to confirm. Chat history is stored on the bot's machine until the admin
+  deletes it.
 - Data is **never sold, shared, or published.**
 - Direct messages are not read or stored.
 

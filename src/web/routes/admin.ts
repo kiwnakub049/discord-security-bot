@@ -1,4 +1,4 @@
-/** ตั้งค่าบอท, หน้าจอ OLED บนตัวเครื่อง และบัญชีผู้ดูแล */
+/** ตั้งค่าบอท, หน้าจอ OLED บนตัวเครื่อง และรายชื่อคนที่เข้า dashboard ได้ */
 import { Router, type Request, type Response } from "express";
 import type { Client } from "discord.js";
 import { getSettings, updateSettings } from "../../store/settingsStore.js";
@@ -9,31 +9,53 @@ import {
   OLED_PAGES,
   setOledConfig,
 } from "../../utils/oledConfig.js";
-import {
-  addUser,
-  isRole,
-  listUsers,
-  listUsersWithRoles,
-  removeUser,
-  setRole,
-} from "../../auth/users.js";
-import { requireAdmin } from "../middleware/auth.js";
+import { guildOf, roleOf } from "../../auth/access.js";
+import { config } from "../../config.js";
+import { isOwner, requireSystemView } from "../middleware/auth.js";
 import { logEvent } from "../../utils/logger.js";
+import { tr, type Lang } from "../i18n.js";
 
 export function adminRoutes(client?: Client): Router {
   const r = Router();
 
+  // ตั้งค่าบอท / OLED / รายชื่อคนเข้าได้ — mod กับเจ้าของใช้ได้, admin คนอื่นไม่เห็น (ดู seesSystem)
+  r.use(["/api/settings", "/api/oled", "/api/access"], requireSystemView);
+
   // ---------- ตั้งค่าบอท ----------
+  /*
+   * ยศที่นับเป็น admin/mod (dashboard.*) แก้ได้แค่เจ้าของ — ไม่งั้น mod ใส่ยศตัวเองเป็น admin
+   * แล้วเลื่อนขั้นตัวเองได้ · คนอื่นไม่เห็นหัวข้อนี้เลย และส่งมาก็ถูกตัดทิ้ง
+   */
+  const ownerOnlyKey = (k: string) => k.startsWith("dashboard.");
+
   r.get("/api/settings", (_req: Request, res: Response) => {
-    res.json(getSettings());
+    // ชื่อหัวข้อ/ป้ายช่องเป็นหน้าตาเว็บ — แปลตามภาษา (key/ค่า/ตัวเลือก select ไม่แตะ)
+    const lang: Lang = res.locals.lang;
+    const all = getSettings().map((s) => ({
+      ...s,
+      section: tr(s.section, lang),
+      items: s.items.map((i) => ({ ...i, label: tr(i.label, lang) })),
+    }));
+    res.json(
+      isOwner(res.locals.userId)
+        ? all
+        : all
+            .map((s) => ({ ...s, items: s.items.filter((i) => !ownerOnlyKey(i.key)) }))
+            .filter((s) => s.items.length > 0),
+    );
   });
 
-  r.post("/api/settings", requireAdmin, async (req: Request, res: Response) => {
+  r.post("/api/settings", async (req: Request, res: Response) => {
     if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) {
       res.status(400).json({ ok: false, message: "ข้อมูลไม่ถูกต้อง" });
       return;
     }
-    updateSettings(req.body as Record<string, unknown>);
+    const patch = Object.fromEntries(
+      Object.entries(req.body as Record<string, unknown>).filter(
+        ([k]) => isOwner(res.locals.userId) || !ownerOnlyKey(k),
+      ),
+    );
+    updateSettings(patch);
     res.json({ ok: true, message: "บันทึกการตั้งค่าแล้ว" });
     if (client) {
       await logEvent(client, "warn", "system", "system_settings", "แก้ไขการตั้งค่า (จาก dashboard)", [
@@ -46,7 +68,7 @@ export function adminRoutes(client?: Client): Router {
   r.get("/api/oled", (_req: Request, res: Response) => {
     res.json({
       ...getOledConfig(),
-      pages: OLED_PAGES.map((p) => ({ id: p, label: OLED_PAGE_LABELS[p] })),
+      pages: OLED_PAGES.map((p) => ({ id: p, label: tr(OLED_PAGE_LABELS[p], res.locals.lang) })),
     });
   });
 
@@ -77,84 +99,29 @@ export function adminRoutes(client?: Client): Router {
   });
 
   // ---------- บัญชีผู้ดูแล (admin เท่านั้น) ----------
-  r.get("/api/users", requireAdmin, (_req: Request, res: Response) => {
-    res.json(listUsersWithRoles());
-  });
-
-  r.post("/api/users/add", requireAdmin, async (req: Request, res: Response) => {
-    const username = String(req.body?.username ?? "").trim();
-    const password = String(req.body?.password ?? "");
-    // role: รับ 'admin'/'mod' — ค่าอื่นหรือไม่ส่งมา = mod (สิทธิ์ต่ำสุด)
-    const roleInput = req.body?.role;
-    const role = isRole(roleInput) ? roleInput : "mod";
-    // จำกัดรูปแบบ username: a-z A-Z 0-9 _ . - ยาว 3–32 ตัว
-    // กัน stored XSS (เช่นชื่อที่มี ' " < >) ที่จะถูกฝังในหน้า dashboard
-    if (!/^[A-Za-z0-9_.-]{3,32}$/.test(username) || password.length < 8) {
-      res.status(400).json({
-        ok: false,
-        message: "username 3–32 ตัว (a-z 0-9 _ . -) + รหัสผ่าน ≥ 8 ตัว",
-      });
+  /**
+   * ใครเข้า dashboard ได้บ้างตอนนี้ — ดูอย่างเดียว เพิ่ม/ถอดสิทธิ์ทำที่ยศใน Discord
+   * (ตั้งว่ายศไหนเป็น admin/mod ได้ในหน้าตั้งค่าบอท หัวข้อ "สิทธิ์เข้า dashboard")
+   */
+  r.get("/api/access", async (_req: Request, res: Response) => {
+    const guild = client ? guildOf(client) : null;
+    if (!guild) {
+      res.json({ roles: [], people: [] });
       return;
     }
-    try {
-      await addUser(username, password, role);
-      res.json({ ok: true, message: `เพิ่มบัญชี ${username} (${role}) แล้ว` });
-      if (client) {
-        await logEvent(client, "warn", "system", "system_settings", "เพิ่มบัญชี dashboard (จาก dashboard)", [
-          { name: "บัญชีใหม่", value: username },
-          { name: "สิทธิ์", value: role },
-          { name: "โดย", value: String(res.locals.username) },
-        ]);
-      }
-    } catch {
-      res.status(400).json({ ok: false, message: "มีบัญชีนี้อยู่แล้ว" });
-    }
-  });
-
-  r.post("/api/users/role", requireAdmin, async (req: Request, res: Response) => {
-    const username = String(req.body?.username ?? "");
-    const role = req.body?.role;
-    if (!isRole(role)) {
-      res.status(400).json({ ok: false, message: "role ต้องเป็น admin หรือ mod" });
-      return;
-    }
-    const ok = setRole(username, role);
-    if (!ok) {
-      res.status(400).json({
-        ok: false,
-        message: "เปลี่ยนไม่ได้ — ไม่พบบัญชี หรือเป็น admin คนสุดท้าย",
-      });
-      return;
-    }
-    res.json({ ok: true, message: `เปลี่ยน ${username} เป็น ${role} แล้ว` });
-    if (client) {
-      await logEvent(client, "warn", "system", "system_settings", "เปลี่ยนสิทธิ์บัญชี (จาก dashboard)", [
-        { name: "บัญชี", value: username },
-        { name: "สิทธิ์ใหม่", value: role },
-        { name: "โดย", value: String(res.locals.username) },
-      ]);
-    }
-  });
-
-  r.post("/api/users/remove", requireAdmin, async (req: Request, res: Response) => {
-    const username = String(req.body?.username ?? "");
-    if (listUsers().length <= 1) {
-      res.status(400).json({ ok: false, message: "ลบไม่ได้ — ต้องเหลือบัญชีอย่างน้อย 1" });
-      return;
-    }
-    const ok = removeUser(username);
-    res.json({
-      ok,
-      message: ok
-        ? `ลบบัญชี ${username} แล้ว`
-        : "ลบไม่ได้ — ไม่พบบัญชี หรือเป็น admin คนสุดท้าย",
-    });
-    if (ok && client) {
-      await logEvent(client, "alert", "system", "system_settings", "ลบบัญชี dashboard (จาก dashboard)", [
-        { name: "บัญชีที่ลบ", value: username },
-        { name: "โดย", value: String(res.locals.username) },
-      ]);
-    }
+    // ดึงสมาชิกทั้งหมดครั้งหนึ่ง (cache อาจมีแค่คนที่เพิ่งเคลื่อนไหว) — พลาดก็ใช้ที่มีใน cache
+    await guild.members.fetch().catch(() => null);
+    const roleName = (id: string) => guild.roles.cache.get(id)?.name ?? null;
+    const roles = [
+      ...config.dashboard.adminRoleIds.map((id) => ({ id, name: roleName(id), role: "admin" as const })),
+      ...config.dashboard.modRoleIds.map((id) => ({ id, name: roleName(id), role: "mod" as const })),
+    ];
+    const people = [...guild.members.cache.values()]
+      .filter((m) => !m.user.bot)
+      .map((m) => ({ id: m.id, name: m.user.username, role: roleOf(m) }))
+      .filter((p): p is { id: string; name: string; role: "admin" | "mod" } => p.role !== null)
+      .sort((a, b) => (a.role === b.role ? a.name.localeCompare(b.name) : a.role === "admin" ? -1 : 1));
+    res.json({ roles, people });
   });
 
   return r;

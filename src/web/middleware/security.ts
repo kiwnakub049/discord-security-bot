@@ -14,7 +14,9 @@ import { config } from "../../config.js";
  */
 const CSP = [
   "default-src 'self'",
-  "img-src 'self' data:",
+  // รูปโปรไฟล์คนใน log/รายชื่อมาจาก CDN ของ Discord (ดู /api/avatar/:id) — เปิดแค่โดเมนเดียวนี้
+  // blob: = พรีวิวรูปในแชททีมก่อนกดส่ง (URL.createObjectURL ของไฟล์ในเครื่องตัวเอง)
+  "img-src 'self' data: blob: https://cdn.discordapp.com",
   "style-src 'self' 'unsafe-inline'",
   "script-src 'self'",
   "connect-src 'self'",

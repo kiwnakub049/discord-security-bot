@@ -10,6 +10,8 @@ import { readFileSync, readdirSync, statfs } from "node:fs";
 import { promisify } from "node:util";
 import { cpus, freemem, loadavg, totalmem, uptime } from "node:os";
 import { disabledFeatures, privilegedDisabled } from "../../intents.js";
+import { requireSystemView } from "../middleware/auth.js";
+import { tr } from "../i18n.js";
 
 const execFileAsync = promisify(execFile);
 const statfsAsync = promisify(statfs);
@@ -109,7 +111,7 @@ async function readThrottle(): Promise<ThrottleFlags | null> {
 export function systemRoutes(): Router {
   const r = Router();
 
-  r.get("/api/system", async (_req: Request, res: Response) => {
+  r.get("/api/system", requireSystemView, async (_req: Request, res: Response) => {
     const tempPath = hwmonPath("cpu_thermal", "temp1_input");
     const fanPath = hwmonPath("pwmfan", "fan1_input");
     // in0_lcrit_alarm = สัญญาณไฟตกแบบสด ๆ ที่ไม่ต้อง spawn vcgencmd
@@ -158,7 +160,7 @@ export function systemRoutes(): Router {
       },
       // โหมดจำกัดสิทธิ์ — ต้องเห็นบนหน้าเว็บ ไม่ใช่ซ่อนอยู่ใน log ตอนบูตอย่างเดียว
       // การป้องกันหายไปหลายชั้นแล้วไม่มีใครรู้ คือสภาพที่แย่กว่าบอทดับไปเลย
-      degraded: privilegedDisabled ? disabledFeatures : null,
+      degraded: privilegedDisabled ? disabledFeatures.map((f) => tr(f, res.locals.lang)) : null,
       uptime: {
         hostSec: Math.round(uptime()),
         botSec: Math.round(process.uptime()),

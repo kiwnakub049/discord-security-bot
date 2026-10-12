@@ -11,6 +11,8 @@
  *   BOT_DB_PATH=/tmp/demo.db WEB_PORT=3100 npm run web
  */
 import { db } from "../store/db.js";
+import { enqueue } from "../store/queueStore.js";
+import { addMessage } from "../store/ticketStore.js";
 
 if (!process.env.BOT_DB_PATH) {
   console.error(
@@ -59,7 +61,7 @@ const who = (i: number): string => {
 };
 
 // ---- ล้างของเดิมในฐานตัวอย่าง ----
-for (const t of ["logs", "members", "activity", "warnings", "ai_verdicts", "sessions"]) {
+for (const t of ["logs", "members", "activity", "warnings", "ai_verdicts", "sessions", "queue_items", "ticket_messages"]) {
   db.prepare(`DELETE FROM ${t}`).run();
 }
 
@@ -78,7 +80,7 @@ TOXIC.forEach((t, i) => {
     "security_ai",
     t.auto
       ? "AI ตรวจพบข้อความ toxic — จัดการอัตโนมัติ"
-      : "AI สงสัยว่าเป็นข้อความ toxic — รอ mod ตรวจ",
+      : "Claude สงสัยว่าไม่สุภาพ — ลง log ไว้ (ไม่ได้ลบ)",
     [
       { name: "User", value: who(i) },
       { name: "ห้อง", value: pick(CHANNELS, i) },
@@ -213,6 +215,25 @@ const warn = db.prepare(
 );
 warn.run(PEOPLE[1]!.id, "ส่งข้อความรัวในห้องนั่งเล่น", "100000000000000099", MODS[0]!, now - 3 * HOUR);
 warn.run(PEOPLE[4]!.id, "ใช้คำหยาบใส่สมาชิกคนอื่น", "100000000000000098", MODS[1]!, now - 26 * HOUR);
+
+// ---- คิวรอดำเนินการ (หน้าแรก) — ชื่อ/ID สมมติทั้งหมด ----
+const ago = (m: number): number => now - m * MIN;
+enqueue({ category: "ban-approval", subjectId: "100000000000000201", title: "spam_bot_7731", detail: "ส่งลิงก์เชิญซ้ำ 14 ห้องใน 40 วินาที", at: ago(52) });
+enqueue({ category: "ban-approval", subjectId: "100000000000000202", title: "free.nitro.th", detail: "ส่งลิงก์ฟิชชิ่ง Nitro ใน DM สมาชิก 6 คน", at: ago(18) });
+enqueue({ category: "ban-approval", subjectId: PEOPLE[4]!.id, title: PEOPLE[4]!.name, detail: "เตือนครบ 3 ครั้งภายใน 7 วัน", at: ago(6) });
+enqueue({ category: "suspicious-member", subjectId: "100000000000000301", title: "user84422190", detail: "บัญชีอายุ 2 วัน · เข้าพร้อมกัน 9 บัญชี", at: ago(35) });
+enqueue({ category: "suspicious-member", subjectId: "100000000000000302", title: "user84422191", detail: "บัญชีอายุ 2 วัน · ไม่มีรูปโปรไฟล์", at: ago(34) });
+{
+  // ticket ตำรวจ พร้อมบทสนทนาที่ตำรวจตอบกลับมาล่าสุด (การ์ดต้องขึ้น "ตำรวจตอบมา")
+  const p = PEOPLE[1]!;
+  const detail = "ครั้งนั้นเพื่อนใช้เครื่องพิมพ์แทน";
+  const t = enqueue({ category: "admin-ticket", subjectId: p.id, title: "ขอปลดเตือนครั้งที่ 2", detail, at: ago(26 * 60) });
+  const say = (kind: "police" | "admin", body: string, m: number, delivered?: boolean) =>
+    addMessage({ queueId: t, authorKind: kind, authorId: kind === "police" ? p.id : "flick", authorName: kind === "police" ? p.name : "flick", body, delivered, at: ago(m) });
+  say("police", detail, 26 * 60);
+  say("admin", "มีหลักฐานไหมว่าตอนนั้นไม่ได้พิมพ์เอง เช่น แชทกับเพื่อนคนนั้น", 25 * 60, true);
+  say("police", "มีครับ แคปแชทไว้ตามนี้\nเพื่อนยอมรับเองว่ายืมเครื่องไปตอนผมไปเข้าห้องน้ำ", 40);
+}
 
 const counts = db.prepare("SELECT count(*) c FROM logs").get() as { c: number };
 console.log(`✅ สร้างข้อมูลตัวอย่างแล้ว: log ${counts.c} รายการ, สมาชิก ${PEOPLE.length} คน`);

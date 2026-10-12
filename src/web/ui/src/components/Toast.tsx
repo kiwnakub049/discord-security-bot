@@ -48,7 +48,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={t.id}
             role="status"
-            className={`glass toast-in pointer-events-auto flex w-full max-w-sm items-center gap-2 rounded-2xl px-3.5 py-3 text-sm ${
+            className={`glass toast-in pointer-events-auto flex w-full max-w-sm items-center gap-2 rounded-md px-3.5 py-3 text-sm ${
               t.tone === "ok"
                 ? "text-ok"
                 : t.tone === "error"

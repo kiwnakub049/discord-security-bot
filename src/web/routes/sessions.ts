@@ -7,6 +7,7 @@ import {
   revokeSession,
 } from "../../auth/session.js";
 import { logEvent } from "../../utils/logger.js";
+import { tr, type Lang } from "../i18n.js";
 
 /**
  * แปลง User-Agent เป็นชื่อที่คนอ่านออก
@@ -17,6 +18,11 @@ import { logEvent } from "../../utils/logger.js";
  * ลำดับการเช็คสำคัญ — Edge/Chrome ใส่คำว่า "Safari" ใน UA ด้วย
  * ถ้าเช็ค Safari ก่อนจะกลายเป็น Safari ทั้งหมด
  */
+/** "ไม่ทราบ" ฯลฯ เป็นป้ายหน้าเว็บ — ชื่อ OS/เบราว์เซอร์อังกฤษอยู่แล้วก็ผ่านไปเฉย ๆ */
+function localDevice(d: { device: string; browser: string }, lang: Lang) {
+  return { device: tr(d.device, lang), browser: tr(d.browser, lang) };
+}
+
 export function describeDevice(ua: string): { device: string; browser: string } {
   const device = /iPhone/i.test(ua)
     ? "iPhone"
@@ -53,10 +59,10 @@ export function sessionRoutes(client?: Client): Router {
   const r = Router();
 
   r.get("/api/sessions", (_req: Request, res: Response) => {
-    const username = String(res.locals.username);
+    const userId = String(res.locals.userId);
     const current = String(res.locals.sessionId);
     res.json(
-      listSessions(username).map((s) => ({
+      listSessions(userId).map((s) => ({
         // ส่ง id ไปให้หน้าเว็บใช้สั่งเตะได้ — เป็น hash อยู่แล้ว เอาไปสวมสิทธิ์ไม่ได้
         id: s.id,
         current: s.id === current,
@@ -64,13 +70,13 @@ export function sessionRoutes(client?: Client): Router {
         lastSeen: s.last_seen,
         expires: s.expires,
         ip: s.ip,
-        ...describeDevice(s.user_agent),
+        ...localDevice(describeDevice(s.user_agent), res.locals.lang),
       })),
     );
   });
 
   r.post("/api/sessions/revoke", async (req: Request, res: Response) => {
-    const username = String(res.locals.username);
+    const userId = String(res.locals.userId);
     const current = String(res.locals.sessionId);
     const id = String(req.body?.id ?? "");
     if (!id) {
@@ -85,27 +91,26 @@ export function sessionRoutes(client?: Client): Router {
       });
       return;
     }
-    const ok = revokeSession(username, id);
+    const ok = revokeSession(userId, id);
     res.json({ ok, message: ok ? "เตะเครื่องนั้นออกแล้ว" : "ไม่พบเครื่องนี้" });
     if (ok && client) {
       await logEvent(client, "warn", "system", "system_login", "เตะอุปกรณ์ออกจากระบบ", [
-        { name: "บัญชี", value: username },
-        { name: "โดย", value: `${username} (จาก dashboard)` },
+        { name: "บัญชี", value: `${res.locals.username} (${userId})` },
       ]);
     }
   });
 
   r.post("/api/sessions/revoke-others", async (_req: Request, res: Response) => {
-    const username = String(res.locals.username);
+    const userId = String(res.locals.userId);
     const current = String(res.locals.sessionId);
-    const n = revokeOtherSessions(username, current);
+    const n = revokeOtherSessions(userId, current);
     res.json({
       ok: true,
       message: n ? `เตะออก ${n} เครื่อง` : "ไม่มีเครื่องอื่นที่ค้างอยู่",
     });
     if (n && client) {
       await logEvent(client, "warn", "system", "system_login", "ออกจากระบบทุกเครื่องยกเว้นเครื่องนี้", [
-        { name: "บัญชี", value: username },
+        { name: "บัญชี", value: `${res.locals.username} (${userId})` },
         { name: "จำนวน", value: `${n} เครื่อง` },
       ]);
     }

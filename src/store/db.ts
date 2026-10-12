@@ -38,14 +38,6 @@ if (!process.env.BOT_DB_PATH) {
 /** สร้างตารางทั้งหมดถ้ายังไม่มี — เรียกครั้งเดียวตอนบูต (idempotent) */
 export function initDb(): void {
   db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      username TEXT PRIMARY KEY,
-      salt     TEXT NOT NULL,
-      hash     TEXT NOT NULL,
-      -- 'admin' = จัดการบัญชี + ตั้งค่าบอทได้ | 'mod' = ดู + moderate (ban/kick/warn) เท่านั้น
-      role     TEXT NOT NULL DEFAULT 'mod'
-    );
-
     -- session ของ dashboard — เก็บใน DB ไม่ใช่ RAM เพื่อให้รีสตาร์ทบอทแล้วไม่หลุด
     -- (ของเดิมอยู่ใน Map ในหน่วยความจำ ทุกครั้งที่ deploy ทุกคนต้อง login ใหม่)
     --
@@ -62,6 +54,20 @@ export function initDb(): void {
     );
     CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(username);
     CREATE INDEX IF NOT EXISTS idx_sessions_exp  ON sessions(expires);
+
+    -- ลิงก์ login ครั้งเดียวจาก /dashboard ใน Discord — เก็บแค่ sha256 ของ token
+    CREATE TABLE IF NOT EXISTS login_links (
+      token_hash TEXT PRIMARY KEY,
+      user_id    TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      used_at    INTEGER
+    );
+    -- state ของ OAuth ที่ออกให้ไปแล้ว — ขากลับจากแอป Discord อาจไม่มี cookie ของเรา
+    CREATE TABLE IF NOT EXISTS oauth_states (
+      state_hash TEXT PRIMARY KEY,
+      expires_at INTEGER NOT NULL
+    );
 
     -- แผงบัตรที่ /setup-idcard ปักไว้ในห้อง — เก็บไว้ให้ลูปไล่สีขอบ embed หาเจอ
     -- หลัง restart (สี embed แก้หลังส่งไม่ได้ ต้อง edit ข้อความเดิมเป็นระยะ)
@@ -106,6 +112,16 @@ export function initDb(): void {
       reason   TEXT NOT NULL DEFAULT ''
     );
     CREATE INDEX IF NOT EXISTS idx_mute_until ON mute_punishments(until);
+
+    -- ไมค์แดงที่ "ควรปลดแล้วแต่ยังปลดไม่ได้" เพราะตอนนั้นคนนั้นไม่อยู่ในห้องเสียง
+    -- (Discord ปลด server mute ได้เฉพาะคนที่อยู่ในห้อง แต่ mute ติดตัวไปห้องถัดไป)
+    -- บอทปลดให้ทันทีที่เขากลับเข้าห้อง แล้วลบแถวทิ้ง
+    CREATE TABLE IF NOT EXISTS mute_release_pending (
+      user_id    TEXT PRIMARY KEY,
+      guild_id   TEXT NOT NULL,
+      reason     TEXT NOT NULL DEFAULT '',
+      created_at INTEGER NOT NULL
+    );
 
     CREATE TABLE IF NOT EXISTS voice_locks (
       channel_id TEXT PRIMARY KEY,
@@ -167,6 +183,100 @@ export function initDb(): void {
     CREATE INDEX IF NOT EXISTS idx_logs_ts    ON logs(timestamp);
     CREATE INDEX IF NOT EXISTS idx_logs_level ON logs(level);
     CREATE INDEX IF NOT EXISTS idx_logs_cat   ON logs(category);
+
+    -- คิวงานที่รอคนตัดสินใจ (หน้าแรกของ dashboard) — หนึ่งแถว = หนึ่งเรื่อง
+    -- โมดูลไหนอยากให้ mod ตัดสินอะไร เรียก enqueue() ใน queueStore แล้วการ์ดโผล่เอง
+    -- resolved_at = NULL คือยังค้างอยู่ · แถวที่ปิดแล้วเก็บไว้เป็นประวัติว่าใครตัดสินอะไร
+    CREATE TABLE IF NOT EXISTS queue_items (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      category    TEXT NOT NULL,          -- key ใน QUEUE_CATEGORIES เช่น 'ban-approval'
+      subject_id  TEXT,                   -- Discord user ID ที่เรื่องนี้เกี่ยวด้วย (ถ้ามี)
+      title       TEXT NOT NULL,
+      detail      TEXT,
+      created_at  INTEGER NOT NULL,
+      resolved_at INTEGER,
+      resolved_by TEXT,
+      outcome     TEXT,                   -- key ของปุ่มที่ mod กด เช่น 'approve' / 'dismiss'
+      refs        TEXT                    -- JSON array ของ "channelId/messageId" ที่เรื่องนี้ชี้ถึง (ปุ่มลบข้อความใช้)
+    );
+    CREATE INDEX IF NOT EXISTS idx_queue_open ON queue_items(resolved_at, category, created_at);
+
+    -- บทสนทนาของ ticket (ตำรวจคุยกับแอดมิน) — หนึ่งแถว = หนึ่งข้อความ ผูกกับเรื่องใน queue_items
+    -- ฝั่งตำรวจมาจาก DM ที่ตอบบอท ฝั่งแอดมินพิมพ์จาก dashboard แล้วบอท DM ต่อให้
+    CREATE TABLE IF NOT EXISTS ticket_messages (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      queue_id    INTEGER NOT NULL,       -- queue_items.id
+      author_kind TEXT NOT NULL,          -- 'police' | 'admin'
+      author_id   TEXT,                   -- Discord user ID (ฝั่งตำรวจ) หรือชื่อบัญชี dashboard (ฝั่งแอดมิน)
+      author_name TEXT NOT NULL,
+      body        TEXT NOT NULL,
+      attachments TEXT,                   -- ลิงก์ไฟล์แนบ คั่นด้วยขึ้นบรรทัดใหม่
+      delivered   INTEGER,                -- ฝั่งแอดมิน: 1 = DM ถึงตำรวจ, 0 = DM ไม่ได้ · ฝั่งตำรวจ = NULL
+      created_at  INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_ticket_msgs ON ticket_messages(queue_id, created_at);
+
+    -- แชททีม (admin/mod คุยกันบน dashboard) — room = 'general' หรือ 'dm:<idน้อย>:<idมาก>'
+    -- เก็บ 90 วัน (ดู teamChatStore.pruneTeamChat) ไฟล์แนบอยู่ใน data/team-files/
+    CREATE TABLE IF NOT EXISTS team_messages (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      room        TEXT NOT NULL,
+      author_id   TEXT NOT NULL,          -- Discord user ID
+      author_name TEXT NOT NULL,
+      body        TEXT NOT NULL,
+      mentions    TEXT NOT NULL DEFAULT '[]', -- JSON: Discord user ID ที่ถูกแท็ก
+      created_at  INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_team_msgs ON team_messages(room, id);
+    CREATE TABLE IF NOT EXISTS team_files (
+      id          TEXT PRIMARY KEY,       -- สุ่ม (ใช้เป็นชื่อไฟล์บนดิสก์ด้วย)
+      message_id  INTEGER,                -- NULL = อัปแล้วแต่ยังไม่ได้ส่ง (ลบทิ้งถ้าค้างเกิน 1 วัน)
+      uploader_id TEXT NOT NULL,
+      name        TEXT NOT NULL,
+      mime        TEXT NOT NULL,
+      size        INTEGER NOT NULL,
+      created_at  INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_team_files_msg ON team_files(message_id);
+    -- อ่านถึงข้อความไหนแล้ว (นับข้อความใหม่/ถูกแท็กที่ยังไม่อ่าน)
+    CREATE TABLE IF NOT EXISTS team_reads (
+      user_id     TEXT NOT NULL,
+      room        TEXT NOT NULL,
+      last_id     INTEGER NOT NULL,
+      PRIMARY KEY (user_id, room)
+    );
+
+    -- หน้าแชทกับ Claude (เฉพาะ admin) — 1 thread = 1 บทสนทนา ของบัญชี dashboard คนเดียว
+    CREATE TABLE IF NOT EXISTS chat_threads (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner       TEXT NOT NULL,          -- ชื่อบัญชี dashboard
+      title       TEXT NOT NULL,
+      created_at  INTEGER NOT NULL,
+      updated_at  INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_chat_threads_owner ON chat_threads(owner, updated_at);
+
+    -- ข้อความของ thread ตามที่ส่ง/รับจาก API จริง (content = JSON ของ content blocks)
+    -- ต้องเก็บครบทุก block (thinking/tool_use/tool_result) และห้ามแก้ย้อนหลัง
+    -- เพราะทุกตาถัดไปต้องส่งประวัติเดิมกลับไปแบบ append-only
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      thread_id   INTEGER NOT NULL,
+      role        TEXT NOT NULL,          -- 'user' | 'assistant'
+      content     TEXT NOT NULL,
+      created_at  INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_chat_msgs ON chat_messages(thread_id, id);
+
+    -- action ที่ Claude เสนอ (tool propose_action) แล้ว admin กดทำ/ไม่ทำ
+    CREATE TABLE IF NOT EXISTS chat_actions (
+      tool_use_id TEXT PRIMARY KEY,
+      thread_id   INTEGER NOT NULL,
+      status      TEXT NOT NULL,          -- 'done' | 'dismissed'
+      result      TEXT,
+      decided_by  TEXT NOT NULL,
+      decided_at  INTEGER NOT NULL
+    );
   `);
 
   migrateSchema();
@@ -179,13 +289,34 @@ export function initDb(): void {
  * เลยต้อง ALTER เอง โดยเช็คก่อนว่ายังไม่มีคอลัมน์นั้น
  */
 function migrateSchema(): void {
-  const userCols = db.prepare("PRAGMA table_info(users)").all() as {
-    name: string;
-  }[];
-  if (!userCols.some((c) => c.name === "role")) {
-    // DB เดิมมีแต่บัญชีที่ "มีสิทธิ์เต็ม" อยู่แล้ว — ตั้งเป็น admin ทั้งหมด
-    // จะได้ไม่ล็อกใครออกจากหน้าจัดการบัญชี/ตั้งค่าตอนอัปเกรด
-    db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'");
+  // เปลี่ยนไป login ด้วย Discord แล้ว: บัญชีรหัสผ่านเดิมไม่มีใครใช้ — ลบ hash ทิ้ง
+  // ไม่ให้ค้างอยู่ในไฟล์ DB และไฟล์สำรองรายวันไปเรื่อย ๆ
+  // session เดิมผูกกับชื่อบัญชี (ไม่ใช่ Discord ID ที่เป็นตัวเลข) — ใช้ต่อไม่ได้แล้ว ลบทิ้งด้วย
+  db.exec("DROP TABLE IF EXISTS users");
+  db.exec("DELETE FROM sessions WHERE username GLOB '*[^0-9]*' AND username <> 'dev'");
+
+  // แชททีม: ข้อความนี้ตอบกลับข้อความไหน (NULL = ไม่ได้ตอบใคร)
+  const teamCols = db.prepare("PRAGMA table_info(team_messages)").all() as { name: string }[];
+  if (!teamCols.some((c) => c.name === "reply_to")) {
+    db.exec("ALTER TABLE team_messages ADD COLUMN reply_to INTEGER");
+  }
+
+  // หมายเหตุของ mod ต่อคำตัดสิน AI (ไม่บังคับ)
+  const verdictCols = db.prepare("PRAGMA table_info(ai_verdicts)").all() as { name: string }[];
+  if (!verdictCols.some((c) => c.name === "comment")) {
+    db.exec("ALTER TABLE ai_verdicts ADD COLUMN comment TEXT");
+  }
+
+  const queueCols = db.prepare("PRAGMA table_info(queue_items)").all() as { name: string }[];
+  if (!queueCols.some((c) => c.name === "refs")) {
+    db.exec("ALTER TABLE queue_items ADD COLUMN refs TEXT");
+  }
+  // log ที่การ์ดชี้ถึง (ผลตัดสินบนการ์ด Claude ย้อนไปบันทึกถูก/ผิดให้ log) + หมายเหตุตอนตัดสิน
+  if (!queueCols.some((c) => c.name === "log_ids")) {
+    db.exec("ALTER TABLE queue_items ADD COLUMN log_ids TEXT");
+  }
+  if (!queueCols.some((c) => c.name === "note")) {
+    db.exec("ALTER TABLE queue_items ADD COLUMN note TEXT");
   }
 }
 

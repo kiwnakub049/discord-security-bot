@@ -191,3 +191,125 @@ export interface ActionResult {
   ok: boolean;
   message: string;
 }
+
+/* ───── คิวรอดำเนินการ (ต้องตรงกับ src/web/routes/queue.ts) ───── */
+
+export type QueueSeverity = "alert" | "warn" | "info";
+
+export interface QueueOutcome {
+  key: string;
+  label: string;
+  tone: "danger" | "accent" | "plain";
+}
+
+export interface QueueItem {
+  id: number;
+  title: string;
+  detail: string | null;
+  subjectId: string | null;
+  subjectName: string | null;
+  createdAt: number;
+  /** จำนวนครั้งที่ถูกจับรวมอยู่ในการ์ดนี้ */
+  hits: number;
+  /** เฉพาะหมวด ticket: สรุปบทสนทนา (null = ยังไม่มีข้อความ / ไม่ใช่ ticket) */
+  thread: { count: number; lastFrom: "police" | "admin"; lastAt: number } | null;
+}
+
+/** คนที่โดนไมค์แดงจากระบบเตือน (ต้องตรงกับ /api/mutes) */
+export interface MuteEntry {
+  userId: string;
+  name: string;
+  /** ปลดเองเมื่อไร · null = ครบเวลาแล้วแต่ยังค้างปลด (อยู่นอกห้อง) */
+  until: number | null;
+  reason: string;
+  inVoice: boolean;
+  pending: boolean;
+}
+
+/** ข้อความในบทสนทนาของ ticket (ต้องตรงกับ /api/tickets/:id/messages) */
+export interface TicketMessage {
+  id: number;
+  from: "police" | "admin";
+  /** Discord user ID ของคนพูด (ใช้แสดงรูปโปรไฟล์) */
+  userId: string | null;
+  name: string;
+  body: string;
+  attachments: string[];
+  /** ฝั่งแอดมิน: DM ถึงตำรวจไหม · ฝั่งตำรวจ = null */
+  delivered: boolean | null;
+  at: number;
+}
+
+export interface TicketThreadData {
+  open: boolean;
+  messages: TicketMessage[];
+}
+
+export interface QueueCategoryMeta {
+  key: string;
+  label: string;
+  severity: QueueSeverity;
+  overdueAfterMin: number;
+  verb: string;
+  unit: string;
+  /** มีช่องหมายเหตุตอนตัดสิน */
+  note: boolean;
+  outcomes: QueueOutcome[];
+}
+
+export interface QueueStack extends QueueCategoryMeta {
+  count: number;
+  oldestAt: number;
+  items: QueueItem[];
+}
+
+export interface QueueSummary {
+  stacks: QueueStack[];
+  idle: { key: string; label: string }[];
+  now: number;
+}
+
+/* ---------------- แชททีม ---------------- */
+
+export interface TeamPerson {
+  id: string;
+  name: string;
+  username: string;
+  role: "admin" | "mod";
+}
+
+export interface TeamFile {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+}
+
+export interface TeamMessage {
+  id: number;
+  room: string;
+  authorId: string;
+  authorName: string;
+  body: string;
+  mentions: string[];
+  createdAt: number;
+  files: TeamFile[];
+  /** ตอบกลับข้อความไหน · gone = ต้นทางถูกลบไปแล้ว */
+  replyTo: {
+    id: number;
+    authorId: string | null;
+    authorName: string | null;
+    excerpt: string;
+    files: number;
+    gone: boolean;
+  } | null;
+}
+
+export interface TeamRoomSummary {
+  room: string;
+  unread: number;
+  mentioned: boolean;
+  lastId: number;
+  lastAt: number | null;
+  lastText: string | null;
+}

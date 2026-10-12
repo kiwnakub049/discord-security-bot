@@ -1,6 +1,6 @@
 /** อ่าน log — รายการ (เลื่อนดูทีละหน้า), กราฟย้อนหลัง, และสตรีมสด */
 import { Router, type Request, type Response } from "express";
-import { userExists } from "../../auth/users.js";
+import type { AccessResolver } from "../../auth/access.js";
 import { sessionExists } from "../../auth/session.js";
 import { BOM, toCsv } from "../csv.js";
 import {
@@ -13,14 +13,19 @@ import {
   type LogLevel,
 } from "../../store/logStore.js";
 import { PARTNER_BOTS } from "../../partners.js";
+import { tr } from "../i18n.js";
 
 const LEVELS = new Set(["info", "warn", "alert"]);
 // สร้างจาก LOG_CATEGORIES เพื่อไม่ให้ลืมอัปเดตตอนเพิ่มหมวดใหม่
 const CATEGORIES = new Set<string>(LOG_CATEGORIES);
 
-/** อ่าน query ที่ต้องเป็นค่าจากชุดที่กำหนดเท่านั้น — ค่าอื่น = ไม่กรอง */
-function oneOf<T extends string>(v: unknown, allowed: Set<string>): T | undefined {
-  return typeof v === "string" && allowed.has(v) ? (v as T) : undefined;
+/**
+ * อ่าน query ที่ต้องเป็นค่าจากชุดที่กำหนดเท่านั้น — รับหลายค่าได้ทั้ง ?a=x,y และ ?a=x&a=y
+ * ค่าที่ไม่รู้จักทิ้งไป ไม่เหลือเลย = ไม่กรอง
+ */
+function manyOf<T extends string>(v: unknown, allowed: Set<string>): T[] {
+  const raw = Array.isArray(v) ? v.map(String) : typeof v === "string" ? v.split(",") : [];
+  return [...new Set(raw.map((x) => x.trim()).filter((x) => allowed.has(x)))] as T[];
 }
 
 /** ช่วงเวลาย้อนหลังที่หน้าเว็บเลือกได้ — คุมเป็นชุดตายตัว ไม่รับ ms ดิบจาก client */
@@ -40,8 +45,8 @@ const EVENT_RE = /^[a-z][a-z0-9_]{0,39}$/;
 
 /** แปลง query ของ request เป็นเงื่อนไขที่ getLogs() รับ (ใช้ร่วมกันทั้งดูและ export) */
 function filtersFrom(query: Request["query"]) {
-  const level = oneOf<LogLevel>(query.level, LEVELS);
-  const category = oneOf<LogCategory>(query.category, CATEGORIES);
+  const levels = manyOf<LogLevel>(query.level, LEVELS);
+  const categories = manyOf<LogCategory>(query.category, CATEGORIES);
   const search =
     typeof query.search === "string" && query.search.trim()
       ? query.search.trim().slice(0, 200)
@@ -58,15 +63,15 @@ function filtersFrom(query: Request["query"]) {
     .slice(0, 20);
 
   return {
-    ...(level ? { level } : {}),
-    ...(category ? { category } : {}),
+    ...(levels.length ? { levels } : {}),
+    ...(categories.length ? { categories } : {}),
     ...(search ? { search } : {}),
     ...(events.length ? { events } : {}),
     ...(window ? { since: Date.now() - window } : {}),
   };
 }
 
-export function logRoutes(): Router {
+export function logRoutes(access: AccessResolver): Router {
   const r = Router();
 
   r.get("/api/logs", (req: Request, res: Response) => {
@@ -98,9 +103,9 @@ export function logRoutes(): Router {
   r.get("/api/logs/export.csv", (req: Request, res: Response) => {
     const rows = getLogs({ ...filtersFrom(req.query), limit: 5000 });
     const csv = toCsv(
-      ["เวลา", "ระดับ", "หมวด", "เหตุการณ์", "หัวข้อ", "รายละเอียด", "ข้อมูลเพิ่มเติม"],
+      ["เวลา", "ระดับ", "หมวด", "เหตุการณ์", "หัวข้อ", "รายละเอียด", "ข้อมูลเพิ่มเติม"].map((h) => tr(h, res.locals.lang)),
       rows.map((e) => [
-        new Date(e.timestamp).toLocaleString("th-TH", { hour12: false }),
+        new Date(e.timestamp).toLocaleString(res.locals.lang === "en" ? "en-GB" : "th-TH", { hour12: false }),
         e.level,
         e.category,
         e.event,
@@ -125,7 +130,7 @@ export function logRoutes(): Router {
 
   // ---------- สตรีมสด (SSE) ----------
   r.get("/api/stream", (req: Request, res: Response) => {
-    const username = res.locals.username as string;
+    const userId = res.locals.userId as string;
     const sessionId = res.locals.sessionId as string;
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
@@ -141,11 +146,12 @@ export function logRoutes(): Router {
     };
     logEmitter.on("log", onLog);
 
-    // ทุก 15 วิ: ส่ง ping กันหลุด + เช็คสิทธิ์ซ้ำ (บัญชีถูกลบ หรือ session ถูก revoke → ปิด stream)
-    // ต้องเช็ค sessionExists ด้วย ไม่ใช่แค่ userExists — ไม่งั้นเครื่องที่ถูกเตะออก/เปลี่ยนรหัสแล้ว
-    // ยังรับ log สดต่อได้ตราบใดที่สายไม่ขาด (ping ทุก 15 วิยิ่งเลี้ยงไว้)
-    const tick = setInterval(() => {
-      if (!userExists(username) || !sessionExists(sessionId)) {
+    // ทุก 15 วิ: ส่ง ping กันหลุด + เช็คสิทธิ์ซ้ำ (ถูกถอดยศ หรือ session ถูก revoke → ปิด stream)
+    // ไม่งั้นคนที่ถูกถอดยศ/ถูกเตะออกแล้ว ยังรับ log สดต่อได้ตราบใดที่สายไม่ขาด
+    // (ping ทุก 15 วิยิ่งเลี้ยงสายไว้) — request อื่นโดนด่าน requireAuth แต่ stream ไม่ได้ผ่านซ้ำ
+    const tick = setInterval(async () => {
+      const stillOk = sessionExists(sessionId) && (await access(userId).catch(() => null));
+      if (!stillOk) {
         cleanup();
         res.end();
         return;

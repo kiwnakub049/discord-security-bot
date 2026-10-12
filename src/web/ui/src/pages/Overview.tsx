@@ -1,17 +1,28 @@
+import { t } from "../lib/i18n";
 import { useState } from "react";
 import { useFetch } from "../hooks/useFetch";
 import type { History, Stats, SystemInfo } from "../lib/types";
-import { fmtAgo, fmtNum } from "../lib/format";
-import { Card, Chip, Empty, SectionTitle, Spinner, StatTile } from "../components/ui";
+import { fmtAgo, fmtClock, fmtDay, fmtNum } from "../lib/format";
+import { Card, Chip, Empty, SectionTitle, Spinner, StatStrip } from "../components/ui";
+import { PriorityQueue } from "../components/PriorityQueue";
+import { MuteList } from "../components/MuteList";
 import { Icon } from "../components/Icon";
 import { HistoryChart } from "../components/HistoryChart";
 import { SystemCard } from "../components/SystemCard";
 import type { Route } from "../hooks/useRoute";
+import { Avatar } from "../components/Avatar";
 
-export function Overview({ go }: { go: (r: Route) => void }) {
+export function Overview({
+  go,
+  seesSystem,
+}: {
+  go: (r: Route) => void;
+  /** false = admin ที่ไม่ใช่เจ้าของ → ไม่โชว์สถานะเครื่อง (server ตอบ 403 อยู่แล้ว) */
+  seesSystem: boolean;
+}) {
   const [days, setDays] = useState(7);
   const stats = useFetch<Stats>("/api/stats", 15_000);
-  const sys = useFetch<SystemInfo>("/api/system", 10_000);
+  const sys = useFetch<SystemInfo>(seesSystem ? "/api/system" : null, 10_000);
   const history = useFetch<History>(`/api/logs/history?days=${days}`, 60_000);
 
   if (stats.loading && !stats.data) {
@@ -29,153 +40,137 @@ export function Overview({ go }: { go: (r: Route) => void }) {
   const s = stats.data;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/*
         ---- เตือนว่ากำลังรันแบบการป้องกันไม่ครบ ----
-        วางไว้บนสุดของหน้าแรกโดยตั้งใจ — สภาพที่แย่ที่สุดคือ anti-spam/AI ปิดอยู่
-        แล้วไม่มีใครรู้ เพราะหน้าเว็บดูปกติทุกอย่าง
+        บรรทัดเดียวเหนือคิว — สภาพที่แย่ที่สุดคือ anti-spam/AI ปิดอยู่แล้วไม่มีใครรู้
+        แต่มันไม่ใช่ "งานที่ต้องกด" เลยไม่ควรกินพื้นที่เท่าการ์ดคิว
       */}
       {sys.data?.degraded && (
-        <Card level="glass" className="rise !border-warn/50 p-4">
-          <div className="flex items-start gap-3">
-            <span className="mt-0.5 shrink-0 rounded-lg bg-warn-soft p-1.5 text-warn">
-              <Icon name="warn" className="size-4" />
+        <div role="status" className="rule-l rule-warn flex items-start gap-2.5 rounded-md border border-line bg-surface px-4 py-2.5 text-sm">
+          <Icon name="warn" className="mt-0.5 size-4 shrink-0 text-warn" />
+          <p className="min-w-0">
+            <span className="font-semibold">{t("การป้องกันไม่ครบ")}</span>
+            <span className="text-muted">
+              {" "}— {t("Discord ยังไม่อนุมัติสิทธิ์อ่านข้อความและรายชื่อสมาชิก ที่ปิดอยู่:")} {sys.data.degraded.join(" / ")}
             </span>
-            <div className="min-w-0">
-              <h2 className="text-sm font-semibold text-warn">
-                บอทรันแบบการป้องกันไม่ครบ
-              </h2>
-              <p className="mt-0.5 text-xs text-muted">
-                Discord ยังไม่อนุมัติสิทธิ์อ่านข้อความและรายชื่อสมาชิก — ที่ปิดอยู่:
-              </p>
-              <ul className="mt-1.5 space-y-0.5 text-xs text-muted">
-                {sys.data.degraded.map((f) => (
-                  <li key={f} className="flex gap-1.5">
-                    <span className="text-warn">•</span>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* ---- ตัวเลขหลัก ---- */}
-      {s && (
-        <div className="stagger grid grid-cols-2 gap-3 md:grid-cols-4">
-          <StatTile
-            label="เหตุการณ์วันนี้"
-            value={fmtNum(s.logs.today)}
-            sub={`ทั้งหมด ${fmtNum(s.logs.total)}`}
-            icon="list"
-          />
-          <StatTile
-            label="แจ้งเตือนวันนี้"
-            value={fmtNum(s.logs.todayByLevel.alert)}
-            sub={s.logs.todayByLevel.warn > 0 ? `เตือนอีก ${s.logs.todayByLevel.warn}` : "ไม่มีอะไรค้าง"}
-            icon="alert"
-            tone={s.logs.todayByLevel.alert > 0 ? "alert" : "ok"}
-          />
-          <StatTile
-            label="อยู่ในห้องเสียง"
-            value={fmtNum(s.voice.count)}
-            sub={s.voice.count ? s.voice.users[0]?.channel : "ห้องว่าง"}
-            icon="volume"
-            tone={s.voice.count ? "info" : "plain"}
-          />
-          <StatTile
-            label="สมาชิกมีบัตร"
-            value={fmtNum(s.members)}
-            sub={`เตือนสะสม ${fmtNum(s.warnings)} ครั้ง`}
-            icon="users"
-          />
+          </p>
         </div>
       )}
 
-      {/* ---- กราฟย้อนหลัง ---- */}
-      <section>
-        <SectionTitle
-          action={
-            <div className="flex gap-1.5">
-              {[
-                { d: 1, label: "24 ชม." },
-                { d: 7, label: "7 วัน" },
-                { d: 30, label: "30 วัน" },
-              ].map((o) => (
-                <Chip key={o.d} active={days === o.d} onClick={() => setDays(o.d)}>
-                  {o.label}
-                </Chip>
+      {/* ---- งานที่รอคนตัดสิน — สิ่งแรกที่ต้องเห็น ---- */}
+      <PriorityQueue />
+
+      {/* ---- ไมค์แดงจากระบบเตือน — ใต้คิวเลย เพราะปุ่มปลดมักต้องกดด่วน (โชว์เฉพาะตอนมีคนโดนอยู่) ---- */}
+      <MuteList />
+
+      {/* ---- ตัวเลขประกอบของวันนี้ ---- */}
+      {s && (
+        <section>
+          <SectionTitle>{t("วันนี้")}</SectionTitle>
+          <StatStrip
+            items={[
+              { label: t("เหตุการณ์"), value: fmtNum(s.logs.today), sub: t("ทั้งหมด {n}", { n: fmtNum(s.logs.total) }) },
+              {
+                label: t("แจ้งเตือน"),
+                value: fmtNum(s.logs.todayByLevel.alert),
+                sub: s.logs.todayByLevel.warn > 0 ? t("เตือนอีก {n}", { n: fmtNum(s.logs.todayByLevel.warn) }) : t("ไม่มีเตือน"),
+                tone: s.logs.todayByLevel.alert > 0 ? "alert" : "plain",
+              },
+              {
+                label: t("อยู่ในห้องเสียง"),
+                value: fmtNum(s.voice.count),
+                sub: s.voice.count ? s.voice.users[0]?.channel : t("ห้องว่าง"),
+              },
+              { label: t("สมาชิกมีบัตร"), value: fmtNum(s.members), sub: t("เตือนสะสม {n} ครั้ง", { n: fmtNum(s.warnings) }) },
+            ]}
+          />
+        </section>
+      )}
+
+      <div className="grid gap-8 lg:grid-cols-5">
+        {/* ---- กราฟย้อนหลัง ---- */}
+        <section className="lg:col-span-3">
+          <SectionTitle
+            action={
+              <div className="flex gap-1.5" role="group" aria-label={t("ช่วงเวลาของกราฟ")}>
+                {[
+                  { d: 1, label: t("24 ชม.") },
+                  { d: 7, label: t("7 วัน") },
+                  { d: 30, label: t("30 วัน") },
+                ].map((o) => (
+                  <Chip key={o.d} active={days === o.d} onClick={() => setDays(o.d)}>
+                    {o.label}
+                  </Chip>
+                ))}
+              </div>
+            }
+          >
+            {t("ความเคลื่อนไหว")}
+          </SectionTitle>
+          <Card level="glass" className="p-4">
+            {history.data ? (
+              <HistoryChart history={history.data} />
+            ) : (
+              <div className="flex h-40 items-center justify-center text-muted">
+                <Spinner />
+              </div>
+            )}
+          </Card>
+        </section>
+
+        {/* ---- แจ้งเตือนล่าสุด: รายการแบบสมุดเวร เวลาอยู่คอลัมน์ซ้าย ---- */}
+        <section className="lg:col-span-2">
+          <SectionTitle
+            action={
+              <button
+                type="button"
+                onClick={() => go("/logs")}
+                className="press rounded-md px-2 py-1 text-sm font-medium text-accent hover:bg-accent-soft"
+              >
+                {t("เปิด Logs")}
+              </button>
+            }
+          >
+            {t("แจ้งเตือนล่าสุด")}
+          </SectionTitle>
+          {s && s.alerts.length > 0 ? (
+            <ol className="rule-l rule-alert divide-y divide-line rounded-md border border-line bg-surface">
+              {s.alerts.map((a) => (
+                <li key={a.id} className="flex gap-3 px-4 py-3">
+                  <time
+                    dateTime={new Date(a.timestamp).toISOString()}
+                    className="tnum w-14 shrink-0 text-sm text-faint"
+                    title={fmtAgo(a.timestamp)}
+                  >
+                    {isToday(a.timestamp) ? fmtClock(a.timestamp) : fmtDay(a.timestamp)}
+                  </time>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[15px] font-medium leading-snug">{a.title}</p>
+                    {a.description && (
+                      <p className="truncate text-sm text-muted">{a.description}</p>
+                    )}
+                  </div>
+                </li>
               ))}
-            </div>
-          }
-        >
-          ความเคลื่อนไหว
-        </SectionTitle>
-        <Card level="glass" className="rise p-4">
-          {history.data ? (
-            <HistoryChart history={history.data} />
+            </ol>
           ) : (
-            <div className="flex h-40 items-center justify-center text-muted">
-              <Spinner />
+            <div className="flex items-center gap-2 rounded-md border border-line bg-surface px-4 py-3 text-sm text-muted">
+              <Icon name="shield-check" className="size-5 text-accent" />
+              {t("ยังไม่มีแจ้งเตือน")}
             </div>
           )}
-        </Card>
-      </section>
-
-      {/* ---- แจ้งเตือนล่าสุด ---- */}
-      <section>
-        <SectionTitle
-          action={
-            <button
-              type="button"
-              onClick={() => go("/logs")}
-              className="flex items-center gap-0.5 text-xs font-medium text-accent"
-            >
-              ดูทั้งหมด
-              <Icon name="chevron" className="size-3.5" />
-            </button>
-          }
-        >
-          แจ้งเตือนล่าสุด
-        </SectionTitle>
-        {s && s.alerts.length > 0 ? (
-          <div className="stagger space-y-2">
-            {s.alerts.map((a) => (
-              <Card key={a.id} className="flex items-start gap-3 p-3.5">
-                <span className="mt-0.5 shrink-0 rounded-lg bg-alert-soft p-1.5 text-alert">
-                  <Icon name="alert" className="size-4" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">{a.title}</div>
-                  {a.description && (
-                    <div className="truncate text-xs text-muted">{a.description}</div>
-                  )}
-                  <div className="mt-0.5 text-[11px] text-faint">
-                    {fmtAgo(a.timestamp)}
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <Card className="p-4">
-            <div className="flex items-center gap-2 text-sm text-ok">
-              <Icon name="shield-check" className="size-5" />
-              ไม่มีแจ้งเตือนค้างอยู่
-            </div>
-          </Card>
-        )}
-      </section>
+        </section>
+      </div>
 
       {/* ---- ใครอยู่ในห้องเสียง ---- */}
       {s && s.voice.count > 0 && (
         <section>
-          <SectionTitle>ในห้องเสียงตอนนี้</SectionTitle>
+          <SectionTitle>{t("ในห้องเสียงตอนนี้")}</SectionTitle>
           <Card className="divide-y divide-line">
             {s.voice.users.map((v) => (
               <div key={v.userId} className="flex items-center gap-3 px-4 py-3">
-                <Icon name="user" className="size-5 shrink-0 text-faint" />
+                <Avatar id={v.userId} name={v.username} size="md" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">{v.username}</div>
                   <div className="truncate text-xs text-muted">{v.channel}</div>
@@ -190,17 +185,23 @@ export function Overview({ go }: { go: (r: Route) => void }) {
         </section>
       )}
 
-      {/* ---- สถานะเครื่อง ---- */}
-      <section>
-        <SectionTitle>สถานะเครื่อง</SectionTitle>
-        {sys.data ? (
-          <SystemCard sys={sys.data} />
-        ) : (
-          <Card className="flex justify-center p-6 text-muted">
-            <Spinner />
-          </Card>
-        )}
-      </section>
+      {/* ---- สถานะเครื่อง (admin ที่ไม่ใช่เจ้าของไม่เห็น) ---- */}
+      {seesSystem && (
+        <section>
+          <SectionTitle>{t("สถานะเครื่อง")}</SectionTitle>
+          {sys.data ? (
+            <SystemCard sys={sys.data} />
+          ) : (
+            <Card className="flex justify-center p-6 text-muted">
+              <Spinner />
+            </Card>
+          )}
+        </section>
+      )}
     </div>
   );
+}
+
+function isToday(ms: number): boolean {
+  return new Date(ms).toDateString() === new Date().toDateString();
 }

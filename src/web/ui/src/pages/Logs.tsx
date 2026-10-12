@@ -1,55 +1,59 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, qs } from "../lib/api";
+import { api } from "../lib/api";
 import type {
   LogEntry,
-  LogLevel,
   LogPage,
   PartnerBot,
   Verdict,
   VerdictStats,
 } from "../lib/types";
-import { Button, Chip, ChipRow, Empty, SearchBox, Spinner } from "../components/ui";
+import { Button, Empty, SearchBox, Spinner } from "../components/ui";
 import { LogRow } from "../components/LogRow";
-import { LogTree } from "../components/LogTree";
+import {
+  LEVEL_OPTIONS,
+  LogFilterPanel,
+  LogTree,
+  WINDOW_OPTIONS,
+} from "../components/LogTree";
 import { iconOf, labelOf } from "../lib/categories";
-import { findLeaf, type LogFilter } from "../lib/logTree";
+import {
+  EMPTY_FILTER,
+  activeCount,
+  filterParams,
+  findLeaf,
+  matchesFilter,
+  toggleLevel,
+  type LogFilter,
+  type TreePick,
+} from "../lib/logTree";
 import { Icon } from "../components/Icon";
 import { useToast } from "../components/Toast";
-
-const LEVELS: { v: LogLevel | ""; label: string }[] = [
-  { v: "", label: "ทุกระดับ" },
-  { v: "alert", label: "แจ้งเตือน" },
-  { v: "warn", label: "เตือน" },
-  { v: "info", label: "ปกติ" },
-];
-
-/** ต้องตรงกับ WINDOWS ใน src/web/routes/logs.ts */
-const WINDOWS = [
-  { v: "", label: "ทุกเวลา" },
-  { v: "1h", label: "1 ชม." },
-  { v: "24h", label: "24 ชม." },
-  { v: "7d", label: "7 วัน" },
-] as const;
+import { t } from "../lib/i18n";
 
 const PAGE = 40;
 
 export function Logs({
   latest,
   filter,
-  onPickFilter,
+  onFilterChange,
+  onPickTree,
   guildId,
 }: {
   latest: LogEntry | null;
   filter: LogFilter;
-  onPickFilter: (f: LogFilter) => void;
+  onFilterChange: (f: LogFilter) => void;
+  /** เลือกหมวด/กิ่งจากต้นไม้ (ตัวเดียวกับเมนูซ้าย) */
+  onPickTree: (p: TreePick) => void;
   guildId: string | null;
 }) {
   const toast = useToast();
+  // จอใหญ่กางแผงตัวกรองไว้ตั้งแต่แรก มือถือหุบไว้ก่อน (กางค้างจะกินเกือบทั้งจอ)
   const category = filter.category;
   const leaf = findLeaf(filter.leaf);
-  const [level, setLevel] = useState<LogLevel | "">("");
   const [treeOpen, setTreeOpen] = useState(false);
-  const [window_, setWindow] = useState("");
+  const [panelOpen, setPanelOpen] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches,
+  );
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
 
@@ -62,6 +66,7 @@ export function Logs({
 
   const [verdicts, setVerdicts] = useState<Record<number, Verdict>>({});
   const [vstats, setVstats] = useState<VerdictStats | null>(null);
+  const [comments, setComments] = useState<Record<number, string>>({});
   const [partners, setPartners] = useState<PartnerBot[]>([]);
   /** id ของรายการที่เพิ่งไหลเข้ามาสด ๆ — ใช้ทำกรอบไฮไลต์ */
   const [fresh, setFresh] = useState<Set<number>>(new Set());
@@ -72,10 +77,8 @@ export function Logs({
     return () => window.clearTimeout(t);
   }, [search]);
 
-  // กิ่งระบุ event ได้หลายตัว เลยต่อเป็น ?event=a,b เอง แทนที่จะยัดผ่าน qs()
-  const query =
-    qs({ category, level, search: debounced, window: window_, limit: PAGE }) +
-    (leaf ? `&event=${leaf.events.join(",")}` : "");
+  const params = filterParams(filter, debounced);
+  const query = `?${params ? `${params}&` : ""}limit=${PAGE}`;
 
   const loadFirst = useCallback(async () => {
     setLoading(true);
@@ -86,7 +89,7 @@ export function Logs({
       setHasMore(page.hasMore);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "โหลด logs ไม่สำเร็จ");
+      setError(err instanceof Error ? err.message : t("โหลด logs ไม่สำเร็จ"));
     } finally {
       setLoading(false);
     }
@@ -98,9 +101,12 @@ export function Logs({
 
   useEffect(() => {
     api
-      .get<{ map: Record<number, Verdict>; stats: VerdictStats }>("/api/ai/verdicts")
+      .get<{ map: Record<number, Verdict>; comments?: Record<number, string>; stats: VerdictStats }>(
+        "/api/ai/verdicts",
+      )
       .then((r) => {
         setVerdicts(r.map);
+        setComments(r.comments ?? {});
         setVstats(r.stats);
       })
       .catch(() => {
@@ -122,9 +128,7 @@ export function Logs({
     seen.current = latest.id;
     // ต้องผ่านตัวกรองที่เปิดอยู่ก่อนถึงจะแทรก ไม่งั้นรายการที่โผล่มาจะขัดกับ
     // สิ่งที่ผู้ใช้เลือกดู (เช่นกรอง "แจ้งเตือน" อยู่ แต่มี info เด้งขึ้นหัวรายการ)
-    if (category && latest.category !== category) return;
-    if (leaf && !leaf.events.includes(latest.event)) return;
-    if (level && latest.level !== level) return;
+    if (!matchesFilter(latest, filter)) return;
     if (debounced) {
       const hay = `${latest.title} ${latest.description ?? ""} ${latest.fields
         .map((f) => f.value)
@@ -142,7 +146,7 @@ export function Logs({
         }),
       4000,
     );
-  }, [latest, category, leaf, level, debounced]);
+  }, [latest, filter, debounced]);
 
   async function loadMore() {
     if (!cursor || loadingMore) return;
@@ -155,7 +159,7 @@ export function Logs({
       setCursor(page.nextCursor);
       setHasMore(page.hasMore);
     } catch (err) {
-      toast(err instanceof Error ? err.message : "โหลดเพิ่มไม่สำเร็จ", "error");
+      toast(err instanceof Error ? err.message : t("โหลดเพิ่มไม่สำเร็จ"), "error");
     } finally {
       setLoadingMore(false);
     }
@@ -178,7 +182,7 @@ export function Logs({
     // ถูกถอด-ติดใหม่ตลอด ค่าที่มันอ่าน (cursor/query) อยู่ใน deps ครบแล้ว
   }, [hasMore, cursor, loadingMore, query]);
 
-  async function setVerdict(logId: number, v: Verdict | null) {
+  async function setVerdict(logId: number, v: Verdict | null, comment?: string) {
     // อัปเดตหน้าจอทันทีแล้วค่อยยิง API — ถ้าพลาดค่อยย้อนกลับ
     const before = verdicts[logId] ?? null;
     setVerdicts((prev) => {
@@ -191,8 +195,15 @@ export function Logs({
       const r = await api.post<{ stats: VerdictStats }>("/api/ai/verdict", {
         logId,
         verdict: v,
+        ...(v ? { comment: comment ?? "" } : {}),
       });
       setVstats(r.stats);
+      setComments((prev) => {
+        const next = { ...prev };
+        if (v && comment) next[logId] = comment;
+        else delete next[logId];
+        return next;
+      });
     } catch (err) {
       setVerdicts((prev) => {
         const next = { ...prev };
@@ -200,16 +211,26 @@ export function Logs({
         else delete next[logId];
         return next;
       });
-      toast(err instanceof Error ? err.message : "บันทึกคำตัดสินไม่สำเร็จ", "error");
+      toast(err instanceof Error ? err.message : t("บันทึกคำตัดสินไม่สำเร็จ"), "error");
     }
   }
 
   /** ชื่อของสิ่งที่กำลังดูอยู่ — โชว์บนหัวปุ่มกางต้นไม้ */
-  const pickedLabel = leaf
-    ? leaf.label
-    : category
-      ? labelOf(category)
-      : "ทุกหมวด";
+  const pickedLabel = leaf ? leaf.label : category ? labelOf(category) : t("ทุกหมวด");
+  const count = activeCount(filter);
+  /** รายการที่ติ๊กอยู่ เป็นป้ายกด × ได้ — เรียงตามแผง: ระดับ → เวลา */
+  const picked: { key: string; label: string; remove: () => void }[] = [
+    ...LEVEL_OPTIONS.filter((l) => filter.levels.includes(l.v)).map((l) => ({
+      key: `lv-${l.v}`,
+      label: l.label,
+      remove: () => onFilterChange(toggleLevel(filter, l.v)),
+    })),
+    ...WINDOW_OPTIONS.filter((w) => w.v && w.v === filter.window).map((w) => ({
+      key: "window",
+      label: w.label,
+      remove: () => onFilterChange({ ...filter, window: "" }),
+    })),
+  ];
 
   return (
     <div className="space-y-4">
@@ -223,7 +244,7 @@ export function Logs({
           type="button"
           onClick={() => setTreeOpen((v) => !v)}
           aria-expanded={treeOpen}
-          className="press flex w-full items-center gap-2.5 rounded-2xl border border-line bg-surface px-3.5 py-3 text-sm shadow-[inset_0_1px_0_0_var(--glass-spec)]"
+          className="press flex w-full items-center gap-2.5 rounded-md border border-line bg-surface px-3.5 py-3 text-sm shadow-[inset_0_1px_0_0_var(--glass-spec)]"
         >
           <Icon
             name={leaf?.icon ?? (category ? iconOf(category) : "list")}
@@ -244,13 +265,13 @@ export function Logs({
         </button>
 
         {treeOpen && (
-          <div className="fade-in mt-2 rounded-2xl border border-line bg-surface p-2 shadow-[inset_0_1px_0_0_var(--glass-spec)]">
+          <div className="fade-in mt-2 rounded-md border border-line bg-surface p-2 shadow-[inset_0_1px_0_0_var(--glass-spec)]">
             <LogTree
               filter={filter}
-              onPick={(f) => {
-                onPickFilter(f);
+              onPick={(p) => {
+                onPickTree(p);
                 // เลือกกิ่งแล้วหุบเอง — บนมือถือถ้าค้างไว้ต้องเลื่อนผ่านต้นไม้ทุกครั้ง
-                if (f.leaf) setTreeOpen(false);
+                if (p.leaf) setTreeOpen(false);
               }}
               compact
             />
@@ -258,33 +279,73 @@ export function Logs({
         )}
       </div>
 
-      {/* ---- ตัวกรอง ---- */}
+      {/* ---- ค้นหา + ตัวกรองแบบติ๊ก (ระดับ/ช่วงเวลา) ---- */}
       <div className="space-y-2.5">
-        <SearchBox
-          value={search}
-          onChange={setSearch}
-          placeholder="ค้นหาหัวข้อ / รายละเอียด / ชื่อผู้ใช้…"
-        />
-        <ChipRow>
-          {LEVELS.map((l) => (
-            <Chip key={l.v} active={level === l.v} onClick={() => setLevel(l.v)}>
-              {l.label}
-            </Chip>
-          ))}
-          <span className="w-px shrink-0 self-stretch bg-line" />
-          {WINDOWS.map((w) => (
-            <Chip key={w.v} active={window_ === w.v} onClick={() => setWindow(w.v)}>
-              {w.label}
-            </Chip>
-          ))}
-        </ChipRow>
+        <div className="flex gap-2">
+          <div className="min-w-0 flex-1">
+            <SearchBox
+              value={search}
+              onChange={setSearch}
+              placeholder={t("ค้นหาหัวข้อ / รายละเอียด / ชื่อผู้ใช้…")}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setPanelOpen((v) => !v)}
+            aria-expanded={panelOpen}
+            className={`press flex shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm transition-colors ${
+              panelOpen || count > 0
+                ? "border-accent bg-accent-soft font-semibold text-accent"
+                : "border-line bg-surface text-muted hover:text-text"
+            }`}
+          >
+            <Icon name="list" className="size-4" />
+            {t("ตัวกรอง")}
+            {count > 0 && (
+              <span className="tnum rounded-full bg-accent px-1.5 text-xs leading-5 text-surface">
+                {count}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {panelOpen && (
+          <div className="fade-in rounded-md border border-line bg-surface p-3 shadow-[inset_0_1px_0_0_var(--glass-spec)]">
+            <LogFilterPanel filter={filter} onChange={onFilterChange} />
+          </div>
+        )}
+
+        {/* ที่ติ๊กไว้ — กด × เอาออกทีละอันได้โดยไม่ต้องกางแผง */}
+        {count > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {picked.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                onClick={p.remove}
+                aria-label={t("เอาตัวกรอง {f} ออก", { f: p.label })}
+                className="press flex items-center gap-1 rounded-full border border-accent/40 bg-accent-soft py-0.5 pl-2.5 pr-1.5 text-xs text-accent"
+              >
+                {p.label}
+                <Icon name="x" className="size-3" />
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => onFilterChange({ ...filter, levels: EMPTY_FILTER.levels, window: EMPTY_FILTER.window })}
+              className="press px-1.5 text-xs font-medium text-muted underline-offset-2 hover:underline"
+            >
+              {t("ล้างทั้งหมด")}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ---- อธิบายว่าหมวดพาร์ทเนอร์คือใคร ---- */}
-      {category === "partner" && partners.length > 0 && (
-        <div className="fade-in space-y-1.5 rounded-xl border border-line bg-surface px-3.5 py-3">
+      {filter.category === "partner" && partners.length > 0 && (
+        <div className="fade-in space-y-1.5 rounded-md border border-line bg-surface px-3.5 py-3">
           <p className="text-xs text-muted">
-            บอทจากพาร์ทเนอร์ที่เราให้สิทธิ์เข้ามาจัดการในเซิร์ฟเวอร์นี้
+            {t("บอทจากพาร์ทเนอร์ที่เราให้สิทธิ์เข้ามาจัดการในเซิร์ฟเวอร์นี้")}
           </p>
           {partners.map((p) => (
             <div key={p.id} className="flex items-start gap-2 text-xs">
@@ -306,11 +367,11 @@ export function Logs({
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
         {/* ส่งออกตามตัวกรองที่เลือกอยู่ ไม่ใช่แค่แถวที่เลื่อนมาถึง */}
         <a
-          href={`/api/logs/export.csv${qs({ category, level, search: debounced, window: window_ })}${leaf ? `&event=${leaf.events.join(",")}` : ""}`}
+          href={`/api/logs/export.csv${params ? `?${params}` : ""}`}
           className="flex items-center gap-1 font-medium text-accent"
         >
           <Icon name="download" className="size-3.5" />
-          ส่งออก CSV ตามตัวกรอง
+          {t("ส่งออก CSV ตามตัวกรอง")}
         </a>
         {vstats && vstats.total > 0 && (
           <a
@@ -319,18 +380,17 @@ export function Logs({
             className="flex items-center gap-1 font-medium text-accent"
           >
             <Icon name="download" className="size-3.5" />
-            ชุดข้อมูลเทรน (.jsonl)
+            {t("ชุดข้อมูลเทรน (.jsonl)")}
           </a>
         )}
       </div>
 
       {/* ---- สรุปคำตัดสิน AI ---- */}
       {vstats && vstats.total > 0 && (
-        <div className="rounded-xl border border-line bg-surface px-3.5 py-2.5 text-xs text-muted">
-          mod ตัดสินการตรวจจับของ AI ไปแล้ว{" "}
-          <b className="text-text">{vstats.total}</b> รายการ ·{" "}
-          <span className="text-alert">ผิดจริง {vstats.toxic}</span> ·{" "}
-          <span className="text-ok">AI จับผิดตัว {vstats.ok}</span>
+        <div className="rounded-md border border-line bg-surface px-3.5 py-2.5 text-xs text-muted">
+          {t("mod ตัดสินการตรวจจับของ AI ไปแล้ว {n} รายการ", { n: vstats.total })} ·{" "}
+          <span className="text-ok">{t("AI ถูก {n}", { n: vstats.toxic })}</span> ·{" "}
+          <span className="text-alert">{t("AI ผิด {n}", { n: vstats.ok })}</span>
         </div>
       )}
 
@@ -342,7 +402,7 @@ export function Logs({
       ) : error ? (
         <Empty icon="warn">{error}</Empty>
       ) : entries.length === 0 ? (
-        <Empty icon="search">ไม่พบรายการที่ตรงกับเงื่อนไข</Empty>
+        <Empty icon="search">{t("ไม่พบรายการที่ตรงกับเงื่อนไข")}</Empty>
       ) : (
         <>
           <div className="stagger space-y-2">
@@ -351,6 +411,7 @@ export function Logs({
                 key={e.id}
                 entry={e}
                 verdict={verdicts[e.id] ?? null}
+                comment={comments[e.id] ?? null}
                 onVerdict={setVerdict}
                 isNew={fresh.has(e.id)}
                 guildId={guildId}
@@ -365,11 +426,11 @@ export function Logs({
               </div>
             ) : hasMore ? (
               <Button full onClick={() => void loadMore()}>
-                โหลดเพิ่ม
+                {t("โหลดเพิ่ม")}
               </Button>
             ) : (
               <p className="text-center text-xs text-faint">
-                หมดแล้ว — ทั้งหมด {entries.length} รายการ
+                {t("หมดแล้ว — ทั้งหมด {n} รายการ", { n: entries.length })}
               </p>
             )}
           </div>

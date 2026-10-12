@@ -14,14 +14,15 @@
  */
 import type { IconName } from "../components/Icon";
 import type { LogCategory } from "./types";
+import { t } from "./i18n";
 
 export const CATEGORY_LABEL: Record<LogCategory, string> = {
-  security: "ความปลอดภัย",
-  member: "สมาชิก",
-  voice: "ห้องเสียง",
-  audit: "ตรวจสอบ",
-  partner: "พาร์ทเนอร์",
-  system: "ระบบ",
+  security: t("ความปลอดภัย"),
+  member: t("สมาชิก"),
+  voice: t("ห้องเสียง"),
+  audit: t("ตรวจสอบ"),
+  partner: t("พาร์ทเนอร์"),
+  system: t("ระบบ"),
 };
 
 export const CATEGORY_ICON: Record<LogCategory, IconName> = {
