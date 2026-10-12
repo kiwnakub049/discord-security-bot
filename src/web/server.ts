@@ -7,6 +7,7 @@
  *   security headers → CSRF → body parser → เส้นทางสาธารณะ → ด่าน login → ที่เหลือ
  * ถ้าเอาด่าน login ขึ้นก่อนเส้นทางสาธารณะ จะ login ไม่ได้เลยเพราะโดนเด้งวนหน้า /login
  */
+import { i18nMiddleware } from "./i18n.js";
 import express, { type Request, type Response } from "express";
 import type { Client } from "discord.js";
 import type { Server } from "node:http";
@@ -73,6 +74,8 @@ export function startWebServer(
   app.disable("x-powered-by"); // ไม่บอกว่าใช้ Express (กันสแกนหาช่องโหว่)
 
   app.use(securityHeaders);
+  // ก่อนทุกอย่างที่ตอบ JSON (รวม csrfGuard/rate limit) — แปลข้อความตอบกลับตามภาษาที่เลือก
+  app.use(i18nMiddleware);
   // ปฏิเสธคำขอข้ามเว็บ "ก่อน" อ่าน body — ไม่มีเหตุผลให้เสียแรงแกะ JSON 16kb
   // ของคำขอที่จะโดนตีกลับอยู่ดี
   app.use(csrfGuard);

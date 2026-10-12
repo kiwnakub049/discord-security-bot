@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { lang, setLang } from "../lib/i18n";
 import { Icon, type IconName } from "./Icon";
 import type { StreamState } from "../hooks/useStream";
 import { type Route } from "../hooks/useRoute";
@@ -100,6 +101,22 @@ function NotifyButton() {
           <path d="M3 3l18 18" />
         </svg>
       )}
+    </button>
+  );
+}
+
+/** สลับไทย/อังกฤษ — ป้ายบอกภาษาที่จะเปลี่ยนไป (reload ทั้งหน้า) */
+function LangButton() {
+  const next = lang === "th" ? "en" : "th";
+  return (
+    <button
+      type="button"
+      onClick={() => setLang(next)}
+      title={next === "en" ? "Switch to English" : "เปลี่ยนเป็นภาษาไทย"} // i18n-ignore
+      aria-label={next === "en" ? "Switch to English" : "เปลี่ยนเป็นภาษาไทย"} // i18n-ignore
+      className="press min-w-10 rounded-md border border-line bg-surface px-2 py-2 text-xs font-semibold text-muted"
+    >
+      {next === "en" ? "EN" : "TH"}
     </button>
   );
 }
@@ -255,6 +272,7 @@ export function Shell({
             </h1>
             <LiveDot state={stream} />
             <NotifyButton />
+            <LangButton />
             <ThemeButton />
             {/* ไม่มีหน้าตั้งค่า = ไม่มีปุ่มออกจากระบบบนมือถือ — ใส่ไว้บนหัวแทน */}
             {!seesSystem && (

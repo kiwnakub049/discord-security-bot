@@ -137,6 +137,12 @@
   --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* อังกฤษ: Open Sans · ตัวไทยที่ปนมา (ข้อมูลใน log/แชท) ตกไปใช้ Plex Thai — ชนะสกิน mac ด้วย */
+:root[lang="en"],
+:root[lang="en"][data-skin="mac"] {
+  --font-sans: "Open Sans", "IBM Plex Sans Thai Looped", "Noto Sans Thai", system-ui, sans-serif;
+}
+
 @layer base {
   * {
     -webkit-tap-highlight-color: transparent;

@@ -6,6 +6,8 @@
  * โดยไม่รู้ว่าต้อง login ใหม่
  */
 
+import { lang, t } from "./i18n";
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -29,14 +31,16 @@ async function request<T>(path: string, init?: RequestInit, timeoutMs = REQUEST_
       signal: ctrl.signal,
       headers: {
         ...(init?.body ? { "Content-Type": "application/json" } : {}),
+        // server แปลข้อความตอบกลับ (message/error) ตามภาษานี้
+        "X-Lang": lang,
         ...init?.headers,
       },
     });
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") {
-      throw new ApiError("เซิร์ฟเวอร์ไม่ตอบ (หมดเวลา) — ลองใหม่อีกครั้ง", 0);
+      throw new ApiError(t("เซิร์ฟเวอร์ไม่ตอบ (หมดเวลา) — ลองใหม่อีกครั้ง"), 0);
     }
-    throw new ApiError("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — เช็คเน็ตแล้วลองใหม่", 0);
+    throw new ApiError(t("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — เช็คเน็ตแล้วลองใหม่"), 0);
   } finally {
     window.clearTimeout(timer);
   }
@@ -44,12 +48,12 @@ async function request<T>(path: string, init?: RequestInit, timeoutMs = REQUEST_
   if (res.status === 401) {
     // session หมดอายุระหว่างเปิดหน้าค้างไว้ — พากลับไป login เลย ไม่ต้องให้เดา
     window.location.href = "/login";
-    throw new ApiError("ต้องเข้าสู่ระบบใหม่", 401);
+    throw new ApiError(t("ต้องเข้าสู่ระบบใหม่"), 401);
   }
 
   if (!res.ok) {
     // API ตอบ JSON เสมอเวลาพลาด แต่เผื่อกรณีที่ proxy ขวางแล้วส่ง HTML มาแทน
-    let message = `คำขอไม่สำเร็จ (${res.status})`;
+    let message = t("คำขอไม่สำเร็จ ({status})", { status: res.status });
     try {
       const body = (await res.json()) as { message?: string; error?: string };
       message = body.message || body.error || message;
@@ -102,7 +106,7 @@ function putBlob(path: string, blob: Blob, onProgress?: (loaded: number) => void
     xhr.onload = () => {
       if (xhr.status === 401) {
         window.location.href = "/login";
-        reject(new ApiError("ต้องเข้าสู่ระบบใหม่", 401));
+        reject(new ApiError(t("ต้องเข้าสู่ระบบใหม่"), 401));
         return;
       }
       let body: { error?: string } = {};
