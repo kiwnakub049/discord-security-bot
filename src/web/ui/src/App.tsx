@@ -116,7 +116,6 @@ export function App() {
           <Settings
             username={username}
             userId={userId}
-            isAdmin={isAdmin}
             seesSystem={seesSystem}
           />
         )}

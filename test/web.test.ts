@@ -275,19 +275,33 @@ test("role: mod login ได้ + /api/me บอก role=mod และไม่�
   assert.equal(me.isOwner, false);
 });
 
-for (const [method, path, body] of [
-  ["POST", "/api/settings", { "antiSpam.maxMessages": 99 }],
-  ["GET", "/api/access", undefined],
-] as const) {
-  test(`role: mod ยิง ${method} ${path} → 403`, async () => {
-    const r = await fetch(`${BASE}${path}`, {
-      method,
-      headers: { Cookie: modCookie, "Content-Type": "application/json", Origin: BASE },
-      ...(body ? { body: JSON.stringify(body) } : {}),
-    });
-    assert.equal(r.status, 403);
+test("role: mod แก้ตั้งค่าบอทได้ แต่ไม่เห็น/แก้ยศ admin-mod ของ dashboard ไม่ได้", async () => {
+  const { config } = await import("../src/config.js");
+  const before = [...config.dashboard.adminRoleIds];
+  const headers = { Cookie: modCookie, "Content-Type": "application/json", Origin: BASE };
+
+  const list = await (await fetch(`${BASE}/api/settings`, { headers })).json();
+  const keys = list.flatMap((s: { items: { key: string }[] }) => s.items.map((i) => i.key));
+  assert.ok(keys.includes("antiSpam.maxMessages"));
+  assert.ok(!keys.some((k: string) => k.startsWith("dashboard.")), "mod ต้องไม่เห็นยศของ dashboard");
+
+  const r = await fetch(`${BASE}/api/settings`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ "antiSpam.maxMessages": 9, "dashboard.adminRoleIds": ["999999999999999999"] }),
   });
-}
+  assert.equal(r.status, 200);
+  assert.equal(config.antiSpam.maxMessages, 9);
+  assert.deepEqual(config.dashboard.adminRoleIds, before, "mod ต้องเลื่อนขั้นตัวเองไม่ได้");
+
+  assert.equal((await fetch(`${BASE}/api/access`, { headers })).status, 200);
+});
+
+test("เจ้าของเห็นยศ admin-mod ของ dashboard", async () => {
+  const list = await (await fetch(`${BASE}/api/settings`, { headers: { Cookie: cookie } })).json();
+  const keys = list.flatMap((s: { items: { key: string }[] }) => s.items.map((i) => i.key));
+  assert.ok(keys.includes("dashboard.adminRoleIds"));
+});
 
 // ---- ตั้งค่าระบบ + สถานะ Pi: mod เห็น, admin คนอื่นไม่เห็น, เจ้าของเห็น ----
 test("seesSystem: mod เห็นสถานะเครื่อง/OLED", async () => {

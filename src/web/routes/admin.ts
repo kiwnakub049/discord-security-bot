@@ -11,27 +11,44 @@ import {
 } from "../../utils/oledConfig.js";
 import { guildOf, roleOf } from "../../auth/access.js";
 import { config } from "../../config.js";
-import { requireAdmin, requireSystemView } from "../middleware/auth.js";
+import { isOwner, requireSystemView } from "../middleware/auth.js";
 import { logEvent } from "../../utils/logger.js";
 
 export function adminRoutes(client?: Client): Router {
   const r = Router();
 
-  // ตั้งค่าบอท / OLED / รายชื่อคนเข้าได้ — admin คนอื่นไม่เห็น (ดู seesSystem)
-  // ตั้งค่าบอทกับรายชื่อยังต้องเป็น admin ด้วย → เหลือแค่เจ้าของที่แก้ได้
+  // ตั้งค่าบอท / OLED / รายชื่อคนเข้าได้ — mod กับเจ้าของใช้ได้, admin คนอื่นไม่เห็น (ดู seesSystem)
   r.use(["/api/settings", "/api/oled", "/api/access"], requireSystemView);
 
   // ---------- ตั้งค่าบอท ----------
-  r.get("/api/settings", requireAdmin, (_req: Request, res: Response) => {
-    res.json(getSettings());
+  /*
+   * ยศที่นับเป็น admin/mod (dashboard.*) แก้ได้แค่เจ้าของ — ไม่งั้น mod ใส่ยศตัวเองเป็น admin
+   * แล้วเลื่อนขั้นตัวเองได้ · คนอื่นไม่เห็นหัวข้อนี้เลย และส่งมาก็ถูกตัดทิ้ง
+   */
+  const ownerOnlyKey = (k: string) => k.startsWith("dashboard.");
+
+  r.get("/api/settings", (_req: Request, res: Response) => {
+    const all = getSettings();
+    res.json(
+      isOwner(res.locals.userId)
+        ? all
+        : all
+            .map((s) => ({ ...s, items: s.items.filter((i) => !ownerOnlyKey(i.key)) }))
+            .filter((s) => s.items.length > 0),
+    );
   });
 
-  r.post("/api/settings", requireAdmin, async (req: Request, res: Response) => {
+  r.post("/api/settings", async (req: Request, res: Response) => {
     if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) {
       res.status(400).json({ ok: false, message: "ข้อมูลไม่ถูกต้อง" });
       return;
     }
-    updateSettings(req.body as Record<string, unknown>);
+    const patch = Object.fromEntries(
+      Object.entries(req.body as Record<string, unknown>).filter(
+        ([k]) => isOwner(res.locals.userId) || !ownerOnlyKey(k),
+      ),
+    );
+    updateSettings(patch);
     res.json({ ok: true, message: "บันทึกการตั้งค่าแล้ว" });
     if (client) {
       await logEvent(client, "warn", "system", "system_settings", "แก้ไขการตั้งค่า (จาก dashboard)", [
@@ -79,7 +96,7 @@ export function adminRoutes(client?: Client): Router {
    * ใครเข้า dashboard ได้บ้างตอนนี้ — ดูอย่างเดียว เพิ่ม/ถอดสิทธิ์ทำที่ยศใน Discord
    * (ตั้งว่ายศไหนเป็น admin/mod ได้ในหน้าตั้งค่าบอท หัวข้อ "สิทธิ์เข้า dashboard")
    */
-  r.get("/api/access", requireAdmin, async (_req: Request, res: Response) => {
+  r.get("/api/access", async (_req: Request, res: Response) => {
     const guild = client ? guildOf(client) : null;
     if (!guild) {
       res.json({ roles: [], people: [] });

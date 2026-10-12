@@ -19,26 +19,25 @@ import { Avatar } from "../components/Avatar";
 export function Settings({
   username,
   userId,
-  isAdmin,
   seesSystem,
 }: {
   username: string;
   userId: string;
-  isAdmin: boolean;
   /** false = admin ที่ไม่ใช่เจ้าของ → ซ่อนตั้งค่าบอท/จอ OLED/รายชื่อคนเข้าได้ */
   seesSystem: boolean;
 }) {
   return (
     <div className="space-y-6">
-      {/* ตั้งค่าบอท + รายชื่อคนที่เข้าได้ = admin เท่านั้น (backend ก็บังคับซ้ำอีกชั้น) */}
-      {isAdmin && seesSystem && <BotSettings />}
+      {/* ตั้งค่าบอท + รายชื่อคนที่เข้าได้ = mod กับเจ้าของ (admin ทั่วไปไม่เห็นหน้านี้เลย)
+          ยศที่นับเป็น admin/mod แก้ได้แค่เจ้าของ — server ไม่ส่งหัวข้อนั้นมาให้คนอื่น */}
+      {seesSystem && <BotSettings />}
       <ClaudeTest />
       <SkinPicker />
       <LinkTargetPicker />
       {seesSystem && <OledPicker />}
       <ServerLock />
       <Devices />
-      {isAdmin && seesSystem && <AccessPeople me={username} />}
+      {seesSystem && <AccessPeople me={username} />}
       <SignOut username={username} userId={userId} />
     </div>
   );
