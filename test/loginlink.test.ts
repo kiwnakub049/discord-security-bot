@@ -83,6 +83,8 @@ test("GET /auth/link = หน้ายืนยัน ไม่ใช้ token �
     assert.equal(page.status, 200);
     const html = await page.text();
     assert.match(html, /<form method="post" action="\/auth\/link">/);
+    // no-referrer = ฟอร์มส่ง Origin: null → csrfGuard บล็อก (บั๊กที่เจอบนมือถือจริง)
+    assert.equal(page.headers.get("referrer-policy"), "same-origin");
     assert.doesNotMatch(html.replace(/<!--[\s\S]*?-->/g, ""), /<script[\s>]/i);
   }
   const r = await postLink(t);

@@ -163,7 +163,9 @@ export function publicAuthRoutes(
       res.redirect("/login?error=link");
       return;
     }
-    res.set({ "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
+    // same-origin ไม่ใช่ no-referrer: no-referrer ทำให้ฟอร์ม POST ส่ง Origin: null
+    // แล้ว csrfGuard ตีกลับ — same-origin ยังกัน token ใน URL หลุดไปเว็บอื่นได้เหมือนกัน
+    res.set({ "Cache-Control": "no-store", "Referrer-Policy": "same-origin" });
     res.type("html").send(renderLinkConfirm(String(t)));
   });
 
