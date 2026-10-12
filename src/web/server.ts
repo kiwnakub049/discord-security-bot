@@ -125,7 +125,11 @@ export function startWebServer(
    * รูปเซิร์ฟเป็นของสาธารณะอยู่แล้ว เปิดให้ดูก่อน login ไม่ได้รั่วอะไร
    */
   app.get("/server-icon", (_req: Request, res: Response) => {
-    const url = client ? guildOf(client)?.iconURL({ extension: "png", size: 256 }) : null;
+    // forceStatic: เซิร์ฟที่ตั้งรูปเคลื่อนไหว Discord ให้ .gif (~1 MB) — favicon/ไอคอนหน้าโฮมไม่ขึ้น
+    // บังคับเป็น png ภาพนิ่งเสมอ
+    const url = client
+      ? guildOf(client)?.iconURL({ extension: "png", size: 256, forceStatic: true })
+      : null;
     res.set("Cache-Control", "public, max-age=3600");
     res.redirect(302, url ?? "/icon.svg");
   });
