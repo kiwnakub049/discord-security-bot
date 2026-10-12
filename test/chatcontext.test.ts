@@ -95,3 +95,23 @@ test("กล่องทดสอบ: แปลงบรรทัด 'ชื่�
   assert.deepEqual(ctx.recent.map((l) => [l.author, l.text]), [["เอ", "ใครแพ้"], ["บี", "มึงไง"], ["ไม่ทราบชื่อ", "ไม่มีชื่อ"]]);
   assert.equal(ctx.author, "ผู้พิมพ์");
 });
+
+test("ห้องที่ยังไม่เคยจำ: ดึงประวัติจาก Discord ครั้งเดียว (ข้ามบอท) · รวมกับที่จำไว้ เรียงตามเวลา", async () => {
+  const now = Date.now();
+  let calls = 0;
+  const history = new Map([
+    ["h2", { id: "h2", author: { bot: false, username: "บี" }, member: { displayName: "บี" }, content: "มึงอะห่วย", createdTimestamp: now - 120_000 }],
+    ["h1", { id: "h1", author: { bot: false, username: "เอ" }, member: { displayName: "เอ" }, content: "ใครเล่นแพ้", createdTimestamp: now - 180_000 }],
+    ["hb", { id: "hb", author: { bot: true, username: "บอท" }, member: null, content: "ประกาศ", createdTimestamp: now - 60_000 }],
+  ]);
+  const withHistory = (m: Record<string, unknown>) =>
+    Object.assign(m, { channelId: "seed", channel: { name: "general", messages: { fetch: async () => { calls++; return history; } } } });
+
+  const first = await contextFor(withHistory(msg({ author: "เอ", content: "ว่าไงนะ" }) as never) as never, now);
+  assert.deepEqual(first.recent.map((l) => `${l.author}: ${l.text}`), ["เอ: ใครเล่นแพ้", "บี: มึงอะห่วย"]);
+  rememberMessage(withHistory(msg({ author: "เอ", content: "ว่าไงนะ" }) as never) as never, now);
+  const second = await contextFor(withHistory(msg({ author: "เอ", content: "x" }) as never) as never, now);
+  assert.equal(calls, 1, "ดึงแค่ครั้งแรก");
+  assert.equal(second.recent.length, 3);
+  assert.match(renderForClaude("x", second, now), /\(2 นาทีก่อน\) \[บี\] มึงอะห่วย/);
+});
