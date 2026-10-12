@@ -213,6 +213,8 @@ function QueueSheet({
   const [armed, setArmed] = useState<string | null>(null);
   // ticket ที่เปิดบทสนทนาอยู่ (ทีละเรื่อง — แผ่นยาวเกินไปถ้าเปิดพร้อมกันหลายเรื่อง)
   const [chatOpen, setChatOpen] = useState<number | null>(null);
+  // หมายเหตุที่พิมพ์ค้างไว้ของแต่ละเรื่อง
+  const [notes, setNotes] = useState<Record<number, string>>({});
   const armTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
@@ -222,6 +224,7 @@ function QueueSheet({
     setError(null);
     setLeaving(new Set());
     setChatOpen(null);
+    setNotes({});
     api
       .get<{ items: QueueItem[] }>(`/api/queue/${category.key}`)
       .then((r) => alive && setItems(r.items))
@@ -250,6 +253,7 @@ function QueueSheet({
     try {
       const r = await api.post<{ ok: boolean; message: string }>(`/api/queue/${item.id}/resolve`, {
         outcome: outcomeKey,
+        ...(category?.note && notes[item.id]?.trim() ? { note: notes[item.id]!.trim() } : {}),
       });
       toast(r.message, r.ok ? "ok" : "error");
       setLeaving((s) => new Set(s).add(item.id));
@@ -328,8 +332,25 @@ function QueueSheet({
                 {item.detail && chatOpen !== item.id && (
                   <p className="text-sm text-muted">{item.detail}</p>
                 )}
+                {item.hits > 1 && (
+                  <p className="text-xs font-medium text-warn">
+                    โดนจับรวม {fmtNum(item.hits)} ครั้ง — ดูทุกข้อความได้ในหน้า Logs
+                  </p>
+                )}
                 {item.subjectId && (
                   <p className="font-mono text-xs text-faint">{item.subjectId}</p>
+                )}
+
+                {category.note && (
+                  <input
+                    type="text"
+                    value={notes[item.id] ?? ""}
+                    onChange={(e) => setNotes((n) => ({ ...n, [item.id]: e.target.value }))}
+                    maxLength={300}
+                    placeholder="หมายเหตุ (ไม่บังคับ) — ส่งถึงสมาชิกเป็นเหตุผลถ้าเตือน/timeout"
+                    aria-label={`หมายเหตุสำหรับ ${item.subjectName ?? item.title}`}
+                    className="mt-2 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm placeholder:text-faint focus:border-accent focus:outline-none"
+                  />
                 )}
 
                 {category.key === "admin-ticket" && (

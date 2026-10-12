@@ -20,6 +20,10 @@ export interface QueueRow {
   outcome: string | null;
   /** JSON array ของ "channelId/messageId" — อ่านผ่าน itemRefs() */
   refs: string | null;
+  /** JSON array ของ logs.id ที่เรื่องนี้มาจาก — อ่านผ่าน itemLogIds() */
+  log_ids: string | null;
+  /** หมายเหตุของคนตัดสิน (ไม่บังคับ) */
+  note: string | null;
 }
 
 /** ข้อความที่ผูกกับเรื่องหนึ่งได้มากสุด — spam รัว ๆ ไม่ควรทำให้แถวโตไม่จบ */
@@ -30,10 +34,11 @@ const findOpen = db.prepare(
     WHERE resolved_at IS NULL AND category = ? AND subject_id = ?`,
 );
 const insert = db.prepare(
-  `INSERT INTO queue_items (category, subject_id, title, detail, created_at, refs)
-   VALUES (@category, @subject_id, @title, @detail, @created_at, @refs)`,
+  `INSERT INTO queue_items (category, subject_id, title, detail, created_at, refs, log_ids)
+   VALUES (@category, @subject_id, @title, @detail, @created_at, @refs, @log_ids)`,
 );
 const setRefs = db.prepare("UPDATE queue_items SET refs = ? WHERE id = ?");
+const setLogIds = db.prepare("UPDATE queue_items SET log_ids = ? WHERE id = ?");
 
 /** ข้อความ ("channelId/messageId") ที่เรื่องนี้ชี้ถึง */
 export function itemRefs(row: Pick<QueueRow, "refs">): string[] {
@@ -41,6 +46,17 @@ export function itemRefs(row: Pick<QueueRow, "refs">): string[] {
   try {
     const v = JSON.parse(row.refs) as unknown;
     return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+/** log ที่เรื่องนี้มาจาก */
+export function itemLogIds(row: Pick<QueueRow, "log_ids">): number[] {
+  if (!row.log_ids) return [];
+  try {
+    const v = JSON.parse(row.log_ids) as unknown;
+    return Array.isArray(v) ? v.filter((x): x is number => Number.isInteger(x)) : [];
   } catch {
     return [];
   }
@@ -62,6 +78,8 @@ export function enqueue(item: {
   detail?: string | null;
   at?: number;
   ref?: string;
+  /** log ที่เรื่องนี้มาจาก — เรื่องเดิมค้างอยู่ก็ต่อท้ายเหมือน ref */
+  logId?: number;
 }): number {
   const subject = item.subjectId ?? null;
   if (subject) {
@@ -70,6 +88,10 @@ export function enqueue(item: {
       const refs = itemRefs(open);
       if (item.ref && !refs.includes(item.ref) && refs.length < MAX_REFS) {
         setRefs.run(JSON.stringify([...refs, item.ref]), open.id);
+      }
+      const logIds = itemLogIds(open);
+      if (item.logId && !logIds.includes(item.logId) && logIds.length < MAX_REFS) {
+        setLogIds.run(JSON.stringify([...logIds, item.logId]), open.id);
       }
       return open.id;
     }
@@ -81,6 +103,7 @@ export function enqueue(item: {
     detail: item.detail ?? null,
     created_at: item.at ?? Date.now(),
     refs: item.ref ? JSON.stringify([item.ref]) : null,
+    log_ids: item.logId ? JSON.stringify([item.logId]) : null,
   });
   return Number(info.lastInsertRowid);
 }
@@ -137,13 +160,13 @@ export function resolveOpenFor(
  *
  * เช็ค resolved_at IS NULL ใน WHERE เอง เพื่อกันสอง mod กดพร้อมกันแล้วต่างคนต่างคิดว่าตัวเองตัดสิน
  */
-export function resolve(id: number, outcome: string, by: string): boolean {
+export function resolve(id: number, outcome: string, by: string, note?: string): boolean {
   return (
     db
       .prepare(
-        `UPDATE queue_items SET resolved_at = ?, resolved_by = ?, outcome = ?
+        `UPDATE queue_items SET resolved_at = ?, resolved_by = ?, outcome = ?, note = ?
           WHERE id = ? AND resolved_at IS NULL`,
       )
-      .run(Date.now(), by, outcome, id).changes > 0
+      .run(Date.now(), by, outcome, note || null, id).changes > 0
   );
 }

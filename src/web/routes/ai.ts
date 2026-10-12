@@ -38,6 +38,31 @@ function userIdFrom(value: string): string {
   return /\((\d+)\)\s*$/.exec(value)?.[1] ?? "";
 }
 
+/**
+ * บันทึกคำตัดสินถูก/ผิดของ log การตรวจจับ — ใช้ทั้งปุ่มในหน้า Logs และปุ่มบนการ์ดในคิว
+ * คืน false ถ้า log นี้ไม่มีข้อความ/คะแนนให้เก็บ
+ */
+export function recordAiVerdict(entry: LogEntry, verdict: Verdict, by: string, comment = ""): boolean {
+  const text = fieldOf(entry, "ข้อความ");
+  const score = Number(fieldOf(entry, "คะแนน"));
+  if (entry.event !== "security_ai" || !text || !Number.isFinite(score)) return false;
+  setVerdict({
+    log_id: entry.id,
+    verdict,
+    score,
+    // spam มี field "ประเภท" -> spam_<type> แยกจาก toxic
+    // toxic: alert = ลบอัตโนมัติ (โซน auto), warn = แค่ขึ้นให้ดู (โซน review)
+    zone: fieldOf(entry, "ประเภท")
+      ? `spam_${fieldOf(entry, "ประเภท")}`
+      : entry.level === "alert" ? "auto" : "review",
+    text,
+    user_id: userIdFrom(fieldOf(entry, "User")),
+    decided_by: by,
+    comment,
+  });
+  return true;
+}
+
 /** ข้อความทดสอบยาวสุด — ข้อความจริงใน Discord ยาวได้ 2000 แต่แค่ทดสอบไม่ต้องยาวขนาดนั้น */
 const TEST_MAX = 1000;
 
@@ -106,27 +131,10 @@ export function aiRoutes(): Router {
       return;
     }
 
-    const text = fieldOf(entry, "ข้อความ");
-    const score = Number(fieldOf(entry, "คะแนน"));
-    if (!text || !Number.isFinite(score)) {
+    if (!recordAiVerdict(entry, verdict, String(res.locals.username), comment)) {
       res.status(422).json({ ok: false, message: "log นี้ไม่มีข้อความ/คะแนนให้เก็บ" });
       return;
     }
-
-    setVerdict({
-      log_id: logId,
-      verdict,
-      score,
-      // spam มี field "ประเภท" -> spam_<type> แยกจาก toxic
-      // toxic: alert = ลบอัตโนมัติ (โซน auto), warn = แค่ขึ้นให้ดู (โซน review)
-      zone: fieldOf(entry, "ประเภท")
-        ? `spam_${fieldOf(entry, "ประเภท")}`
-        : entry.level === "alert" ? "auto" : "review",
-      text,
-      user_id: userIdFrom(fieldOf(entry, "User")),
-      decided_by: String(res.locals.username),
-      comment,
-    });
     res.json({ ok: true, verdict, comment, stats: verdictStats() });
   });
 

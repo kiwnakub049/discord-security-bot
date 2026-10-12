@@ -11,10 +11,11 @@ import { warnMember } from "./warnAction.js";
  * และ spam เชิงเนื้อหา (scam / โฆษณา / เลี่ยงฟิลเตอร์) ที่ antiSpam/autoMod จับไม่ได้ — ในคำขอเดียวกัน
  *
  * spam: ไม่ลบ ไม่ลงโทษเอง — ส่งการ์ดเข้าคิว "ai-spam" ให้ mod ตัดสินบนหน้าแรก dashboard
+ * toxic โซน review: ไม่ลงโทษเอง — ส่งการ์ดเข้าคิว "ai-toxic" ให้ mod เลือก เตือน/timeout/แบน/ปล่อยผ่าน
  *
  * โซน toxic (คิดจากคะแนนเทียบ threshold ใน config.aiMod):
  *   "ignore" -> ไม่ทำอะไร
- *   "review" -> log ขึ้น dashboard ให้ mod ตัดสิน (ไม่แตะข้อความ)
+ *   "review" -> log + การ์ดในคิวให้ mod ตัดสิน (ลบข้อความเฉพาะคะแนนถึง reviewDeleteScore)
  *   "auto"   -> ลบข้อความ + warnMember (เข้าระบบเตือน/escalation ปกติ)
  *
  * หลักการสำคัญ:
@@ -34,6 +35,7 @@ type ClassifyResult = {
 };
 
 export const SPAM_QUEUE_CATEGORY = "ai-spam";
+export const TOXIC_QUEUE_CATEGORY = "ai-toxic";
 
 const SPAM_TYPE_LABEL: Record<Exclude<SpamType, "none">, string> = {
   scam: "หลอกลวง/scam",
@@ -316,7 +318,7 @@ async function handleToxic(message: Message, result: ClassifyResult): Promise<bo
       } catch (err) {
         console.error("ai-mod review delete ไม่สำเร็จ:", err);
       }
-      await logEvent(
+      const logId = await logEvent(
         message.client, "warn", "security", "security_ai",
         deleted ? "AI จับ toxic (คะแนนสูง) — ลบข้อความแล้ว (ยังไม่ลงโทษ)" : "AI จับ toxic (คะแนนสูง) — ลบไม่ได้ (เช็คสิทธิ์)",
         [
@@ -328,11 +330,12 @@ async function handleToxic(message: Message, result: ClassifyResult): Promise<bo
           deletedField(deleted),
         ],
       );
+      queueToxic(message, result, logId, deleted);
       return true; // จัดการแล้ว (ลบ) — ไม่ต้องนับ XP ต่อ
     }
 
-    // ไม่ถึงขั้นด่าจริงจัง — ไม่แตะข้อความ แค่ลง log ไว้ (ไม่มีปุ่มให้ mod ตัดสิน)
-    await logEvent(
+    // ไม่ถึงขั้นด่าจริงจัง — ไม่แตะข้อความ ลง log + การ์ดให้ mod เลือกว่าจะทำอะไร
+    const logId = await logEvent(
       message.client, "warn", "security", "security_ai",
       "Claude สงสัยว่าไม่สุภาพ — ลง log ไว้ (ไม่ได้ลบ)",
       [
@@ -344,9 +347,31 @@ async function handleToxic(message: Message, result: ClassifyResult): Promise<bo
         deletedField(false),
       ],
     );
+    queueToxic(message, result, logId, false);
   }
 
   return false;
+}
+
+/**
+ * การ์ด "Claude จับข้อความ" บนหน้าแรก — คนเดิมโดนหลายข้อความ = การ์ดใบเดียว (enqueue รวมให้)
+ * ข้อความที่ลบไปแล้วไม่ใส่ ref เพราะไม่มีอะไรให้ชี้แล้ว
+ */
+function queueToxic(message: Message, result: ClassifyResult, logId: number, deleted: boolean): void {
+  enqueue({
+    category: TOXIC_QUEUE_CATEGORY,
+    subjectId: message.author.id,
+    title: message.author.tag,
+    detail: [
+      `คะแนน ${result.score.toFixed(2)}`,
+      channelLabel(message),
+      ...(deleted ? ["ลบข้อความแล้ว"] : []),
+      `"${excerpt(message.content, 200)}"`,
+      ...(result.reason ? [`Claude: ${excerpt(result.reason, 150)}`] : []),
+    ].join(" · "),
+    ref: !deleted && message.id ? `${message.channelId}/${message.id}` : undefined,
+    logId,
+  });
 }
 
 /**

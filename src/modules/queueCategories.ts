@@ -20,8 +20,16 @@ export interface QueueOutcome {
   /**
    * ผลข้างเคียงที่เซิร์ฟเวอร์ต้องทำจริงก่อนปิดเรื่อง
    * delete = ลบข้อความที่เรื่องนี้ชี้ถึง (queue_items.refs) · deleteAndBan = ลบแล้วแบน
+   * warn = เตือน (เข้าระบบเตือนสะสม/ลงโทษตามขั้น) · timeout = timeout ตาม timeoutMin
    */
-  effect?: "ban" | "delete" | "deleteAndBan";
+  effect?: "ban" | "delete" | "deleteAndBan" | "warn" | "timeout";
+  /** effect timeout: นานกี่นาที */
+  timeoutMin?: number;
+  /**
+   * บันทึกคำตัดสินถูก/ผิดให้ log ที่เรื่องนี้มาจาก (queue_items.log_ids)
+   * toxic = Claude ตัดสินถูก · ok = Claude ตัดสินผิด
+   */
+  verdict?: "toxic" | "ok";
 }
 
 export interface QueueCategoryDef {
@@ -34,6 +42,8 @@ export interface QueueCategoryDef {
   verb: string;
   /** ลักษณนามของรายการในหมวดนี้ */
   unit: string;
+  /** โชว์ช่องหมายเหตุบนการ์ด (ไม่บังคับกรอก) */
+  note?: boolean;
   outcomes: QueueOutcome[];
 }
 
@@ -63,6 +73,23 @@ export const QUEUE_CATEGORIES: QueueCategoryDef[] = [
     ],
   },
   {
+    // Claude สงสัยว่าข้อความไม่สุภาพ (โซน review) — บอทไม่ลงโทษเอง ให้ mod เลือกว่าจะทำอะไร
+    // ปุ่มไหนก็ตาม = บันทึกถูก/ผิดให้ log ต้นทางด้วย (เก็บเป็นข้อมูลวัดความแม่นของ Claude)
+    key: "ai-toxic",
+    label: "Claude จับข้อความ",
+    severity: "warn",
+    overdueAfterMin: 60,
+    verb: "ตรวจข้อความ",
+    unit: "ข้อความ",
+    note: true,
+    outcomes: [
+      { key: "ban", label: "แบน", tone: "danger", doneText: "แบนแล้ว", effect: "ban", verdict: "toxic" },
+      { key: "timeout", label: "Timeout 1 ชม.", tone: "danger", doneText: "timeout 1 ชม. แล้ว", effect: "timeout", timeoutMin: 60, verdict: "toxic" },
+      { key: "warn", label: "เตือน", tone: "accent", doneText: "เตือนแล้ว", effect: "warn", verdict: "toxic" },
+      { key: "clear", label: "ปล่อยผ่าน (Claude ผิด)", tone: "plain", doneText: "ปล่อยผ่านแล้ว", verdict: "ok" },
+    ],
+  },
+  {
     // AI mod จับ spam เชิงเนื้อหา — บอทไม่ลบเอง ให้ mod ดูแล้วตัดสิน
     key: "ai-spam",
     label: "AI สงสัย spam",
@@ -70,6 +97,7 @@ export const QUEUE_CATEGORIES: QueueCategoryDef[] = [
     overdueAfterMin: 30,
     verb: "ตรวจข้อความ",
     unit: "ข้อความ",
+    note: true,
     outcomes: [
       { key: "delete-ban", label: "ลบ + แบน", tone: "danger", doneText: "ลบข้อความและแบนแล้ว", effect: "deleteAndBan" },
       { key: "delete", label: "ลบข้อความ", tone: "accent", doneText: "ลบข้อความแล้ว", effect: "delete" },

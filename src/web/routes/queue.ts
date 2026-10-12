@@ -7,7 +7,18 @@ import {
   QUEUE_CATEGORIES,
   type QueueCategoryDef,
 } from "../../modules/queueCategories.js";
-import { getItem, itemRefs, listOpen, openSummary, resolve, type QueueRow } from "../../store/queueStore.js";
+import {
+  getItem,
+  itemLogIds,
+  itemRefs,
+  listOpen,
+  openSummary,
+  resolve,
+  type QueueRow,
+} from "../../store/queueStore.js";
+import { getLogById } from "../../store/logStore.js";
+import { warnMember } from "../../modules/warnAction.js";
+import { recordAiVerdict } from "./ai.js";
 import { deleteMessageRefs } from "../../modules/deleteRefs.js";
 import { dmAction } from "../../modules/dmNotice.js";
 import { notifyTicketClosed, replyToTicket, TICKET_CATEGORY } from "../../modules/ticket.js";
@@ -19,6 +30,8 @@ import { resolveNames } from "../userNames.js";
 const PREVIEW = 3;
 /** ข้อความแอดมินยาวสุด — DM ของ Discord รับได้ 2000 ตัว เผื่อหัวข้อความที่บอทเติมให้ */
 const REPLY_MAX = 1500;
+/** หมายเหตุตอนตัดสิน — ไปทั้ง log, คำตัดสิน AI และเหตุผลใน DM ที่ส่งถึงสมาชิก */
+const NOTE_MAX = 300;
 
 export function queueRoutes(client?: Client): Router {
   const r = Router();
@@ -42,6 +55,8 @@ export function queueRoutes(client?: Client): Router {
       subjectName: x.subject_id ? (names[x.subject_id] ?? null) : null,
       createdAt: x.created_at,
       thread: threads.get(x.id) ?? null,
+      // การ์ดรวมหลายข้อความของคนเดียวกัน — บอกว่ามีกี่ครั้ง (รายละเอียดโชว์แค่ครั้งแรก)
+      hits: Math.max(itemLogIds(x).length, 1),
     }));
   }
 
@@ -52,6 +67,7 @@ export function queueRoutes(client?: Client): Router {
     overdueAfterMin: d.overdueAfterMin,
     verb: d.verb,
     unit: d.unit,
+    note: !!d.note,
     outcomes: d.outcomes.map(({ key, label, tone }) => ({ key, label, tone })),
   });
 
@@ -164,6 +180,8 @@ export function queueRoutes(client?: Client): Router {
       });
       return;
     }
+    const rawNote = req.body?.note;
+    const note = def.note && typeof rawNote === "string" ? rawNote.trim().slice(0, NOTE_MAX) : "";
 
     // ทำผลข้างเคียงจริงก่อน แล้วค่อยปิดเรื่อง — ถ้าลบ/แบนไม่สำเร็จ เรื่องต้องยังค้างให้กดใหม่ได้
     const wantsDelete = outcome.effect === "delete" || outcome.effect === "deleteAndBan";
@@ -191,7 +209,7 @@ export function queueRoutes(client?: Client): Router {
         res.status(400).json({ ok: false, message: "แบนไม่ได้: ไม่พบเซิร์ฟเวอร์หรือไม่รู้ว่าเป็นใคร" });
         return;
       }
-      const reason = `${def.label}: ${item.title}`;
+      const reason = `${def.label}: ${item.title}${note ? ` — ${note}` : ""}`;
       try {
         const member = await guild.members.fetch(item.subject_id).catch(() => null);
         if (member) {
@@ -206,11 +224,45 @@ export function queueRoutes(client?: Client): Router {
       }
     }
 
-    if (!resolve(item.id, outcome.key, actor)) {
+    let actionNote = "";
+    if (outcome.effect === "warn" || outcome.effect === "timeout") {
+      const guild = getGuild();
+      const member =
+        guild && item.subject_id ? await guild.members.fetch(item.subject_id).catch(() => null) : null;
+      if (!member) {
+        res.status(404).json({ ok: false, message: "ไม่พบสมาชิกในเซิร์ฟเวอร์ (อาจออกไปแล้ว)" });
+        return;
+      }
+      // เหตุผลนี้ไปถึงสมาชิกทาง DM — ใช้หมายเหตุของ mod ถ้ามี
+      const reason = note || "ข้อความไม่สุภาพ";
+      try {
+        if (outcome.effect === "warn") {
+          const w = await warnMember(member, String(res.locals.userId), actor, reason);
+          actionNote = ` (ครั้งที่ ${w.count}${w.actionMsg ? ` ${w.actionMsg}` : ""})`;
+        } else {
+          const ms = (outcome.timeoutMin ?? 60) * 60_000;
+          await dmAction(member, "timeout", reason, ms);
+          await member.timeout(ms, reason);
+        }
+      } catch {
+        res.status(500).json({ ok: false, message: "ทำไม่สำเร็จ (เช็คสิทธิ์/ลำดับ role ของบอท)" });
+        return;
+      }
+    }
+
+    if (!resolve(item.id, outcome.key, actor, note)) {
       res.status(409).json({ ok: false, message: "เรื่องนี้ถูกตัดสินไปแล้ว" });
       return;
     }
-    res.json({ ok: true, message: `${outcome.doneText}${deleteNote}: ${item.title}` });
+    res.json({ ok: true, message: `${outcome.doneText}${actionNote}${deleteNote}: ${item.title}` });
+
+    // ถูก/ผิดของ Claude ย้อนไปติดที่ log ต้นทางทุกอัน — ไม่ต้องไปกดซ้ำในหน้า Logs
+    if (outcome.verdict) {
+      for (const logId of itemLogIds(item)) {
+        const entry = getLogById(logId);
+        if (entry) recordAiVerdict(entry, outcome.verdict, actor, note);
+      }
+    }
 
     if (client && item.category === TICKET_CATEGORY) {
       await notifyTicketClosed(client, item, getGuild()?.name);
@@ -219,15 +271,23 @@ export function queueRoutes(client?: Client): Router {
     if (client) {
       await logEvent(
         client,
-        wantsBan ? "alert" : "info",
-        "audit",
+        wantsBan ? "alert" : outcome.effect ? "warn" : "info",
+        outcome.effect === "warn" ? "security" : "audit",
         // ใช้ event เดิมของต้นไม้ log — การแบนจากคิวควรไปอยู่กองเดียวกับการแบนทั่วไป
-        wantsBan ? "audit_ban" : "audit_member",
+        wantsBan
+          ? "audit_ban"
+          : outcome.effect === "timeout"
+            ? "audit_timeout"
+            : outcome.effect === "warn"
+              ? "security_warn"
+              : "audit_member",
         `${def.label}: ${outcome.label} (จาก dashboard)`,
         [
           { name: "เรื่อง", value: item.title },
           ...(item.subject_id ? [{ name: "เป้าหมาย", value: item.subject_id }] : []),
           ...(deleteNote ? [{ name: "ลบข้อความ", value: deleteNote.trim().slice(1, -1) }] : []),
+          ...(actionNote ? [{ name: "เตือนสะสม", value: actionNote.trim().slice(1, -1) }] : []),
+          ...(note ? [{ name: "หมายเหตุ", value: note }] : []),
           { name: "โดย (dashboard)", value: actor },
         ],
       );

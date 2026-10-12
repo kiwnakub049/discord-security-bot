@@ -20,7 +20,8 @@ const { getWarnings } = await import("../src/modules/warningStore.js");
 const { config } = await import("../src/config.js");
 const { getLogs } = await import("../src/store/logStore.js");
 const { listOpen } = await import("../src/store/queueStore.js");
-const { SPAM_QUEUE_CATEGORY } = await import("../src/modules/aiMod.js");
+const { SPAM_QUEUE_CATEGORY, TOXIC_QUEUE_CATEGORY } = await import("../src/modules/aiMod.js");
+const { itemLogIds, itemRefs } = await import("../src/store/queueStore.js");
 
 /* ---------- mock Message (เท่าที่ aiMod ใช้จริง) ---------- */
 
@@ -115,6 +116,24 @@ test("ai-mod: log ของโซน auto บอกว่าลบแล้ว (
   await handleAiMod(m.msg);
   const log = getLogs({ events: ["security_ai"] }).find((e) => e.fields.some((f) => f.value === "ด่าจริงจังมาก"));
   assert.equal(log?.fields.find((f) => f.name === "ลบข้อความ")?.value, "ลบแล้ว");
+});
+
+test("ai-mod: โซน review → การ์ด 'Claude จับข้อความ' ผูก log + ข้อความ · โซน auto ไม่ขึ้นการ์ด (ลงโทษไปแล้ว)", async () => {
+  mockClassify("review", 0.66, "ดูถูกคนอื่น");
+  const m = mockMessage({ content: "ข้อความเข้าคิว", userId: "ai-card" });
+  m.msg.id = "m77";
+  await handleAiMod(m.msg);
+  const card = listOpen(TOXIC_QUEUE_CATEGORY).find((x) => x.subject_id === "ai-card");
+  assert.ok(card, "ต้องมีการ์ด");
+  assert.match(card.detail ?? "", /ข้อความเข้าคิว/);
+  assert.match(card.detail ?? "", /Claude: ดูถูกคนอื่น/);
+  assert.deepEqual(itemRefs(card), ["c1/m77"]);
+  const log = getLogs({ events: ["security_ai"] }).find((e) => e.fields.some((f) => f.value === "ข้อความเข้าคิว"));
+  assert.deepEqual(itemLogIds(card), [log!.id]);
+
+  mockClassify("auto", 0.99);
+  await handleAiMod(mockMessage({ content: "ด่าแรง", userId: "ai-card-auto" }).msg);
+  assert.equal(listOpen(TOXIC_QUEUE_CATEGORY).some((x) => x.subject_id === "ai-card-auto"), false);
 });
 
 test("ai-mod: โซน ignore → ผ่านเฉย ๆ", async () => {

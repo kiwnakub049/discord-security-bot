@@ -305,6 +305,13 @@ function migrateSchema(): void {
   if (!queueCols.some((c) => c.name === "refs")) {
     db.exec("ALTER TABLE queue_items ADD COLUMN refs TEXT");
   }
+  // log ที่การ์ดชี้ถึง (ผลตัดสินบนการ์ด Claude ย้อนไปบันทึกถูก/ผิดให้ log) + หมายเหตุตอนตัดสิน
+  if (!queueCols.some((c) => c.name === "log_ids")) {
+    db.exec("ALTER TABLE queue_items ADD COLUMN log_ids TEXT");
+  }
+  if (!queueCols.some((c) => c.name === "note")) {
+    db.exec("ALTER TABLE queue_items ADD COLUMN note TEXT");
+  }
 }
 
 // สร้างตารางทันทีตอนโหลดโมดูล — กัน entry point ที่ import store โดยไม่ได้เรียก initDb()

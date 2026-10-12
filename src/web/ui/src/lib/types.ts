@@ -209,6 +209,8 @@ export interface QueueItem {
   subjectId: string | null;
   subjectName: string | null;
   createdAt: number;
+  /** จำนวนครั้งที่ถูกจับรวมอยู่ในการ์ดนี้ */
+  hits: number;
   /** เฉพาะหมวด ticket: สรุปบทสนทนา (null = ยังไม่มีข้อความ / ไม่ใช่ ticket) */
   thread: { count: number; lastFrom: "police" | "admin"; lastAt: number } | null;
 }
@@ -250,6 +252,8 @@ export interface QueueCategoryMeta {
   overdueAfterMin: number;
   verb: string;
   unit: string;
+  /** มีช่องหมายเหตุตอนตัดสิน */
+  note: boolean;
   outcomes: QueueOutcome[];
 }
 
