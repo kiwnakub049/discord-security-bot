@@ -73,11 +73,11 @@ test("assistant: วน tool แล้วตอบ — เก็บครบท�
   assert.equal(chat.getMessages(t.id).length, 6);
 });
 
-test("assistant: propose_action ไม่ลงมือ คืนสถานะรอ admin / input ผิด = is_error", async () => {
+test("assistant: propose_action ไม่ลงมือ คืนสถานะรอผู้ดูแลกดยืนยัน / input ผิด = is_error", async () => {
   const ok = JSON.parse(
     await assistant.runTool(discord, "propose_action", { action: "ban", user_id: "123456789012345678", reason: "spam" }),
   );
-  assert.match(ok.status, /รอ admin/);
+  assert.match(ok.status, /รอกดยืนยัน/);
   await assert.rejects(assistant.runTool(discord, "propose_action", { action: "nuke", user_id: "1", reason: "x" }));
 
   fakeAnthropic([toolUse("t2", "propose_action", { action: "ban", user_id: "abc", reason: "x" }), answer("ขอโทษ")]);

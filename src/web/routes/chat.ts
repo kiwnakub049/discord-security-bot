@@ -1,11 +1,11 @@
 /**
- * หน้าแชทกับ Claude เรื่องเซิร์ฟ — เฉพาะ admin
- * thread เป็นของบัญชีใครบัญชีมัน (admin คนอื่นเปิดไม่ได้)
+ * หน้าแชทกับ Claude เรื่องเซิร์ฟ — mod กับเจ้าของ (admin ทั่วไปไม่เห็น ดู seesSystem)
+ * thread เป็นของบัญชีใครบัญชีมัน (คนอื่นเปิดไม่ได้)
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { Router, type Request, type Response } from "express";
 import type { Client } from "discord.js";
-import { requireAdmin, requireSystemView } from "../middleware/auth.js";
+import { requireSystemView } from "../middleware/auth.js";
 import {
   createThread,
   deleteThread,
@@ -103,8 +103,8 @@ function errorMessage(err: unknown): string {
 
 export function chatRoutes(client?: Client): Router {
   const r = Router();
-  // admin เท่านั้น และไม่ใช่ admin ทั่วไป (ดู seesSystem) → เหลือแค่เจ้าของ
-  r.use("/api/chat", requireAdmin, requireSystemView);
+  // mod + เจ้าของ · admin ทั่วไปไม่เห็น (ดู seesSystem)
+  r.use("/api/chat", requireSystemView);
 
   // ทีละคำถามต่อ thread — กดส่งรัว ๆ จะได้ไม่ยิง API ซ้อนแล้วประวัติสลับลำดับ
   const busy = new Set<number>();

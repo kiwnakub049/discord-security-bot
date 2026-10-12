@@ -298,6 +298,11 @@ test("role: mod แก้ตั้งค่าบอทได้ แต่ไม
   assert.equal((await fetch(`${BASE}/api/access`, { headers })).status, 200);
 });
 
+test("role: mod ใช้ผู้ช่วย AI ได้", async () => {
+  const r = await fetch(`${BASE}/api/chat/threads`, { headers: { Cookie: modCookie } });
+  assert.equal(r.status, 200);
+});
+
 test("เจ้าของเห็นยศ admin-mod ของ dashboard", async () => {
   const list = await (await fetch(`${BASE}/api/settings`, { headers: { Cookie: cookie } })).json();
   const keys = list.flatMap((s: { items: { key: string }[] }) => s.items.map((i) => i.key));

@@ -24,8 +24,6 @@ const TABS: { route: Route; label: string; icon: IconName }[] = [
 
 /** แท็บที่มีให้เฉพาะเจ้าของเครื่อง — คนอื่นไม่เห็นแม้แต่ชื่อ */
 const OWNER_ONLY = new Set<Route>(["/beamng"]);
-/** แท็บเฉพาะ admin (ด่านจริงคือ requireAdmin ฝั่งเซิร์ฟเวอร์) */
-const ADMIN_ONLY = new Set<Route>(["/assistant"]);
 /** admin ทั่วไป (ไม่ใช่เจ้าของ) ไม่เห็น — mod เห็นตั้งค่าปกติ (ด่านจริงคือ requireSystemView) */
 const SYSTEM_ONLY = new Set<Route>(["/settings", "/assistant"]);
 
@@ -143,7 +141,6 @@ export function Shell({
   username,
   userId,
   isOwner,
-  isAdmin,
   logFilter,
   onPickLogFilter,
   teamBadge,
@@ -158,7 +155,6 @@ export function Shell({
   userId: string;
   /** เจ้าของเครื่องเท่านั้นที่เห็นแท็บบางอัน (ด่านจริงอยู่ฝั่งเซิร์ฟเวอร์) */
   isOwner: boolean;
-  isAdmin: boolean;
   logFilter: TreePick;
   onPickLogFilter: (f: TreePick) => void;
   /** แชททีม: ข้อความที่ยังไม่อ่าน (แดง) + มีคนแท็กเราไหม (มี @ นำหน้า) */
@@ -174,7 +170,6 @@ export function Shell({
   const tabs = TABS.filter(
     (t) =>
       (isOwner || !OWNER_ONLY.has(t.route)) &&
-      (isAdmin || !ADMIN_ONLY.has(t.route)) &&
       (seesSystem || !SYSTEM_ONLY.has(t.route)),
   );
   const activeIndex = Math.max(
