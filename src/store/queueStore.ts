@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import { db } from "./db.js";
 
 /**
@@ -25,6 +26,9 @@ export interface QueueRow {
   /** หมายเหตุของคนตัดสิน (ไม่บังคับ) */
   note: string | null;
 }
+
+/** เรื่องใหม่เข้าคิว ("added", row) — แจ้งเตือนมือถือฟังอยู่ (ต่อท้ายเรื่องเดิมไม่นับ) */
+export const queueEvents = new EventEmitter();
 
 /** ข้อความที่ผูกกับเรื่องหนึ่งได้มากสุด — spam รัว ๆ ไม่ควรทำให้แถวโตไม่จบ */
 const MAX_REFS = 50;
@@ -105,7 +109,10 @@ export function enqueue(item: {
     refs: item.ref ? JSON.stringify([item.ref]) : null,
     log_ids: item.logId ? JSON.stringify([item.logId]) : null,
   });
-  return Number(info.lastInsertRowid);
+  const id = Number(info.lastInsertRowid);
+  const row = getItem(id);
+  if (row) queueEvents.emit("added", row);
+  return id;
 }
 
 /** สรุปต่อหมวด: จำนวนที่ค้าง + เวลาของเรื่องที่รอนานที่สุด */

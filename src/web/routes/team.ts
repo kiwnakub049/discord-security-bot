@@ -10,6 +10,7 @@ import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { AccessResolver } from "../../auth/access.js";
 import { listStaff, notifyMentions } from "../../modules/teamChat.js";
+import { pushTeamMessage } from "../../modules/webPush.js";
 import {
   GENERAL,
   addFile,
@@ -180,6 +181,8 @@ export function teamRoutes(client: Client | undefined, access: AccessResolver): 
     res.json({ ok: true, message: msg });
     // DM คนที่ถูกแท็กหลังตอบแล้ว — ไม่ให้คนส่งรอ Discord
     void notifyMentions(client, msg, all);
+    // แจ้งเตือนมือถือ (คนที่เปิดรับไว้) — แท็ก/ส่วนตัว และห้องรวม
+    void pushTeamMessage(msg, all).catch((err) => console.error("push แชททีมไม่สำเร็จ:", err));
   });
 
   r.post("/api/team/read", (req: Request, res: Response) => {

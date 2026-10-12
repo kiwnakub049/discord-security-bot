@@ -30,6 +30,8 @@ import { adminRoutes } from "./routes/admin.js";
 import { sessionRoutes } from "./routes/sessions.js";
 import { aiRoutes } from "./routes/ai.js";
 import { teamRoutes } from "./routes/team.js";
+import { pushRoutes } from "./routes/push.js";
+import { initPush } from "../modules/webPush.js";
 import { chatRoutes } from "./routes/chat.js";
 import { queueRoutes } from "./routes/queue.js";
 import { beammpRoutes } from "./routes/beammp.js";
@@ -47,11 +49,24 @@ const uiDir = join(__dirname, "ui", "dist");
  *   เทส/npm run web ใส่ตัวอื่นเข้ามาแทนได้
  * opts.fetchImpl — ใช้แทน fetch ตอนคุยกับ Discord OAuth (เทสใส่ของปลอม)
  */
+/** ขนาดรูปเซิร์ฟที่ขอได้ (manifest ต้องการ 192/512) — Discord รับเฉพาะเลขยกกำลังสอง */
+function iconSize(raw: unknown): 64 | 128 | 256 | 512 | 1024 {
+  const n = Number(raw);
+  return n >= 1024 ? 1024 : n >= 512 ? 512 : n >= 192 ? 256 : n >= 128 ? 128 : n > 0 ? 64 : 256;
+}
+
 export function startWebServer(
   client?: Client,
-  opts: { access?: AccessResolver; fetchImpl?: typeof fetch } = {},
+  opts: { access?: AccessResolver; fetchImpl?: typeof fetch; pushSender?: Parameters<typeof initPush>[0]["sender"] } = {},
 ): Server | undefined {
   const access = opts.access ?? (client ? discordAccess(client) : noAccess);
+  // แจ้งเตือนมือถือ: ส่งเฉพาะคนที่ยังมีสิทธิ์ (ตัวเดียวกับด่านตรวจ)
+  // พังไม่ได้: push เป็นของเสริม ถ้าเริ่มไม่ได้ dashboard ต้องยังขึ้น
+  try {
+    initPush({ access, ...(opts.pushSender ? { sender: opts.pushSender } : {}) });
+  } catch (err) {
+    console.error("เริ่มระบบแจ้งเตือนมือถือไม่ได้:", err);
+  }
   if (!config.web.enabled) return undefined;
   if (!process.env.SESSION_SECRET) {
     console.error(
@@ -124,11 +139,23 @@ export function startWebServer(
    * เซิร์ฟไม่มีรูป / บอทยังไม่ต่อ Discord → ใช้ icon.svg เดิม
    * รูปเซิร์ฟเป็นของสาธารณะอยู่แล้ว เปิดให้ดูก่อน login ไม่ได้รั่วอะไร
    */
-  app.get("/server-icon", (_req: Request, res: Response) => {
+  /**
+   * service worker + manifest — ก่อน login เพราะเบราว์เซอร์ดึงสองไฟล์นี้เองแบบไม่แนบ cookie บางกรณี
+   * (manifest ไม่ส่ง cookie เป็นค่าเริ่มต้น) ไม่มีข้อมูลลับในไฟล์
+   */
+  app.get("/sw.js", (_req: Request, res: Response) => {
+    res.set({ "Cache-Control": "no-cache", "Service-Worker-Allowed": "/" });
+    res.sendFile(join(publicDir, "sw.js"));
+  });
+  app.get("/manifest.webmanifest", (_req: Request, res: Response) => {
+    res.type("application/manifest+json").set("Cache-Control", "public, max-age=3600");
+    res.sendFile(join(publicDir, "manifest.webmanifest"));
+  });
+  app.get("/server-icon", (req: Request, res: Response) => {
     // forceStatic: เซิร์ฟที่ตั้งรูปเคลื่อนไหว Discord ให้ .gif (~1 MB) — favicon/ไอคอนหน้าโฮมไม่ขึ้น
     // บังคับเป็น png ภาพนิ่งเสมอ
     const url = client
-      ? guildOf(client)?.iconURL({ extension: "png", size: 256, forceStatic: true })
+      ? guildOf(client)?.iconURL({ extension: "png", size: iconSize(req.query.size), forceStatic: true })
       : null;
     res.set("Cache-Control", "public, max-age=3600");
     res.redirect(302, url ?? "/icon.svg");
@@ -150,6 +177,7 @@ export function startWebServer(
   app.use(sessionRoutes(client));
   app.use(aiRoutes());
   app.use(teamRoutes(client, access)); // แชททีม admin/mod
+  app.use(pushRoutes()); // แจ้งเตือนมือถือ (Web Push)
   app.use(chatRoutes(client)); // เฉพาะ admin (requireAdmin อยู่ในนั้น)
   app.use(beammpRoutes(client)); // เห็นเฉพาะเจ้าของเครื่อง (requireOwner อยู่ในนั้น)
 

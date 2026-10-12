@@ -97,6 +97,20 @@ export function initDb(): void {
 
     -- key-value เล็ก ๆ ของบอท (เช่น message id ของสถานะเครื่องที่ส่งผ่าน webhook
     -- ไว้ "แก้ข้อความเดิม" ไม่สแปมห้อง — ต้องจำข้าม restart)
+    -- Web Push: หนึ่งแถว = หนึ่งเครื่อง/เบราว์เซอร์ที่กดรับแจ้งเตือน (คนเดียวมีได้หลายเครื่อง)
+    -- topics = JSON array ของเรื่องที่รับ ('queue' | 'mention' | 'general') · lang = ภาษาข้อความแจ้งเตือน
+    CREATE TABLE IF NOT EXISTS push_subs (
+      endpoint    TEXT PRIMARY KEY,
+      user_id     TEXT NOT NULL,
+      p256dh      TEXT NOT NULL,
+      auth        TEXT NOT NULL,
+      topics      TEXT NOT NULL,
+      lang        TEXT NOT NULL DEFAULT 'th',
+      created_at  INTEGER NOT NULL,
+      last_ok_at  INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_push_user ON push_subs(user_id);
+
     CREATE TABLE IF NOT EXISTS bot_kv (
       k TEXT PRIMARY KEY,
       v TEXT NOT NULL

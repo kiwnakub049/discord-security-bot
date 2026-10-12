@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { useRoute, type Route } from "./hooks/useRoute";
+import { ROUTES, useRoute, type Route } from "./hooks/useRoute";
+import { registerSW } from "./lib/push";
 import { useStream } from "./hooks/useStream";
 import { useFetch } from "./hooks/useFetch";
 import type { LogEntry } from "./lib/types";
@@ -20,6 +21,19 @@ const FILTER_KEY = "logs.filter.v4";
 
 export function App() {
   const [route, go] = useRoute();
+
+  // service worker: รับแจ้งเตือนมือถือ + กดแจ้งเตือนแล้วพามาหน้าที่เกี่ยว (sw.js ส่ง "navigate" มา)
+  useEffect(() => {
+    void registerSW();
+    const onMsg = (e: MessageEvent) => {
+      const url = (e.data as { type?: string; url?: string } | null)?.url;
+      if ((e.data as { type?: string })?.type === "navigate" && (ROUTES as readonly string[]).includes(url ?? "")) {
+        go(url as Route);
+      }
+    };
+    navigator.serviceWorker?.addEventListener("message", onMsg);
+    return () => navigator.serviceWorker?.removeEventListener("message", onMsg);
+  }, [go]);
   /**
    * เก็บ log ล่าสุดที่ไหลเข้ามาไว้ที่นี่แล้วส่งลงไปให้หน้า Logs
    *

@@ -1,0 +1,13 @@
+{
+  "name": "Undawn Dashboard",
+  "short_name": "Undawn",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f1726",
+  "theme_color": "#0f1726",
+  "icons": [
+    { "src": "/server-icon?size=256", "sizes": "256x256", "type": "image/png" },
+    { "src": "/server-icon?size=512", "sizes": "512x512", "type": "image/png" }
+  ]
+}

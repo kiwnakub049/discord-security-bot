@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { lang, setLang, t } from "../lib/i18n";
 import { Icon, type IconName } from "./Icon";
 import type { StreamState } from "../hooks/useStream";
@@ -6,11 +7,8 @@ import { type Route } from "../hooks/useRoute";
 import { useTheme } from "../hooks/useTheme";
 import { LogTree } from "./LogTree";
 import type { TreePick } from "../lib/logTree";
-import {
-  requestNotifyPermission,
-  setNotifyEnabled,
-  useNotifyEnabled,
-} from "../lib/notify";
+import { useNotifyEnabled } from "../lib/notify";
+import { NotifySheet } from "./NotifySheet";
 import { Avatar } from "./Avatar";
 
 const TABS: { route: Route; label: string; icon: IconName }[] = [
@@ -72,20 +70,18 @@ function LiveDot({ state }: { state: StreamState }) {
 }
 
 /** ปุ่มกระดิ่ง — เปิด/ปิดเสียง + แจ้งเตือนเดสก์ท็อป (toast ในแอปยังเด้งเสมอ) */
+/** กระดิ่ง = เปิดหน้าตั้งค่าการแจ้งเตือน (มือถือ/ตอนปิดเว็บ + เสียงในหน้าเว็บ) */
 function NotifyButton() {
   const enabled = useNotifyEnabled();
+  const [open, setOpen] = useState(false);
   return (
+    <>
     <button
       type="button"
-      onClick={() => {
-        const next = !enabled;
-        setNotifyEnabled(next);
-        // ขอสิทธิ์เดสก์ท็อปตอนเปิด (นี่คือ user gesture ที่เบราว์เซอร์ต้องการ)
-        if (next) requestNotifyPermission();
-      }}
-      title={enabled ? t("แจ้งเตือน: เปิด (กดเพื่อปิดเสียง/เดสก์ท็อป)") : t("แจ้งเตือน: ปิด")}
-      aria-label={enabled ? t("ปิดแจ้งเตือน") : t("เปิดแจ้งเตือน")}
-      aria-pressed={enabled}
+      onClick={() => setOpen(true)}
+      title={t("ตั้งค่าการแจ้งเตือน")}
+      aria-label={t("ตั้งค่าการแจ้งเตือน")}
+      aria-haspopup="dialog"
       className={`press rounded-md border border-line bg-surface p-2 ${enabled ? "text-accent" : "text-faint"}`}
     >
       {enabled ? (
@@ -102,6 +98,9 @@ function NotifyButton() {
         </svg>
       )}
     </button>
+    {/* portal: หัวเว็บมี backdrop-filter = position:fixed ข้างในจะติดอยู่ในหัว ไม่ลอยทับทั้งจอ */}
+    {createPortal(<NotifySheet open={open} onClose={() => setOpen(false)} />, document.body)}
+    </>
   );
 }
 

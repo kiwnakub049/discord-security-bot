@@ -6,6 +6,10 @@
  * ชื่อคน/หัวข้อเรื่อง/ข้อความจาก Discord ที่ปนมาในข้อความ = ข้อมูล ไม่แปล
  */
 export const EXACT: Record<string, string> = {
+  "ข้อมูลการสมัครรับแจ้งเตือนไม่ถูกต้อง": "Invalid notification subscription",
+  "เครื่องนี้ยังไม่ได้เปิดรับแจ้งเตือน": "Notifications aren't turned on for this device",
+  "ส่งแล้ว — ควรเด้งในไม่กี่วินาที": "Sent — it should pop up within a few seconds",
+  "ส่งไม่สำเร็จ — ลองปิดแล้วเปิดรับแจ้งเตือนใหม่": "Couldn't send — try turning notifications off and on again",
   "ไม่พบข้อความที่จะตอบกลับ": "The message you're replying to wasn't found",
   /* ---------- ทั่วไป ---------- */
   "ข้อมูลไม่ครบ": "Missing information",

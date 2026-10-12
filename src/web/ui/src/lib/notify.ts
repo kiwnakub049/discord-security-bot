@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { registerSW } from "./push";
 
 /**
  * การแจ้งเตือนแบบเรียลไทม์ — เปิด/ปิด "เสียง + แจ้งเตือนเดสก์ท็อป" (toast ในแอปเด้งเสมอ)
@@ -45,13 +46,23 @@ export function requestNotifyPermission(): void {
   }
 }
 
-/** เด้งแจ้งเตือนเดสก์ท็อป (เฉพาะเมื่อได้รับสิทธิ์แล้ว) */
+/**
+ * เด้งแจ้งเตือนระบบ (เฉพาะเมื่อได้รับสิทธิ์แล้ว)
+ * ผ่าน service worker ก่อน — Chrome บน Android ไม่ยอมให้ new Notification() (โยน error เงียบ ๆ)
+ */
 export function notifyDesktop(title: string, body: string): void {
   try {
-    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-      // tag เดียวกัน = การแจ้งเตือนใหม่ทับอันเก่า ไม่ถล่มหน้าจอ
-      new Notification(title, { body, tag: "sec-bot", icon: "/server-icon" });
-    }
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    // tag เดียวกัน = การแจ้งเตือนใหม่ทับอันเก่า ไม่ถล่มหน้าจอ
+    const opts = { body, tag: "sec-bot", icon: "/server-icon" };
+    void registerSW()
+      .then((reg) => {
+        if (reg) return reg.showNotification(title, opts);
+        new Notification(title, opts);
+      })
+      .catch(() => {
+        /* ข้าม */
+      });
   } catch {
     /* ข้าม */
   }
